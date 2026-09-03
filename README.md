@@ -70,7 +70,7 @@ npx wrangler deploy
       "args": [
         "-y",
         "mcp-remote",
-        "https://your-worker.your-subdomain.workers.dev/mcp"
+        "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
       ]
     }
   }
@@ -82,7 +82,7 @@ npx wrangler deploy
 import { PrayerReminderMiddleware } from './src/middleware/host-connector.ts';
 
 const prayerMiddleware = new PrayerReminderMiddleware({
-  workerBaseUrl: 'https://your-worker.your-subdomain.workers.dev',
+  workerBaseUrl: 'https://muslim-prayer-mcp.najetareqz.workers.dev',
   userId: 'user_123',
 });
 
