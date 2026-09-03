@@ -69,6 +69,39 @@ export default {
       });
     }
 
+    // Privacy Policy Endpoint (OpenAI Apps & Public Directories compliance)
+    if (url.pathname === '/privacy') {
+      return jsonResponse({
+        policy: 'Privacy Policy for Muslim Prayer Reminder MCP',
+        dataCollection: 'Zero PII collected or stored by default.',
+        geolocation: 'Coordinates are processed ephemerally and sanitized to 2 decimal places (city-level precision). No exact GPS tracks are retained.',
+        storage: 'User preferences (calculation method, madhab, notification window) are stored in Cloudflare KV strictly when explicitly submitted via configure_prayer_preferences.',
+        thirdPartySharing: 'None. All astronomical prayer calculations run locally at the edge using open mathematical formulas.',
+        retention: 'Ephemeral deduplication caches expire automatically within 24 hours.',
+        contact: 'https://github.com/tareq7/muslim-prayer-mcp',
+      });
+    }
+
+    // Terms of Service Endpoint
+    if (url.pathname === '/terms') {
+      return jsonResponse({
+        service: 'Muslim Prayer Reminder MCP',
+        license: 'MIT License',
+        accuracy: 'Prayer times are computed using standard astronomical algorithms (Adhan engine). Users should verify with local authorities for region-specific adjustments.',
+        availability: 'Provided as-is on Cloudflare Workers edge infrastructure with no uptime warranty.',
+        repository: 'https://github.com/tareq7/muslim-prayer-mcp',
+      });
+    }
+
+    // OpenAI Apps Challenge Verification Endpoint
+    if (url.pathname === '/.well-known/openai-apps-challenge') {
+      const token = (env as any).OPENAI_VERIFICATION_TOKEN || 'muslim-prayer-mcp-verified';
+      return new Response(token, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', ...CORS_HEADERS },
+      });
+    }
+
     const storage = new PrayerStorage(env.PRAYER_KV);
 
     // REST Fast Status Check Endpoint: /api/status

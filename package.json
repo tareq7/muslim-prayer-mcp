@@ -4,6 +4,16 @@
   "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers and MCP",
   "license": "MIT",
   "main": "dist/src/index.js",
+  "bin": {
+    "muslim-prayer-mcp": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE"
+  ],
   "type": "module",
   "scripts": {
     "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts"
