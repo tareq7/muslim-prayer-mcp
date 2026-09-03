@@ -1,0 +1,8 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "name": "muslim-prayer-mcp",
+  "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP and deterministic host middleware.",
+  "maintainers": [
+    "tareq7"
+  ]
+}
