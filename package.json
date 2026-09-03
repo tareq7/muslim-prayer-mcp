@@ -1,0 +1,21 @@
+{
+  "name": "muslim-prayer-mcp",
+  "version": "1.0.0",
+  "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers and MCP",
+  "main": "dist/src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "adhan": "^4.4.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  }
+}

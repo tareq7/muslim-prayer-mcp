@@ -1,0 +1,17 @@
+name = "muslim-prayer-mcp"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+DEFAULT_CALCULATION_METHOD = "UmmAlQura"
+DEFAULT_MADHAB = "Shafi"
+DEFAULT_REMINDER_MODE = "prayer_window"
+DEFAULT_EXACT_WINDOW_MINUTES = "20"
+DEFAULT_LOCALE = "en"
+
+[[kv_namespaces]]
+binding = "PRAYER_KV"
+id = "muslim_prayer_kv_id"
+preview_id = "muslim_prayer_kv_preview_id"
