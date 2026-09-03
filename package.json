@@ -2,6 +2,7 @@
   "name": "muslim-prayer-mcp",
   "version": "1.0.0",
   "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers and MCP",
+  "license": "MIT",
   "main": "dist/src/index.js",
   "type": "module",
   "scripts": {

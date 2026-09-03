@@ -139,4 +139,14 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.equal(typeof statusPayload.reminderDue, 'boolean');
     assert.ok(statusPayload.nextPrayer);
   });
+
+  it('GET /.well-known/mcp/server-card.json returns registry discovery card', async () => {
+    const req = new Request('http://localhost/.well-known/mcp/server-card.json', { method: 'GET' });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const card = (await res.json()) as any;
+    assert.equal(card.serverInfo.name, 'muslim-prayer-reminder');
+    assert.ok(Array.isArray(card.tools));
+    assert.equal(card.tools.length, 5);
+  });
 });

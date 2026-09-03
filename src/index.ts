@@ -51,6 +51,24 @@ export default {
       });
     }
 
+    // Static Server Card for MCP Registry Discovery (Smithery, Glama)
+    if (url.pathname === '/.well-known/mcp/server-card.json') {
+      return jsonResponse({
+        serverInfo: {
+          name: 'muslim-prayer-reminder',
+          version: '1.0.0',
+        },
+        description: 'Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP.',
+        tools: [
+          { name: 'get_prayer_status', description: 'Checks if an obligatory prayer is currently due.' },
+          { name: 'get_today_prayer_times', description: 'Retrieves today prayer timetable.' },
+          { name: 'get_next_prayer', description: 'Returns next prayer name and remaining countdown.' },
+          { name: 'configure_prayer_preferences', description: 'Configures calculation and reminder parameters.' },
+          { name: 'get_prayer_preferences', description: 'Inspects active user preferences.' },
+        ],
+      });
+    }
+
     const storage = new PrayerStorage(env.PRAYER_KV);
 
     // REST Fast Status Check Endpoint: /api/status
