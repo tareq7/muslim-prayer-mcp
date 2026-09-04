@@ -11,8 +11,8 @@ DEFAULT_REMINDER_MODE = "prayer_window"
 DEFAULT_EXACT_WINDOW_MINUTES = "20"
 DEFAULT_LOCALE = "en"
 
-# KV Binding PRAYER_KV can be bound via Cloudflare Dashboard -> Settings -> Bindings
-# or configured with a real namespace ID:
-# [[kv_namespaces]]
-# binding = "PRAYER_KV"
-# id = "<your-kv-namespace-id>"
+[[kv_namespaces]]
+binding = "PRAYER_KV"
+id = "d3d574ea73194f94b6b7dde2c89fda57"
+
+

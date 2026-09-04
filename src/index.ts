@@ -58,6 +58,8 @@ export default {
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
         docs: 'https://tareq7.github.io/muslim-prayer-mcp',
         timestamp: new Date().toISOString(),
+        hasKv: !!env.PRAYER_KV,
+        kvType: typeof env.PRAYER_KV,
       });
     }
 

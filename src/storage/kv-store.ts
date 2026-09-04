@@ -50,7 +50,14 @@ export class PrayerStorage {
   }
 
   async getUserPreferences(userId: string): Promise<UserPreferences | null> {
-    return (await this.kv.get(`pref:${userId}`, 'json')) as UserPreferences | null;
+    try {
+      const raw = await this.kv.get(`pref:${userId}`);
+      if (!raw) return null;
+      if (typeof raw === 'object') return raw as UserPreferences;
+      return JSON.parse(raw) as UserPreferences;
+    } catch {
+      return null;
+    }
   }
 
   async saveUserPreferences(prefs: UserPreferences): Promise<void> {
@@ -58,7 +65,14 @@ export class PrayerStorage {
   }
 
   async getCachedSchedule(userId: string, localDate: string): Promise<PrayerSchedule | null> {
-    return (await this.kv.get(`sched:${userId}:${localDate}`, 'json')) as PrayerSchedule | null;
+    try {
+      const raw = await this.kv.get(`sched:${userId}:${localDate}`);
+      if (!raw) return null;
+      if (typeof raw === 'object') return raw as PrayerSchedule;
+      return JSON.parse(raw) as PrayerSchedule;
+    } catch {
+      return null;
+    }
   }
 
   async saveCachedSchedule(userId: string, localDate: string, schedule: PrayerSchedule): Promise<void> {
