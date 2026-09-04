@@ -4,6 +4,8 @@ import {
   calculateDailySchedule,
   formatLocalTime,
   getLocalDateString,
+  getDefaultCalculationParameters,
+  resolveCalculationParameters,
 } from '../src/engine/calculator.ts';
 
 describe('Astronomical Prayer Calculation Suite', () => {
@@ -143,5 +145,107 @@ describe('Astronomical Prayer Calculation Suite', () => {
 
     assert.ok(sched.timesUtc.fajr, 'Fajr should resolve via high-latitude rule');
     assert.ok(sched.timesUtc.maghrib, 'Maghrib should resolve via high-latitude rule');
+  });
+
+  it('automatically resolves Palestinian Awqaf standard (Egyptian + offsets) for Gaza', () => {
+    const gazaLocation = {
+      latitude: 31.50,
+      longitude: 34.46,
+      timezone: 'Asia/Gaza',
+      source: 'explicit_request' as const,
+      isApproximated: true,
+    };
+
+    const resolved = resolveCalculationParameters(gazaLocation);
+    assert.equal(resolved.method, 'Egyptian');
+    assert.equal(resolved.madhab, 'Shafi');
+    assert.deepEqual(resolved.minuteAdjustments, { maghrib: 3, dhuhr: -1 });
+    assert.equal(resolved.isAutoResolved, true);
+    assert.ok(resolved.authorityDescription.includes('Palestinian Ministry of Awqaf'));
+
+    // Verify 100% exact match against official Gaza printed calendar on 2026-09-04
+    const gazaSchedule = calculateDailySchedule({
+      latitude: gazaLocation.latitude,
+      longitude: gazaLocation.longitude,
+      date: new Date('2026-09-04T12:00:00Z'),
+      timezone: gazaLocation.timezone,
+      method: resolved.method,
+      madhab: resolved.madhab,
+      highLatitudeRule: resolved.highLatitudeRule,
+      minuteAdjustments: resolved.minuteAdjustments,
+      authorityDescription: resolved.authorityDescription,
+    });
+
+    assert.equal(gazaSchedule.timesLocal.Fajr, '04:49');
+    assert.equal(gazaSchedule.timesLocal.Sunrise, '06:20');
+    assert.equal(gazaSchedule.timesLocal.Dhuhr, '12:41');
+    assert.equal(gazaSchedule.timesLocal.Asr, '16:15');
+    assert.equal(gazaSchedule.timesLocal.Maghrib, '19:05');
+    assert.equal(gazaSchedule.timesLocal.Isha, '20:23');
+  });
+
+  it('automatically resolves regional authorities worldwide', () => {
+    // Saudi Arabia -> UmmAlQura
+    const sa = getDefaultCalculationParameters({ country: 'SA', timezone: 'Asia/Riyadh' });
+    assert.equal(sa.method, 'UmmAlQura');
+    assert.equal(sa.madhab, 'Shafi');
+
+    // UAE -> Dubai
+    const uae = getDefaultCalculationParameters({ country: 'AE', timezone: 'Asia/Dubai' });
+    assert.equal(uae.method, 'Dubai');
+
+    // Qatar -> Qatar
+    const qa = getDefaultCalculationParameters({ country: 'QA', timezone: 'Asia/Qatar' });
+    assert.equal(qa.method, 'Qatar');
+
+    // Kuwait -> Kuwait
+    const kw = getDefaultCalculationParameters({ country: 'KW', timezone: 'Asia/Kuwait' });
+    assert.equal(kw.method, 'Kuwait');
+
+    // Turkey -> Turkey (Diyanet) + Hanafi
+    const tr = getDefaultCalculationParameters({ country: 'TR', timezone: 'Europe/Istanbul' });
+    assert.equal(tr.method, 'Turkey');
+    assert.equal(tr.madhab, 'Hanafi');
+
+    // Pakistan -> Karachi + Hanafi
+    const pk = getDefaultCalculationParameters({ country: 'PK', timezone: 'Asia/Karachi' });
+    assert.equal(pk.method, 'Karachi');
+    assert.equal(pk.madhab, 'Hanafi');
+
+    // USA -> NorthAmerica (ISNA)
+    const us = getDefaultCalculationParameters({ country: 'US', timezone: 'America/New_York' });
+    assert.equal(us.method, 'NorthAmerica');
+
+    // Singapore -> Singapore (MUIS)
+    const sg = getDefaultCalculationParameters({ country: 'SG', timezone: 'Asia/Singapore' });
+    assert.equal(sg.method, 'Singapore');
+
+    // UK / Europe -> MuslimWorldLeague (MWL)
+    const gb = getDefaultCalculationParameters({ country: 'GB', timezone: 'Europe/London' });
+    assert.equal(gb.method, 'MuslimWorldLeague');
+  });
+
+  it('honors explicit user override over automatic location defaults', () => {
+    const gazaLocation = {
+      latitude: 31.50,
+      longitude: 34.46,
+      timezone: 'Asia/Gaza',
+      source: 'explicit_request' as const,
+      isApproximated: true,
+    };
+
+    const userPrefs = {
+      calculationMethod: 'Karachi' as const,
+      madhab: 'Hanafi' as const,
+      minuteAdjustments: { fajr: 5 },
+    };
+
+    const resolved = resolveCalculationParameters(gazaLocation, userPrefs);
+    assert.equal(resolved.method, 'Karachi');
+    assert.equal(resolved.madhab, 'Hanafi');
+    assert.equal(resolved.isAutoResolved, false);
+    // User custom minute adjustment merged on top of location offsets
+    assert.equal(resolved.minuteAdjustments.fajr, 5);
+    assert.equal(resolved.minuteAdjustments.maghrib, 3);
   });
 });

@@ -46,15 +46,15 @@ export interface UserPreferences {
   };
   fixedCity?: string;
   timezone?: string;
-  calculationMethod: CalculationMethodName;
-  madhab: MadhabName;
-  highLatitudeRule: HighLatitudeRuleName;
-  reminderMode: ReminderMode;
-  exactWindowMinutes: number;
-  locale: Locale;
-  minuteAdjustments: MinuteAdjustments;
-  enabled: boolean;
-  updatedAtUtc: string;
+  calculationMethod?: CalculationMethodName;
+  madhab?: MadhabName;
+  highLatitudeRule?: HighLatitudeRuleName;
+  reminderMode?: ReminderMode;
+  exactWindowMinutes?: number;
+  locale?: Locale;
+  minuteAdjustments?: MinuteAdjustments;
+  enabled?: boolean;
+  updatedAtUtc?: string;
 }
 
 export interface ResolvedLocation {
@@ -85,6 +85,8 @@ export interface PrayerSchedule {
   };
   calculationMethod: CalculationMethodName;
   madhab: MadhabName;
+  minuteAdjustments?: MinuteAdjustments;
+  authorityDescription?: string;
   timesUtc: PrayerTimesUtc;
   timesLocal: Record<PrayerName, string>; // formatted local HH:mm
 }
@@ -100,6 +102,8 @@ export interface PrayerStatusResult {
   timezone: string;
   calculationMethod: CalculationMethodName;
   madhab: MadhabName;
+  minuteAdjustments?: MinuteAdjustments;
+  authorityDescription?: string;
   reminderText?: string;
   dedupeKey?: string;
   locationSource: ResolvedLocation['source'];

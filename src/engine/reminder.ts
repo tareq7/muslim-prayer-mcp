@@ -1,7 +1,9 @@
 import type {
   CalculationMethodName,
+  HighLatitudeRuleName,
   Locale,
   MadhabName,
+  MinuteAdjustments,
   ObligatoryPrayerName,
   PrayerName,
   PrayerSchedule,
@@ -31,6 +33,9 @@ export interface EvaluateStatusOptions {
   location: ResolvedLocation;
   method?: CalculationMethodName;
   madhab?: MadhabName;
+  highLatitudeRule?: HighLatitudeRuleName;
+  minuteAdjustments?: MinuteAdjustments;
+  authorityDescription?: string;
   reminderMode?: ReminderMode;
   exactWindowMinutes?: number;
   locale?: Locale;
@@ -44,6 +49,9 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     location,
     method = 'UmmAlQura',
     madhab = 'Shafi',
+    highLatitudeRule = 'MiddleOfTheNight',
+    minuteAdjustments = {},
+    authorityDescription,
     reminderMode = 'prayer_window',
     exactWindowMinutes = 20,
     locale = 'en',
@@ -61,6 +69,9 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     timezone: location.timezone,
     method,
     madhab,
+    highLatitudeRule,
+    minuteAdjustments,
+    authorityDescription,
   });
 
   const nowMs = now.getTime();
@@ -88,6 +99,9 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
       timezone: location.timezone,
       method,
       madhab,
+      highLatitudeRule,
+      minuteAdjustments,
+      authorityDescription,
     });
     activePrayer = 'Isha';
     activeStartMs = new Date(ySchedule.timesUtc.isha).getTime();
@@ -138,6 +152,9 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
       timezone: location.timezone,
       method,
       madhab,
+      highLatitudeRule,
+      minuteAdjustments,
+      authorityDescription,
     });
     activePrayer = 'Isha';
     activeStartMs = ishaMs;
@@ -155,6 +172,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     timezone: location.timezone,
     calculationMethod: method,
     madhab,
+    minuteAdjustments,
+    authorityDescription,
     locationSource: location.source,
   };
 

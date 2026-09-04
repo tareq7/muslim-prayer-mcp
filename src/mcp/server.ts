@@ -6,7 +6,11 @@ import {
   GetPrayerStatusInputSchema,
   GetTodayPrayerTimesInputSchema,
 } from './schemas.ts';
-import { calculateDailySchedule, formatLocalTime } from '../engine/calculator.ts';
+import {
+  calculateDailySchedule,
+  formatLocalTime,
+  resolveCalculationParameters,
+} from '../engine/calculator.ts';
 import { evaluatePrayerStatus } from '../engine/reminder.ts';
 import { resolveLocation } from '../location/resolver.ts';
 import { PrayerStorage } from '../storage/kv-store.ts';
@@ -24,7 +28,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     {
       title: 'Check Muslim Prayer Due Status',
       description:
-        'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. Read-only operation; does not modify state.',
+        'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. Automatically resolves local authority calculation method and adjustments if not overridden.',
       inputSchema: GetPrayerStatusInputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -44,11 +48,21 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         userPrefs,
       });
 
+      const params = resolveCalculationParameters(
+        location,
+        userPrefs,
+        args.calculationMethod,
+        args.madhab
+      );
+
       const status = await evaluatePrayerStatus({
         now: new Date(),
         location,
-        method: userPrefs?.calculationMethod || 'UmmAlQura',
-        madhab: userPrefs?.madhab || 'Shafi',
+        method: params.method,
+        madhab: params.madhab,
+        highLatitudeRule: params.highLatitudeRule,
+        minuteAdjustments: params.minuteAdjustments,
+        authorityDescription: params.authorityDescription,
         reminderMode: userPrefs?.reminderMode || 'prayer_window',
         exactWindowMinutes: userPrefs?.exactWindowMinutes || 20,
         locale: userPrefs?.locale || 'en',
@@ -77,7 +91,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     {
       title: 'Get Full Daily Prayer Timetable',
       description:
-        'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. Pure astronomical calculation; read-only operation.',
+        'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. Pure astronomical calculation with automatic local calculation authority defaults.',
       inputSchema: GetTodayPrayerTimesInputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -99,15 +113,23 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
 
       const targetDate = args.date ? new Date(`${args.date}T12:00:00Z`) : new Date();
 
+      const params = resolveCalculationParameters(
+        location,
+        userPrefs,
+        args.calculationMethod,
+        args.madhab
+      );
+
       const schedule = calculateDailySchedule({
         latitude: location.latitude,
         longitude: location.longitude,
         date: targetDate,
         timezone: location.timezone,
-        method: userPrefs?.calculationMethod || 'UmmAlQura',
-        madhab: userPrefs?.madhab || 'Shafi',
-        highLatitudeRule: userPrefs?.highLatitudeRule || 'MiddleOfTheNight',
-        minuteAdjustments: userPrefs?.minuteAdjustments,
+        method: params.method,
+        madhab: params.madhab,
+        highLatitudeRule: params.highLatitudeRule,
+        minuteAdjustments: params.minuteAdjustments,
+        authorityDescription: params.authorityDescription,
       });
 
       return {
@@ -127,7 +149,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     {
       title: 'Get Upcoming Prayer and Countdown',
       description:
-        'Returns the immediate next prayer name, scheduled time, and remaining countdown in minutes. Read-only operation; does not modify state.',
+        'Returns the immediate next prayer name, scheduled time, authority calculation method, and remaining countdown in minutes. Read-only operation.',
       inputSchema: GetNextPrayerInputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -148,11 +170,21 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       });
 
       const now = new Date();
+      const params = resolveCalculationParameters(
+        location,
+        userPrefs,
+        args.calculationMethod,
+        args.madhab
+      );
+
       const status = await evaluatePrayerStatus({
         now,
         location,
-        method: userPrefs?.calculationMethod || 'UmmAlQura',
-        madhab: userPrefs?.madhab || 'Shafi',
+        method: params.method,
+        madhab: params.madhab,
+        highLatitudeRule: params.highLatitudeRule,
+        minuteAdjustments: params.minuteAdjustments,
+        authorityDescription: params.authorityDescription,
         locale: userPrefs?.locale || 'en',
         userId,
       });
@@ -167,6 +199,10 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         nextPrayerAtUtc: status.nextPrayerAtUtc,
         nextPrayerLocalTime: formatLocalTime(nextPrayerDate, status.timezone),
         remainingMinutes,
+        calculationMethod: status.calculationMethod,
+        madhab: status.madhab,
+        authorityDescription: status.authorityDescription,
+        minuteAdjustments: status.minuteAdjustments,
         locationSource: status.locationSource,
       };
 

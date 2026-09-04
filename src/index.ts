@@ -2,7 +2,7 @@ import { createPrayerMcpServer } from './mcp/server.ts';
 import { PrayerStorage } from './storage/kv-store.ts';
 import { resolveLocation } from './location/resolver.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
-import { calculateDailySchedule } from './engine/calculator.ts';
+import { calculateDailySchedule, resolveCalculationParameters } from './engine/calculator.ts';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { CalculationMethodName, MadhabName, UserPreferences } from './engine/types.ts';
 
@@ -158,8 +158,7 @@ export default {
         cf: (request as any).cf,
       });
 
-      const method = userPrefs?.calculationMethod || env.DEFAULT_CALCULATION_METHOD || 'UmmAlQura';
-      const madhab = userPrefs?.madhab || env.DEFAULT_MADHAB || 'Shafi';
+      const params = resolveCalculationParameters(location, userPrefs);
       const reminderMode = userPrefs?.reminderMode || (env.DEFAULT_REMINDER_MODE as any) || 'prayer_window';
       const exactWindowMinutes = userPrefs?.exactWindowMinutes || parseInt(env.DEFAULT_EXACT_WINDOW_MINUTES || '20', 10);
       const locale = userPrefs?.locale || (env.DEFAULT_LOCALE as any) || 'en';
@@ -167,8 +166,11 @@ export default {
       const status = await evaluatePrayerStatus({
         now: new Date(),
         location,
-        method,
-        madhab,
+        method: params.method,
+        madhab: params.madhab,
+        highLatitudeRule: params.highLatitudeRule,
+        minuteAdjustments: params.minuteAdjustments,
+        authorityDescription: params.authorityDescription,
         reminderMode,
         exactWindowMinutes,
         locale,
@@ -196,15 +198,18 @@ export default {
       });
 
       const targetDate = dateParam ? new Date(`${dateParam}T12:00:00Z`) : new Date();
+      const params = resolveCalculationParameters(location, userPrefs);
 
       const schedule = calculateDailySchedule({
         latitude: location.latitude,
         longitude: location.longitude,
         date: targetDate,
         timezone: location.timezone,
-        method: userPrefs?.calculationMethod || 'UmmAlQura',
-        madhab: userPrefs?.madhab || 'Shafi',
-        minuteAdjustments: userPrefs?.minuteAdjustments,
+        method: params.method,
+        madhab: params.madhab,
+        highLatitudeRule: params.highLatitudeRule,
+        minuteAdjustments: params.minuteAdjustments,
+        authorityDescription: params.authorityDescription,
       });
 
       return jsonResponse(schedule);

@@ -140,6 +140,46 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.ok(statusPayload.nextPrayer);
   });
 
+  it('POST /mcp auto-resolves Palestinian Awqaf calculation method and offsets for Gaza coordinates', async () => {
+    const rpcCall = {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/call',
+      params: {
+        name: 'get_today_prayer_times',
+        arguments: {
+          latitude: 31.50,
+          longitude: 34.46,
+          date: '2026-09-04',
+        },
+      },
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcCall),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.id, 3);
+    const schedule = JSON.parse(rpcRes.result.content[0].text);
+
+    assert.equal(schedule.calculationMethod, 'Egyptian');
+    assert.equal(schedule.timesLocal.Fajr, '04:49');
+    assert.equal(schedule.timesLocal.Sunrise, '06:20');
+    assert.equal(schedule.timesLocal.Dhuhr, '12:41');
+    assert.equal(schedule.timesLocal.Asr, '16:15');
+    assert.equal(schedule.timesLocal.Maghrib, '19:05');
+    assert.equal(schedule.timesLocal.Isha, '20:23');
+    assert.ok(schedule.authorityDescription.includes('Palestinian Ministry of Awqaf'));
+  });
+
   it('GET /.well-known/mcp/server-card.json returns registry discovery card', async () => {
     const req = new Request('http://localhost/.well-known/mcp/server-card.json', { method: 'GET' });
     const res = await worker.fetch(req, {});

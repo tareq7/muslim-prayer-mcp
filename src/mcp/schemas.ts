@@ -43,6 +43,8 @@ export const GetPrayerStatusInputSchema = z.object({
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
   timezone: z.string().optional().describe('Optional IANA timezone override (e.g. Asia/Riyadh)'),
+  calculationMethod: CalculationMethodEnum.optional().describe('Optional calculation authority override (auto-resolved from location by default)'),
+  madhab: MadhabEnum.optional().describe('Optional Asr shadow jurisprudence override (Shafi or Hanafi)'),
 });
 
 export const GetTodayPrayerTimesInputSchema = z.object({
@@ -51,6 +53,8 @@ export const GetTodayPrayerTimesInputSchema = z.object({
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
   timezone: z.string().optional().describe('Optional IANA timezone override'),
+  calculationMethod: CalculationMethodEnum.optional().describe('Optional calculation authority override (auto-resolved from location by default)'),
+  madhab: MadhabEnum.optional().describe('Optional Asr shadow jurisprudence override (Shafi or Hanafi)'),
 });
 
 export const GetNextPrayerInputSchema = z.object({
@@ -58,6 +62,8 @@ export const GetNextPrayerInputSchema = z.object({
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
   timezone: z.string().optional().describe('Optional IANA timezone override'),
+  calculationMethod: CalculationMethodEnum.optional().describe('Optional calculation authority override (auto-resolved from location by default)'),
+  madhab: MadhabEnum.optional().describe('Optional Asr shadow jurisprudence override (Shafi or Hanafi)'),
 });
 
 export const ConfigurePrayerPreferencesInputSchema = z.object({
