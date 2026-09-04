@@ -76,6 +76,14 @@ export interface PrayerTimesUtc {
   isha: string;
 }
 
+export interface AuthorityNotice {
+  method: CalculationMethodName;
+  madhab: MadhabName;
+  authorityDescription: string;
+  selectionReason: string;
+  requiredDisplayInstruction: string;
+}
+
 export interface PrayerSchedule {
   localDate: string; // YYYY-MM-DD in target timezone
   timezone: string;
@@ -87,6 +95,8 @@ export interface PrayerSchedule {
   madhab: MadhabName;
   minuteAdjustments?: MinuteAdjustments;
   authorityDescription?: string;
+  selectionReason?: string;
+  authorityNotice?: AuthorityNotice;
   timesUtc: PrayerTimesUtc;
   timesLocal: Record<PrayerName, string>; // formatted local HH:mm
 }
@@ -104,6 +114,8 @@ export interface PrayerStatusResult {
   madhab: MadhabName;
   minuteAdjustments?: MinuteAdjustments;
   authorityDescription?: string;
+  selectionReason?: string;
+  authorityNotice?: AuthorityNotice;
   reminderText?: string;
   dedupeKey?: string;
   locationSource: ResolvedLocation['source'];

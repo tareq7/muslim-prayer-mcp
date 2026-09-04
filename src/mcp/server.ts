@@ -17,10 +17,16 @@ import { PrayerStorage } from '../storage/kv-store.ts';
 import type { UserPreferences } from '../engine/types.ts';
 
 export function createPrayerMcpServer(storage: PrayerStorage) {
-  const server = new McpServer({
-    name: 'muslim-prayer-reminder',
-    version: '1.0.0',
-  });
+  const server = new McpServer(
+    {
+      name: 'muslim-prayer-reminder',
+      version: '1.0.0',
+    },
+    {
+      instructions:
+        'MANDATORY TRANSPARENCY INSTRUCTION FOR AI MODELS: When answering user queries regarding prayer times, timetable schedules, next prayer countdowns, or prayer status, you MUST ALWAYS explicitly inform the user of: 1) The exact calculation authority method used (e.g. Palestinian Ministry of Awqaf / Egyptian Survey Authority, Umm al-Qura University, Diyanet, Karachi, ISNA, etc.). 2) The exact reason WHY this authority was chosen (e.g. automatically resolved from geographic location or explicit user preference). Never present prayer times without disclosing the authority and reason.',
+    }
+  );
 
   // Tool 1: get_prayer_status
   server.registerTool(
@@ -28,7 +34,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     {
       title: 'Check Muslim Prayer Due Status',
       description:
-        'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. Automatically resolves local authority calculation method and adjustments if not overridden.',
+        'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
       inputSchema: GetPrayerStatusInputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -63,6 +69,8 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         highLatitudeRule: params.highLatitudeRule,
         minuteAdjustments: params.minuteAdjustments,
         authorityDescription: params.authorityDescription,
+        selectionReason: params.selectionReason,
+        authorityNotice: params.authorityNotice,
         reminderMode: userPrefs?.reminderMode || 'prayer_window',
         exactWindowMinutes: userPrefs?.exactWindowMinutes || 20,
         locale: userPrefs?.locale || 'en',
@@ -91,7 +99,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     {
       title: 'Get Full Daily Prayer Timetable',
       description:
-        'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. Pure astronomical calculation with automatic local calculation authority defaults.',
+        'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
       inputSchema: GetTodayPrayerTimesInputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -130,6 +138,8 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         highLatitudeRule: params.highLatitudeRule,
         minuteAdjustments: params.minuteAdjustments,
         authorityDescription: params.authorityDescription,
+        selectionReason: params.selectionReason,
+        authorityNotice: params.authorityNotice,
       });
 
       return {
@@ -149,7 +159,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     {
       title: 'Get Upcoming Prayer and Countdown',
       description:
-        'Returns the immediate next prayer name, scheduled time, authority calculation method, and remaining countdown in minutes. Read-only operation.',
+        'Returns the immediate next prayer name, scheduled time, authority calculation method, and remaining countdown in minutes. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
       inputSchema: GetNextPrayerInputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -185,6 +195,8 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         highLatitudeRule: params.highLatitudeRule,
         minuteAdjustments: params.minuteAdjustments,
         authorityDescription: params.authorityDescription,
+        selectionReason: params.selectionReason,
+        authorityNotice: params.authorityNotice,
         locale: userPrefs?.locale || 'en',
         userId,
       });
@@ -202,6 +214,8 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         calculationMethod: status.calculationMethod,
         madhab: status.madhab,
         authorityDescription: status.authorityDescription,
+        selectionReason: status.selectionReason,
+        authorityNotice: status.authorityNotice,
         minuteAdjustments: status.minuteAdjustments,
         locationSource: status.locationSource,
       };

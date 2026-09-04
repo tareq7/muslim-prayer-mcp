@@ -1,4 +1,5 @@
 import type {
+  AuthorityNotice,
   CalculationMethodName,
   HighLatitudeRuleName,
   Locale,
@@ -36,6 +37,8 @@ export interface EvaluateStatusOptions {
   highLatitudeRule?: HighLatitudeRuleName;
   minuteAdjustments?: MinuteAdjustments;
   authorityDescription?: string;
+  selectionReason?: string;
+  authorityNotice?: AuthorityNotice;
   reminderMode?: ReminderMode;
   exactWindowMinutes?: number;
   locale?: Locale;
@@ -52,6 +55,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     highLatitudeRule = 'MiddleOfTheNight',
     minuteAdjustments = {},
     authorityDescription,
+    selectionReason,
+    authorityNotice,
     reminderMode = 'prayer_window',
     exactWindowMinutes = 20,
     locale = 'en',
@@ -72,6 +77,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     highLatitudeRule,
     minuteAdjustments,
     authorityDescription,
+    selectionReason,
+    authorityNotice,
   });
 
   const nowMs = now.getTime();
@@ -102,6 +109,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
       highLatitudeRule,
       minuteAdjustments,
       authorityDescription,
+      selectionReason,
+      authorityNotice,
     });
     activePrayer = 'Isha';
     activeStartMs = new Date(ySchedule.timesUtc.isha).getTime();
@@ -155,6 +164,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
       highLatitudeRule,
       minuteAdjustments,
       authorityDescription,
+      selectionReason,
+      authorityNotice,
     });
     activePrayer = 'Isha';
     activeStartMs = ishaMs;
@@ -174,6 +185,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     madhab,
     minuteAdjustments,
     authorityDescription,
+    selectionReason,
+    authorityNotice,
     locationSource: location.source,
   };
 

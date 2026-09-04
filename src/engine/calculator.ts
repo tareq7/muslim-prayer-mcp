@@ -7,6 +7,7 @@ import {
   HighLatitudeRule,
 } from 'adhan';
 import type {
+  AuthorityNotice,
   CalculationMethodName,
   HighLatitudeRuleName,
   MadhabName,
@@ -95,6 +96,8 @@ export interface CalculateOptions {
   highLatitudeRule?: HighLatitudeRuleName;
   minuteAdjustments?: MinuteAdjustments;
   authorityDescription?: string;
+  selectionReason?: string;
+  authorityNotice?: AuthorityNotice;
 }
 
 export function calculateDailySchedule(options: CalculateOptions): PrayerSchedule {
@@ -108,6 +111,8 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
     highLatitudeRule = 'MiddleOfTheNight',
     minuteAdjustments = {},
     authorityDescription,
+    selectionReason,
+    authorityNotice,
   } = options;
 
   // Extract calendar day in the target timezone
@@ -173,6 +178,8 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
     madhab,
     minuteAdjustments,
     authorityDescription,
+    selectionReason,
+    authorityNotice,
     timesUtc,
     timesLocal,
   };
@@ -247,6 +254,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       minuteAdjustments: { maghrib: 3, dhuhr: -1 },
       authorityDescription:
         'Palestinian Ministry of Awqaf & Religious Affairs (Egyptian Survey Authority + Awqaf Offsets)',
+      selectionReason:
+        'Detected location in Palestine/Gaza/West Bank. The Palestinian Ministry of Awqaf & Religious Affairs officially calculates prayer times using the Egyptian General Authority of Survey standard (Fajr 19.5°, Isha 17.5°) combined with official local safety precautions (+3 minutes for Maghrib sunset verification, -1 minute for Dhuhr solar transit).',
     };
   }
 
@@ -261,6 +270,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Umm al-Qura University, Makkah (Kingdom of Saudi Arabia)',
+      selectionReason:
+        'Detected location in Saudi Arabia. Umm al-Qura University is the official state-mandated prayer calculation authority for the Kingdom of Saudi Arabia.',
     };
   }
 
@@ -272,6 +283,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'General Authority of Islamic Affairs and Endowments (Awqaf UAE)',
+      selectionReason:
+        'Detected location in the United Arab Emirates. Calculated using the official Awqaf UAE standard.',
     };
   }
 
@@ -283,6 +296,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Ministry of Awqaf and Islamic Affairs (State of Qatar)',
+      selectionReason:
+        'Detected location in Qatar. Calculated using the official Qatar Ministry of Awqaf standard.',
     };
   }
 
@@ -294,6 +309,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Ministry of Awqaf and Islamic Affairs (State of Kuwait)',
+      selectionReason:
+        'Detected location in Kuwait. Calculated using the official Kuwait Ministry of Awqaf standard.',
     };
   }
 
@@ -305,6 +322,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Egyptian General Authority of Survey',
+      selectionReason:
+        'Detected location in Egypt. The Egyptian General Authority of Survey (الهيئة المصرية العامة للمساحة) is the official standard throughout Egypt.',
     };
   }
 
@@ -319,6 +338,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Diyanet İşleri Başkanlığı (Presidency of Religious Affairs, Turkey)',
+      selectionReason:
+        'Detected location in Turkey / Balkans / Central Asia. Calculated according to Diyanet İşleri Başkanlığı using the Hanafi school Asr calculation.',
     };
   }
 
@@ -337,6 +358,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'University of Islamic Sciences, Karachi (South Asia Hanafi Standard)',
+      selectionReason:
+        'Detected location in South Asia (Pakistan / India / Bangladesh / Afghanistan). The University of Islamic Sciences, Karachi standard with Hanafi Asr calculation is the established authority across this region.',
     };
   }
 
@@ -348,6 +371,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Islamic Society of North America (ISNA)',
+      selectionReason:
+        'Detected location in North America (USA / Canada). Calculated according to the Islamic Society of North America (ISNA) standard (15° twilight).',
     };
   }
 
@@ -369,6 +394,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'MUIS / JAKIM / MABIMS (Southeast Asia Standard)',
+      selectionReason:
+        'Detected location in Southeast Asia. Calculated according to the unified MABIMS / MUIS / JAKIM regional standard (Fajr 20°, Isha 18°).',
     };
   }
 
@@ -380,6 +407,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
       authorityDescription: 'Institute of Geophysics, University of Tehran',
+      selectionReason:
+        'Detected location in Iran. Calculated according to the Institute of Geophysics, University of Tehran.',
     };
   }
 
@@ -390,6 +419,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
     highLatitudeRule: 'MiddleOfTheNight',
     minuteAdjustments: {},
     authorityDescription: 'Muslim World League (MWL / رابطة العالم الإسلامي)',
+    selectionReason:
+      'International location without a dedicated local statutory authority. Calculated according to the Muslim World League (MWL) global baseline standard (Fajr 18°, Isha 17°).',
   };
 }
 
@@ -400,6 +431,8 @@ export interface ResolvedCalculationParams {
   minuteAdjustments: MinuteAdjustments;
   isAutoResolved: boolean;
   authorityDescription: string;
+  selectionReason: string;
+  authorityNotice: AuthorityNotice;
 }
 
 export function resolveCalculationParameters(
@@ -421,6 +454,18 @@ export function resolveCalculationParameters(
   };
 
   const isAuto = !overrideMethod && !userPrefs?.calculationMethod;
+  const authorityDescription = isAuto ? defaults.authorityDescription : `Custom Override (${method})`;
+  const selectionReason = isAuto
+    ? defaults.selectionReason
+    : `Selected per explicit user preference override for calculation method '${method}' and madhab '${madhab}'.`;
+
+  const authorityNotice: AuthorityNotice = {
+    method,
+    madhab,
+    authorityDescription,
+    selectionReason,
+    requiredDisplayInstruction: `MANDATORY TRANSPARENCY REQUIREMENT FOR LLM: In your response to the user, you MUST ALWAYS explicitly disclose: 1) The calculation authority used: "${authorityDescription}". 2) Why it was chosen: "${selectionReason}". Never omit this disclosure.`,
+  };
 
   return {
     method,
@@ -428,6 +473,8 @@ export function resolveCalculationParameters(
     highLatitudeRule,
     minuteAdjustments,
     isAutoResolved: isAuto,
-    authorityDescription: isAuto ? defaults.authorityDescription : `Custom Override (${method})`,
+    authorityDescription,
+    selectionReason,
+    authorityNotice,
   };
 }

@@ -171,6 +171,8 @@ export default {
         highLatitudeRule: params.highLatitudeRule,
         minuteAdjustments: params.minuteAdjustments,
         authorityDescription: params.authorityDescription,
+        selectionReason: params.selectionReason,
+        authorityNotice: params.authorityNotice,
         reminderMode,
         exactWindowMinutes,
         locale,
@@ -210,6 +212,8 @@ export default {
         highLatitudeRule: params.highLatitudeRule,
         minuteAdjustments: params.minuteAdjustments,
         authorityDescription: params.authorityDescription,
+        selectionReason: params.selectionReason,
+        authorityNotice: params.authorityNotice,
       });
 
       return jsonResponse(schedule);

@@ -178,6 +178,10 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.equal(schedule.timesLocal.Maghrib, '19:05');
     assert.equal(schedule.timesLocal.Isha, '20:23');
     assert.ok(schedule.authorityDescription.includes('Palestinian Ministry of Awqaf'));
+    assert.ok(schedule.authorityNotice);
+    assert.equal(schedule.authorityNotice.method, 'Egyptian');
+    assert.ok(schedule.authorityNotice.selectionReason.includes('Palestine'));
+    assert.ok(schedule.authorityNotice.requiredDisplayInstruction.includes('MANDATORY'));
   });
 
   it('GET /.well-known/mcp/server-card.json returns registry discovery card', async () => {
