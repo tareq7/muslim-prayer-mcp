@@ -4,6 +4,7 @@
 
 # Muslim Prayer Reminder System (Cloudflare Remote MCP + Hybrid Middleware)
 
+[![npm version](https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm)](https://www.npmjs.com/package/muslim-prayer-mcp)
 [![CI](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-blue)](https://modelcontextprotocol.io)
@@ -65,17 +66,24 @@ npx wrangler deploy
 
 ## 🔌 Connecting to AI Hosts
 
-### Claude Desktop / Cursor (`claude_desktop_config.json`)
+### Option 1: Local Stdio via NPX (Claude Desktop, Cursor, Windsurf, VS Code)
 ```json
 {
   "mcpServers": {
     "muslim-prayer": {
       "command": "npx",
-      "args": [
-        "-y",
-        "mcp-remote",
-        "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
-      ]
+      "args": ["-y", "muslim-prayer-mcp"]
+    }
+  }
+}
+```
+
+### Option 2: Remote Streamable HTTP (Cloudflare Workers)
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
     }
   }
 }
