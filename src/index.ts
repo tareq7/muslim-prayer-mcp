@@ -65,7 +65,11 @@ export default {
     }
 
     // Static Server Card for MCP Registry Discovery (Smithery, Glama)
-    if (url.pathname === '/.well-known/mcp/server-card.json') {
+    if (
+      url.pathname === '/.well-known/mcp/server-card.json' ||
+      url.pathname === '/server-card' ||
+      url.pathname === '/mcp/server-card'
+    ) {
       return jsonResponse({
         serverInfo: {
           name: 'muslim-prayer-reminder',
