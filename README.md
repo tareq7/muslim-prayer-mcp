@@ -5,7 +5,7 @@
 # Muslim Prayer Reminder System (Cloudflare Remote MCP + Hybrid Middleware)
 
 [![npm version](https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm)](https://www.npmjs.com/package/muslim-prayer-mcp)
-[![Smithery](https://smithery.ai/badge/@najetareqz/muslim-prayer-mcp)](https://smithery.ai/server/@najetareqz/muslim-prayer-mcp)
+[![Smithery](https://img.shields.io/badge/Smithery-indexed-orange)](https://smithery.ai/server/@najetareqz/muslim-prayer-mcp)
 [![CI](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-blue)](https://modelcontextprotocol.io)
