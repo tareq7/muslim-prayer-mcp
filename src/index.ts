@@ -70,7 +70,7 @@ export default {
           name: 'muslim-prayer-reminder',
           version: '1.0.0',
         },
-        description: 'Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP.',
+        description: 'Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP, automatic location-based calculation authority calibration, and mandatory theological disclosure.',
         iconUrl: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
         icons: [
           {
@@ -80,11 +80,11 @@ export default {
           },
         ],
         tools: [
-          { name: 'get_prayer_status', description: 'Checks if an obligatory prayer is currently due.' },
-          { name: 'get_today_prayer_times', description: 'Retrieves today prayer timetable.' },
-          { name: 'get_next_prayer', description: 'Returns next prayer name and remaining countdown.' },
-          { name: 'configure_prayer_preferences', description: 'Configures calculation and reminder parameters.' },
-          { name: 'get_prayer_preferences', description: 'Inspects active user preferences.' },
+          { name: 'get_prayer_status', description: 'Checks if an obligatory prayer is currently due. Returns active reminder details, calculation authority, and mandatory selection justification.' },
+          { name: 'get_today_prayer_times', description: 'Retrieves today prayer timetable with astronomical accuracy. Includes mandatory calculation authority and selection justification.' },
+          { name: 'get_next_prayer', description: 'Returns next incoming prayer name, scheduled time, authority description, selection justification, and countdown in minutes.' },
+          { name: 'configure_prayer_preferences', description: 'Configures user calculation parameters, madhab, and reminder settings in Cloudflare KV.' },
+          { name: 'get_prayer_preferences', description: 'Inspects active user preferences and calculation settings.' },
         ],
       });
     }

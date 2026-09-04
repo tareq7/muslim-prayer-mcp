@@ -67,6 +67,7 @@ To guarantee transparency and eliminate sectarian or jurisdictional ambiguity, t
    * **Server Instructions**: The MCP server passes initialization instructions commanding the AI model to state the calculation authority and selection reason in every user response.
    * **Tool Schemas**: Every query tool's description explicitly marks disclosure as mandatory.
    * **Payload Verification (`authorityNotice`)**: Every response payload includes a dedicated `authorityNotice` object with `requiredDisplayInstruction`.
+   * **Dedicated Agent Skill**: [`skills/muslim-prayer-mcp/SKILL.md`](skills/muslim-prayer-mcp/SKILL.md) provides ready-to-load instructions and formatting templates for LLMs.
 
 ---
 
@@ -76,7 +77,7 @@ To guarantee transparency and eliminate sectarian or jurisdictional ambiguity, t
 ```bash
 npm test
 ```
-Executes 39 automated tests covering 10 benchmark cities, DST transitions, Hanafi/Shafi Asr differences, deduplication, JSON-RPC MCP conformance, and end-to-end middleware post-processing.
+Executes 44 automated tests covering 10 benchmark cities, DST transitions, Hanafi/Shafi Asr differences, deduplication, JSON-RPC MCP conformance, and end-to-end middleware post-processing.
 
 ### 2. Deploy to Cloudflare Workers
 ```bash
@@ -101,7 +102,7 @@ npx wrangler deploy
 | **VS Code** | Local / NPX | `npx -y muslim-prayer-mcp` via `.vscode/mcp.json` |
 | **Windsurf / Devin** | Remote HTTP | Add `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to `mcp_config.json` |
 | **Gemini CLI** | Auto-indexed | `gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` |
-| **Autonomous Agents** | All Modes | Direct agent setup: [`llms-install.md`](llms-install.md) |
+| **Autonomous Agents** | All Modes | Agent setup: [`llms-install.md`](llms-install.md) & Skill: [`SKILL.md`](skills/muslim-prayer-mcp/SKILL.md) |
 
 ---
 
