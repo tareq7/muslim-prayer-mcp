@@ -55,7 +55,7 @@ export default {
       return jsonResponse({
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
-        version: '1.0.0',
+        version: '1.0.1',
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
         docs: 'https://tareq7.github.io/muslim-prayer-mcp',
         timestamp: new Date().toISOString(),
