@@ -7,16 +7,6 @@
     "source": "github"
   },
   "version": "1.0.0",
-  "packages": [
-    {
-      "registryType": "npm",
-      "identifier": "muslim-prayer-mcp",
-      "version": "1.0.0",
-      "transport": {
-        "type": "stdio"
-      }
-    }
-  ],
   "remotes": [
     {
       "type": "streamable-http",
