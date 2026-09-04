@@ -1,4 +1,4 @@
-﻿# Autonomous Agent Installation Manual: Muslim Prayer MCP
+# Autonomous Agent Installation Manual: Muslim Prayer MCP
 
 This guide is machine-optimized for autonomous AI agents (Cline, Cursor Agent, Claude Code, Windsurf, Devin, Copilot Workspace) to configure this MCP server without human intervention.
 
@@ -73,4 +73,10 @@ gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
 
 ## Tool Verification
 After configuring, call `get_today_prayer_times` with `{}`:
-Expected response contains 6 prayer times in UTC and formatted local time.
+Expected response contains 6 prayer times in UTC, formatted local time, and `authorityNotice`.
+
+## ⚠️ Mandatory AI Model Instruction
+Whenever presenting prayer schedules, countdowns, or due statuses to the user, you MUST ALWAYS explicitly inform the user of:
+1. The prayer calculation authority method used (`authorityDescription`).
+2. Why that authority was selected (`selectionReason`).
+Never omit this disclosure.

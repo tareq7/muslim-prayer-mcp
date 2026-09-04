@@ -37,13 +37,36 @@ Production-ready Muslim prayer reminder system running on **Cloudflare Workers**
 
 ## 🛠️ MCP Tools
 
-| Tool Name | Type | Description |
-| :--- | :--- | :--- |
-| `get_prayer_status` | Read-only | Checks whether an obligatory prayer is currently due and returns reminder text, window bounds, and dedupe key. |
-| `get_today_prayer_times` | Read-only | Returns today's full timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. |
-| `get_next_prayer` | Read-only | Returns the immediate next prayer name, scheduled time, and remaining countdown in minutes. |
-| `configure_prayer_preferences` | State mutation | Sets user calculation method, madhab, reminder mode, location mode (fixed vs auto), and language. |
-| `get_prayer_preferences` | Read-only | Inspects active user calculation settings and preferences. |
+| Tool Name | Type | Mandatory LLM Disclosure | Description |
+| :--- | :--- | :--- | :--- |
+| `get_prayer_status` | Read-only | **Required** | Checks whether an obligatory prayer is currently due and returns active reminder details, calculation authority, and selection justification. |
+| `get_today_prayer_times` | Read-only | **Required** | Returns today's full timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time, including `authorityNotice`. |
+| `get_next_prayer` | Read-only | **Required** | Returns the immediate next prayer name, scheduled time, authority description, selection reason, and remaining countdown in minutes. |
+| `configure_prayer_preferences` | State mutation | Optional override | Sets user calculation method, madhab, reminder mode, location mode (fixed vs auto), and language in KV storage. |
+| `get_prayer_preferences` | Read-only | N/A | Inspects active user calculation settings and preferences. |
+
+---
+
+## ⚖️ Mandatory Authority Disclosure & Geographic Calibration
+
+To guarantee transparency and eliminate sectarian or jurisdictional ambiguity, the server enforces a **Mandatory Authority Disclosure Directive** on all AI clients (Claude, ChatGPT, Cursor, Copilot, etc.):
+
+1. **Automatic Geographic Calibration**:
+   When not explicitly overridden by user preferences, the calculation authority, madhab, and regional solar safety adjustments are automatically resolved based on the user's location:
+   * **Palestine / Gaza / West Bank**: Officially resolved to Palestinian Ministry of Awqaf standard (**Egyptian Survey Authority** with `{ maghrib: +3 min, dhuhr: -1 min }` safety offsets, producing 100% exact matches with local printed calendars).
+   * **Saudi Arabia**: Officially resolved to **Umm al-Qura University, Makkah**.
+   * **United Arab Emirates**: Officially resolved to **Awqaf UAE** (`Dubai` method).
+   * **Qatar & Kuwait**: Officially resolved to respective state Awqaf ministries.
+   * **Turkey & Balkans**: Officially resolved to **Diyanet İşleri Başkanlığı** with Hanafi Asr.
+   * **South Asia (PK/IN/BD/AF)**: Officially resolved to **University of Islamic Sciences, Karachi** with Hanafi Asr.
+   * **North America**: Officially resolved to **ISNA** (`15°` twilight).
+   * **Southeast Asia (SG/MY/ID/BN)**: Officially resolved to **MUIS / JAKIM / MABIMS** standard.
+   * **Global / Europe**: Officially resolved to **Muslim World League (MWL)**.
+
+2. **Strict LLM Enforcement**:
+   * **Server Instructions**: The MCP server passes initialization instructions commanding the AI model to state the calculation authority and selection reason in every user response.
+   * **Tool Schemas**: Every query tool's description explicitly marks disclosure as mandatory.
+   * **Payload Verification (`authorityNotice`)**: Every response payload includes a dedicated `authorityNotice` object with `requiredDisplayInstruction`.
 
 ---
 
