@@ -1,5 +1,6 @@
 {
   "name": "muslim-prayer-mcp",
+  "mcpName": "io.github.tareq7/muslim-prayer-mcp",
   "version": "1.0.0",
   "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers and MCP",
   "license": "MIT",

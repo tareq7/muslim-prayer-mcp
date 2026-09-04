@@ -1,25 +1,26 @@
-﻿{
-  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/schema.json",
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.tareq7/muslim-prayer-mcp",
-  "title": "Muslim Prayer Reminder System",
-  "description": "Production-ready Islamic prayer reminder system with astronomical calculation, Streamable HTTP MCP for Cloudflare Workers, and local CLI runner.",
+  "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP.",
+  "repository": {
+    "url": "https://github.com/tareq7/muslim-prayer-mcp",
+    "source": "github"
+  },
   "version": "1.0.0",
-  "author": "tareq7",
-  "license": "MIT",
-  "homepage": "https://tareq7.github.io/muslim-prayer-mcp",
-  "repository": "https://github.com/tareq7/muslim-prayer-mcp",
-  "icon": "https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png",
-  "servers": [
+  "packages": [
     {
-      "type": "http",
-      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp",
-      "transport": "streamable-http"
-    },
+      "registryType": "npm",
+      "identifier": "muslim-prayer-mcp",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "remotes": [
     {
-      "type": "npm",
-      "package": "muslim-prayer-mcp",
-      "command": "npx",
-      "args": ["-y", "muslim-prayer-mcp"]
+      "type": "streamable-http",
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
     }
   ]
 }
