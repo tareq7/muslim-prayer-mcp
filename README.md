@@ -119,3 +119,11 @@ console.log(responseText);
 * **Coordinate Truncation**: All incoming latitude/longitude values are rounded to 2 decimal places (`~1.1km` precision), preventing street-level tracking while preserving sub-minute solar calculation accuracy.
 * **No Coordinate Leakage**: MCP tool outputs return prayer names and reminders; raw coordinates are never passed into the LLM context.
 * **In-Isolate Execution**: Calculations run directly within the Cloudflare V8 isolate; no user coordinates are sent across WAN to third-party prayer APIs.
+
+---
+
+## 📜 Legal & Compliance
+
+* **Terms of Service**: [https://tareq7.github.io/muslim-prayer-mcp/terms-of-service/](https://tareq7.github.io/muslim-prayer-mcp/terms-of-service/)
+* **Privacy Policy**: [https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/](https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/)
+* **Documentation Portal**: [https://tareq7.github.io/muslim-prayer-mcp/](https://tareq7.github.io/muslim-prayer-mcp/)
