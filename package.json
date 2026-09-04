@@ -1,10 +1,30 @@
 {
   "name": "muslim-prayer-mcp",
   "mcpName": "io.github.tareq7/muslim-prayer-mcp",
-  "version": "1.0.0",
-  "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers and MCP",
+  "version": "1.0.1",
+  "description": "Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.",
   "license": "MIT",
+  "author": "Tareq Naji <najetareqz@gmail.com>",
   "homepage": "https://tareq7.github.io/muslim-prayer-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tareq7/muslim-prayer-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tareq7/muslim-prayer-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "prayer-times",
+    "adhan",
+    "islamic",
+    "salat",
+    "cloudflare-workers",
+    "claude-desktop",
+    "cursor",
+    "ai-agents"
+  ],
   "icon": "assets/icon.png",
   "main": "dist/src/index.js",
   "bin": {

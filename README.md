@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png" width="160" height="160" alt="Muslim Prayer Reminder MCP Logo" />
+  <a href="https://github.com/tareq7/muslim-prayer-mcp">
+    <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png" width="160" height="160" alt="Muslim Prayer Reminder MCP Logo" />
+  </a>
 </p>
 
 # Muslim Prayer Reminder System (Cloudflare Remote MCP + Hybrid Middleware)
