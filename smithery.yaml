@@ -3,6 +3,7 @@ description: Production-ready Muslim prayer reminder system on Cloudflare Worker
 author: tareq7
 version: 1.0.0
 repository: https://github.com/tareq7/muslim-prayer-mcp
+iconUrl: https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png
 startCommand:
   type: http
   url: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp

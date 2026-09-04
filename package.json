@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers and MCP",
   "license": "MIT",
+  "homepage": "https://tareq7.github.io/muslim-prayer-mcp",
+  "icon": "assets/icon.png",
   "main": "dist/src/index.js",
   "bin": {
     "muslim-prayer-mcp": "bin/cli.js"
@@ -10,6 +12,9 @@
   "files": [
     "bin",
     "src",
+    "assets/icon.png",
+    "assets/logo.png",
+    "assets/official-logo-512.png",
     "tsconfig.json",
     "README.md",
     "LICENSE"

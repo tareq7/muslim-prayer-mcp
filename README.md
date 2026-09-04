@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" width="160" height="160" alt="Muslim Prayer Reminder MCP Logo" />
+  <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png" width="160" height="160" alt="Muslim Prayer Reminder MCP Logo" />
 </p>
 
 # Muslim Prayer Reminder System (Cloudflare Remote MCP + Hybrid Middleware)
@@ -119,6 +119,16 @@ console.log(responseText);
 * **Coordinate Truncation**: All incoming latitude/longitude values are rounded to 2 decimal places (`~1.1km` precision), preventing street-level tracking while preserving sub-minute solar calculation accuracy.
 * **No Coordinate Leakage**: MCP tool outputs return prayer names and reminders; raw coordinates are never passed into the LLM context.
 * **In-Isolate Execution**: Calculations run directly within the Cloudflare V8 isolate; no user coordinates are sent across WAN to third-party prayer APIs.
+
+---
+
+## 🎨 Official Branding Assets
+
+Official high-resolution branding assets with antialiased transparent corners:
+
+* **Official Icon (512×512 PNG)**: [`assets/icon.png`](https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png)
+* **Master High-Res (1024×1024 PNG)**: [`assets/official-logo-1024.png`](https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/official-logo-1024.png)
+* **Documentation Favicon & Icons**: [`docs/assets/`](https://github.com/tareq7/muslim-prayer-mcp/tree/main/docs/assets)
 
 ---
 

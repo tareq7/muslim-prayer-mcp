@@ -41,12 +41,22 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
+    // Favicon redirect to official icon
+    if (url.pathname === '/favicon.ico') {
+      return Response.redirect(
+        'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
+        302
+      );
+    }
+
     // Health check endpoint
     if (url.pathname === '/health' || url.pathname === '/') {
       return jsonResponse({
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
         version: '1.0.0',
+        icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
+        docs: 'https://tareq7.github.io/muslim-prayer-mcp',
         timestamp: new Date().toISOString(),
       });
     }
@@ -59,6 +69,14 @@ export default {
           version: '1.0.0',
         },
         description: 'Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP.',
+        iconUrl: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
+        icons: [
+          {
+            src: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+        ],
         tools: [
           { name: 'get_prayer_status', description: 'Checks if an obligatory prayer is currently due.' },
           { name: 'get_today_prayer_times', description: 'Retrieves today prayer timetable.' },

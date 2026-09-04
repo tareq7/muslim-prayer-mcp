@@ -3,6 +3,10 @@ layout: default
 permalink: /terms-of-service/
 ---
 
+<p align="center">
+  <img src="../assets/icon.png" width="96" height="96" alt="Muslim Prayer Reminder MCP Logo" />
+</p>
+
 # Terms of Service
 
 Last updated: 2026-09-04

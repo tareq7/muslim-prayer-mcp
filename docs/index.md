@@ -2,6 +2,10 @@
 layout: default
 ---
 
+<p align="center">
+  <img src="assets/icon.png" width="140" height="140" alt="Muslim Prayer Reminder MCP Logo" />
+</p>
+
 # Muslim Prayer Reminder MCP
 
 A production-ready Islamic prayer reminder system exposing both a **Streamable HTTP Model Context Protocol (MCP)** server on Cloudflare Workers and a local CLI runner for AI agents.

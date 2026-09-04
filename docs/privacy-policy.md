@@ -3,6 +3,10 @@ layout: default
 permalink: /privacy-policy/
 ---
 
+<p align="center">
+  <img src="../assets/icon.png" width="96" height="96" alt="Muslim Prayer Reminder MCP Logo" />
+</p>
+
 # Privacy Policy
 
 Last updated: 2026-09-04
