@@ -1,9 +1,23 @@
 name: muslim-prayer-mcp
-description: Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP and deterministic host middleware
+description: Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.
 author: tareq7
-version: 1.0.0
+version: 1.0.1
 repository: https://github.com/tareq7/muslim-prayer-mcp
+homepage: https://tareq7.github.io/muslim-prayer-mcp
 iconUrl: https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png
 startCommand:
   type: http
   url: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+  configSchema:
+    type: object
+    properties: {}
+metadata:
+  homepage: https://tareq7.github.io/muslim-prayer-mcp
+  documentation: https://tareq7.github.io/muslim-prayer-mcp
+  tags:
+    - mcp
+    - prayer-times
+    - adhan
+    - islamic
+    - salat
+    - cloudflare-workers

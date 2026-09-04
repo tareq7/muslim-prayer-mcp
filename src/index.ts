@@ -73,9 +73,9 @@ export default {
       return jsonResponse({
         serverInfo: {
           name: 'muslim-prayer-reminder',
-          version: '1.0.0',
+          version: '1.0.1',
         },
-        description: 'Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP, automatic location-based calculation authority calibration, and mandatory theological disclosure.',
+        description: 'Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.',
         iconUrl: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
         icons: [
           {
