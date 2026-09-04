@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon.png" width="160" height="160" alt="Muslim Prayer Reminder MCP Logo" />
+</p>
+
 # Muslim Prayer Reminder System (Cloudflare Remote MCP + Hybrid Middleware)
 
 [![CI](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml)
