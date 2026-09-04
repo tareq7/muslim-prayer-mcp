@@ -5,7 +5,7 @@
   "license": "MIT",
   "main": "dist/src/index.js",
   "bin": {
-    "muslim-prayer-mcp": "./bin/cli.js"
+    "muslim-prayer-mcp": "bin/cli.js"
   },
   "files": [
     "bin",
