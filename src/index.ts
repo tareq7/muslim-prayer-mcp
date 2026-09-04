@@ -271,6 +271,6 @@ export default {
       return transport.handleRequest(request);
     }
 
-    return jsonResponse({ error: 'Not Found' }, 404);
+    return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.0.1' }, 404);
   },
 };
