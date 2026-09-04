@@ -1,0 +1,27 @@
+﻿# Muslim Prayer Reminder MCP
+
+> Production-ready Islamic prayer reminder system exposing a Streamable HTTP Model Context Protocol (MCP) server on Cloudflare Workers and a portable local runner for AI agents.
+
+## Core Capabilities
+- Sub-minute astronomical calculation of Fajr, Sunrise, Dhuhr, Asr, Maghrib, and Isha.
+- Supports 12 global calculation conventions (UmmAlQura, MuslimWorldLeague, Egyptian, Karachi, Dubai, Qatar, Kuwait, Singapore, MoonsightingCommittee, NorthAmerica, Tehran, Turkey).
+- High-latitude polar day/night clamping (MiddleOfTheNight, SeventhOfTheNight, TwilightAngle).
+- Deterministic response middleware for AI chat applications (<5ms overhead).
+- Strict privacy: 2-decimal coordinate sanitization (~1.1km fuzzing), zero tracking, in-isolate computation.
+
+## Endpoints
+- Remote Streamable HTTP MCP: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+- Discovery Server Card: https://muslim-prayer-mcp.najetareqz.workers.dev/.well-known/mcp/server-card.json
+- Health: https://muslim-prayer-mcp.najetareqz.workers.dev/health
+- Security Policy: https://muslim-prayer-mcp.najetareqz.workers.dev/.well-known/security.txt
+
+## Documentation & Legal
+- Documentation Portal: https://tareq7.github.io/muslim-prayer-mcp/
+- Terms of Service: https://tareq7.github.io/muslim-prayer-mcp/terms-of-service/
+- Privacy Policy: https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/
+- GitHub Repository: https://github.com/tareq7/muslim-prayer-mcp
+- NPM Package: https://www.npmjs.com/package/muslim-prayer-mcp
+
+## Client Quickstart
+- Local npx runner: npx -y muslim-prayer-mcp
+- Remote HTTP URL: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp

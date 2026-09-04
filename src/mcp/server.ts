@@ -22,9 +22,16 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
   server.registerTool(
     'get_prayer_status',
     {
+      title: 'Check Muslim Prayer Due Status',
       description:
-        'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details.',
+        'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. Read-only operation; does not modify state.',
       inputSchema: GetPrayerStatusInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (args) => {
       const userId = args.userId || 'default_user';
@@ -68,9 +75,16 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
   server.registerTool(
     'get_today_prayer_times',
     {
+      title: 'Get Full Daily Prayer Timetable',
       description:
-        'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time.',
+        'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. Pure astronomical calculation; read-only operation.',
       inputSchema: GetTodayPrayerTimesInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (args) => {
       const userId = args.userId || 'default_user';
@@ -111,9 +125,16 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
   server.registerTool(
     'get_next_prayer',
     {
+      title: 'Get Upcoming Prayer and Countdown',
       description:
-        'Returns the immediate next prayer name, scheduled time, and remaining countdown in minutes.',
+        'Returns the immediate next prayer name, scheduled time, and remaining countdown in minutes. Read-only operation; does not modify state.',
       inputSchema: GetNextPrayerInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (args) => {
       const userId = args.userId || 'default_user';
@@ -164,9 +185,16 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
   server.registerTool(
     'configure_prayer_preferences',
     {
+      title: 'Configure User Prayer Preferences',
       description:
-        'Configures prayer calculation parameters, location behavior (fixed or auto_travel), madhab, reminder mode, and notification language.',
+        'Configures prayer calculation parameters, location behavior (fixed or auto_travel), madhab, reminder mode, and notification language in persistent storage.',
       inputSchema: ConfigurePrayerPreferencesInputSchema.shape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (args) => {
       const existing = (await storage.getUserPreferences(args.userId)) || {
@@ -217,8 +245,15 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
   server.registerTool(
     'get_prayer_preferences',
     {
-      description: 'Returns the currently active calculation settings and preferences for a user.',
+      title: 'Retrieve Stored Prayer Preferences',
+      description: 'Returns the currently active calculation settings and preferences for a user. Read-only operation.',
       inputSchema: GetPrayerPreferencesInputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async (args) => {
       const prefs = await storage.getUserPreferences(args.userId);

@@ -6,6 +6,8 @@
 
 [![npm version](https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm)](https://www.npmjs.com/package/muslim-prayer-mcp)
 [![Smithery](https://img.shields.io/badge/Smithery-indexed-orange)](https://smithery.ai/server/@najetareqz/muslim-prayer-mcp)
+[![Glama](https://img.shields.io/badge/Glama-indexed-purple)](https://glama.ai/mcp/servers)
+[![Cursor](https://img.shields.io/badge/Cursor-Ready-000000?logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
 [![CI](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-blue)](https://modelcontextprotocol.io)
@@ -66,6 +68,19 @@ npx wrangler deploy
 ---
 
 ## 🔌 Connecting to AI Hosts
+
+### ⚡ 1-Click Client Installation Matrix
+
+| Client / Environment | Support Mode | 1-Click Deeplink / Quick Command |
+| :--- | :--- | :--- |
+| **Cursor** | Remote HTTP | [![Add to Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp) |
+| **Claude Desktop** | Remote HTTP | Add URL `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to config |
+| **VS Code** | Local / NPX | `npx -y muslim-prayer-mcp` via `.vscode/mcp.json` |
+| **Windsurf / Devin** | Remote HTTP | Add `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to `mcp_config.json` |
+| **Gemini CLI** | Auto-indexed | `gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` |
+| **Autonomous Agents** | All Modes | Direct agent setup: [`llms-install.md`](llms-install.md) |
+
+---
 
 ### Option 1: Local Stdio via NPX (Claude Desktop, Cursor, Windsurf, VS Code)
 ```json

@@ -1,0 +1,14 @@
+﻿{
+  "name": "muslim-prayer-mcp",
+  "version": "1.0.0",
+  "description": "Muslim prayer reminder system for GitHub Copilot CLI",
+  "author": "tareq7",
+  "plugins": [
+    {
+      "name": "muslim-prayer",
+      "description": "Calculates accurate Islamic prayer times and provides timely notifications.",
+      "entrypoint": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp",
+      "type": "mcp-remote"
+    }
+  ]
+}

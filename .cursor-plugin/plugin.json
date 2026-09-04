@@ -1,0 +1,14 @@
+﻿{
+  "name": "muslim-prayer-mcp",
+  "version": "1.0.0",
+  "displayName": "Muslim Prayer Reminder MCP",
+  "description": "Calculates astronomical prayer times and provides deterministic Islamic prayer notifications in Cursor.",
+  "author": "tareq7",
+  "repository": "https://github.com/tareq7/muslim-prayer-mcp",
+  "icon": "assets/icon.png",
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}

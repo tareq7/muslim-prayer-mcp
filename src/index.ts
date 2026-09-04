@@ -120,6 +120,22 @@ export default {
       });
     }
 
+    // Security.txt endpoint (RFC 9116)
+    if (url.pathname === '/.well-known/security.txt' || url.pathname === '/security.txt') {
+      const securityTxt = [
+        'Contact: https://github.com/tareq7/muslim-prayer-mcp/security',
+        'Expires: 2027-12-31T23:59:59.000Z',
+        'Preferred-Languages: en, ar',
+        'Canonical: https://muslim-prayer-mcp.najetareqz.workers.dev/.well-known/security.txt',
+        'Policy: https://github.com/tareq7/muslim-prayer-mcp/blob/main/SECURITY.md',
+        'Acknowledgments: https://github.com/tareq7/muslim-prayer-mcp/blob/main/SECURITY.md',
+      ].join('\n');
+      return new Response(securityTxt, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', ...CORS_HEADERS },
+      });
+    }
+
     const storage = new PrayerStorage(env.PRAYER_KV);
 
     // REST Fast Status Check Endpoint: /api/status
