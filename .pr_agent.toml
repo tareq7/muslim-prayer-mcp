@@ -1,6 +1,6 @@
 [config]
 model = "gemini/gemini-3.8-flash"
-fallback_models = ["gemini/gemini-3.7-flash", "gemini/gemini-2.5-flash"]
+fallback_models = []
 custom_model_max_tokens = 1000000
 model_turbo = "gemini/gemini-3.8-flash"
 model_reasoning = "gemini/gemini-3.8-flash"
@@ -12,7 +12,7 @@ temperature = 0.1
 require_focused_review = true
 require_score = false
 enable_help_text = false
-persistent_comment = true
+persistent_comment = false
 extra_instructions = """
 STRICT FILTERING:
 - Focus ONLY on: logic bugs, concurrency/race conditions, data corruption, auth flaws, uncaught exceptions, missing error handling, and performance regressions.
