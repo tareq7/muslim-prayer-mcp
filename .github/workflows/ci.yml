@@ -8,20 +8,26 @@ on:
 
 jobs:
   test:
-    name: Run Automated Test Suite
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }} - Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node-version: [22, 24]
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
 
       - name: Install Dependencies
         run: npm install
 
-      - name: Run Tests
+      - name: Run Test Suite
         run: npm test

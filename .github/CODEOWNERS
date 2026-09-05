@@ -1,0 +1,16 @@
+﻿# Global owners
+* @tareq7
+
+# Core engine & astronomical calculations
+/src/engine/ @tareq7
+/src/location/ @tareq7
+/src/mcp/ @tareq7
+
+# CI/CD and security automation
+/.github/ @tareq7
+/.github/workflows/ @tareq7
+/SECURITY.md @tareq7
+
+# Package manifests
+/package.json @tareq7
+/wrangler.toml @tareq7

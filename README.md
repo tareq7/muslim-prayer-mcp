@@ -7,37 +7,61 @@
 <h1 align="center">🕌 Muslim Prayer Reminder MCP</h1>
 
 <p align="center">
-  <strong>The Enterprise-Grade Astronomical Prayer Calculation & Proactive Notification Engine for AI Models, Agents, and Developer Tools.</strong>
+  <strong>Production-ready astronomical prayer calculation and proactive notification engine on Cloudflare Workers for AI models, coding agents, and developer environments.</strong>
 </p>
 
 <p align="center">
-  <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4"><img src="https://img.shields.io/badge/%E2%96%B6_Live_Demo-1080p_MP4-E50914?style=for-the-badge&logo=youtube&logoColor=white" alt="Live Demo"></a>
-  <a href="https://tareq7.github.io/muslim-prayer-mcp/"><img src="https://img.shields.io/badge/%F0%9F%93%96_Documentation-Live_Portal-0052CC?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
-  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp"><img src="https://img.shields.io/badge/%E2%9A%A1_1--Click_Cursor-Install-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Install in Cursor"></a>
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/"><strong>Documentation</strong></a> •
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4"><strong>Live Demo (1080p)</strong></a> •
+  <a href="#-quick-start"><strong>Quick Start</strong></a> •
+  <a href="#-mcp-tools-catalog"><strong>Tools Catalog</strong></a> •
+  <a href="#-astronomical--theological-rigor"><strong>Theological Rigor</strong></a> •
+  <a href="SECURITY.md"><strong>Security Policy</strong></a>
 </p>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/muslim-prayer-mcp"><img src="https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm&label=npm%20package" alt="npm version"></a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Anthropic_MCP_Registry-v1.0.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
+  <a href="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml"><img src="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status"></a>
+  <a href="https://github.com/tareq7/muslim-prayer-mcp/releases"><img src="https://img.shields.io/github/v/release/tareq7/muslim-prayer-mcp?color=0052CC&label=Release" alt="Latest Release"></a>
+  <a href="https://github.com/tareq7/muslim-prayer-mcp/actions"><img src="https://img.shields.io/badge/Tests-44%20Passing-brightgreen" alt="Tests"></a>
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.0.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
   <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
-  <a href="https://smithery.ai"><img src="https://img.shields.io/badge/Smithery-Indexed-FF7700?logo=webauthn&logoColor=white" alt="Smithery"></a>
-  <a href="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml"><img src="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Build Status"></a>
-  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
-  <a href="https://workers.cloudflare.com"><img src="https://img.shields.io/badge/Cloudflare_Workers-Edge_%3C1ms-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
-  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white" alt="TypeScript"></a>
-  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white" alt="Node Version"></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Enforced-success" alt="Security Policy"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
 </p>
+
+> **Project Status**: 🟢 **Actively Maintained (v1.0.1)**  
+> Supported across Cloudflare Workers, Node.js 22/24 (Ubuntu & Windows), and all Model Context Protocol (MCP) clients.
 
 ---
 
-## ⚡ Highlights: The Gold Standard for Islamic AI Tooling
+## ⚡ Quick Start
 
-* 🚀 **Sub-Millisecond Astronomical Computation**: Instantaneous in-isolate solar position math via high-precision astronomical algorithms (`adhan`). Zero external WAN dependencies, zero API rate limits, zero downtime.
-* 🌍 **Autonomous Regional Calibration**: Automatically calibrates twilight angles, madhab shadow rules, and regional safety offsets to sovereign authorities (Umm Al-Qura, Egyptian Awqaf, Diyanet, Karachi, ISNA, MWL).
-* ⚖️ **Mandatory Theological Disclosure**: Enforces complete transparency across AI hosts (Claude, ChatGPT, Cursor) by embedding strict disclosure directives that compel models to cite calculation authorities and selection reasons.
-* 🛡️ **Zero-Leak Privacy Architecture**: Enforces coordinate truncation to 2 decimal places (~1.1 km precision). Raw latitude/longitude coordinates are never exposed to LLM context or third-party loggers.
-* 🔌 **Universal Multi-Host Compatibility**: Fully compliant with Anthropic Model Context Protocol (Streamable HTTP + Stdio CLI) for Claude Desktop, ChatGPT Apps, Cursor, VS Code, Windsurf, Zed, and Autonomous Agents.
-* 🔄 **Deterministic Host Middleware**: Includes optional host-side completion middleware that guarantees notification injection alongside AI completions with zero prompt-drift.
+### 1. Run via NPX (Zero Installation)
+Add to your Claude Desktop, Cursor, or VS Code MCP configuration:
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "command": "npx",
+      "args": ["-y", "muslim-prayer-mcp"]
+    }
+  }
+}
+```
+
+### 2. Connect via Remote Streamable HTTP (Cloudflare Workers)
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}
+```
+
+### 3. 1-Click Install in Cursor
+[![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
 
 ---
 
@@ -133,52 +157,16 @@ In latitudes above 48° North or South where twilight persists throughout the ni
 
 ---
 
-## 🔌 1-Click Client Installation Matrix
+## 🔌 Client Installation Matrix
 
-### Cursor
-Click the 1-click badge:  
-[![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
-
-Or add to `.cursor/mcp.json`:
-```json
-{
-  "mcpServers": {
-    "muslim-prayer": {
-      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
-    }
-  }
-}
-```
-
-### Claude Desktop
-Add to your `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "muslim-prayer": {
-      "command": "npx",
-      "args": ["-y", "muslim-prayer-mcp"]
-    }
-  }
-}
-```
-
-### Windsurf & Devin
-Add to your `mcp_config.json`:
-```json
-{
-  "mcpServers": {
-    "muslim-prayer": {
-      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
-    }
-  }
-}
-```
-
-### Remote Docker Deployment
-```bash
-docker run -d -p 8080:8080 --name muslim-prayer-mcp ghcr.io/tareq7/muslim-prayer-mcp:latest
-```
+| Client | Mode | Config Snippet / Deeplink |
+| :--- | :--- | :--- |
+| **Cursor** | Remote HTTP | [![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp) |
+| **Claude Desktop** | Stdio CLI | Add `"command": "npx", "args": ["-y", "muslim-prayer-mcp"]` to `claude_desktop_config.json` |
+| **Windsurf / Devin** | Remote HTTP | Add URL `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to `mcp_config.json` |
+| **VS Code / Copilot** | Local / NPX | Add `"command": "npx", "args": ["-y", "muslim-prayer-mcp"]` to `.vscode/mcp.json` |
+| **Docker** | Container | `docker run -d -p 8080:8080 ghcr.io/tareq7/muslim-prayer-mcp:latest` |
+| **AI Agents (Code/SDK)** | All Modes | See [AGENTS.md](AGENTS.md) and [SKILL.md](skills/muslim-prayer-mcp/SKILL.md) |
 
 ---
 
@@ -244,16 +232,21 @@ npm test
 * **Coordinate Truncation**: All user coordinates are truncated to 2 decimal places upon arrival (~1.1 km resolution). Precise location is mathematically non-recoverable.
 * **No Outbound Tracking**: Astronomical math is computed locally within the isolated V8 runtime; zero external requests are made to third-party tracking APIs.
 * **Fail-Open Architecture**: Host middleware is designed to fail open; network issues or latency spikes will never block primary AI conversation streams.
+* **Full Disclosure Process**: See [SECURITY.md](SECURITY.md) for supported versions, SLA, and private reporting.
 
 ---
 
-## 📄 License & Community
+## 📄 Governance, Citations & Community
 
 * **License**: [MIT License](LICENSE)
+* **Citation**: [CITATION.cff](CITATION.cff)
+* **Maintainers**: [MAINTAINERS.md](MAINTAINERS.md)
+* **Governance**: [GOVERNANCE.md](GOVERNANCE.md)
+* **Product Roadmap**: [ROADMAP.md](ROADMAP.md)
+* **Agent Guidelines**: [AGENTS.md](AGENTS.md)
 * **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 * **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
-* **Security Advisories**: [SECURITY.md](SECURITY.md)
-* **Support & Discussions**: [GitHub Discussions](https://github.com/tareq7/muslim-prayer-mcp/discussions)
+* **Discussions**: [GitHub Discussions](https://github.com/tareq7/muslim-prayer-mcp/discussions)
 
 <p align="center">
   Made with precision for the global Muslim developer community.
