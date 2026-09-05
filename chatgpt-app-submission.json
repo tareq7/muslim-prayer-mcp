@@ -1,0 +1,118 @@
+{
+  "$schema": "https://developers.openai.com/apps-sdk/schemas/chatgpt-app-submission.v1.json",
+  "schema_version": 1,
+  "app_info": {
+    "display_name": "Muslim Prayer Reminder",
+    "subtitle": "Accurate prayer times & alerts",
+    "description": "Muslim Prayer Reminder provides astronomical prayer times and due alerts directly in ChatGPT. Features automatic calculation authority calibration for each country, madhab adjustments, countdowns, and theological transparency.",
+    "category": "PRODUCTIVITY"
+  },
+  "tools": {
+    "get_prayer_status": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only evaluates whether an obligatory prayer is currently due using astronomical calculations and does not modify persistent user state.",
+        "open_world_justification": "Performs calculations locally in-isolate at the edge without calling third-party APIs or modifying external internet resources.",
+        "destructive_justification": "Does not delete, overwrite, revoke access, or execute destructive actions."
+      }
+    },
+    "get_today_prayer_times": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only computes and retrieves today astronomical timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) without altering any data.",
+        "open_world_justification": "Computes solar angles locally in-isolate without reaching out to external third-party services.",
+        "destructive_justification": "Does not delete, modify, or destroy any records or configurations."
+      }
+    },
+    "get_next_prayer": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only calculates the immediate upcoming prayer, scheduled local time, and countdown in minutes.",
+        "open_world_justification": "Executes pure local astronomical solar equations without contacting external network services.",
+        "destructive_justification": "Does not delete or alter any system or user settings."
+      }
+    },
+    "configure_prayer_preferences": {
+      "annotations": {
+        "readOnlyHint": false,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Updates user-specific calculation parameters, preferred madhab, and reminder mode in Cloudflare KV storage.",
+        "open_world_justification": "Stores settings strictly within the application isolated KV namespace and does not publish to external third-party networks.",
+        "destructive_justification": "Only updates existing configuration keys with validated values and does not purge or destroy data."
+      }
+    },
+    "get_prayer_preferences": {
+      "annotations": {
+        "readOnlyHint": true,
+        "openWorldHint": false,
+        "destructiveHint": false
+      },
+      "justifications": {
+        "read_only_justification": "Only inspects and reads the user active calculation settings and preferences from KV storage.",
+        "open_world_justification": "Reads strictly from the application private KV storage without communicating with third-party web services.",
+        "destructive_justification": "Read-only operation that cannot alter or delete preferences."
+      }
+    }
+  },
+  "test_cases": [
+    {
+      "description": "Query full daily prayer timetable for a specific city",
+      "user_prompt": "What are today prayer times in Gaza?",
+      "tools_triggered": "get_today_prayer_times",
+      "expected_output": "Returns complete timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) with Palestinian Ministry of Awqaf authority disclosure."
+    },
+    {
+      "description": "Check if an obligatory prayer is currently due",
+      "user_prompt": "Is it time for prayer right now in Riyadh?",
+      "tools_triggered": "get_prayer_status",
+      "expected_output": "Returns active prayer status, due notification details, and Umm al-Qura University authority notice."
+    },
+    {
+      "description": "Query upcoming prayer and countdown time",
+      "user_prompt": "When is the next prayer in London and how many minutes are left?",
+      "tools_triggered": "get_next_prayer",
+      "expected_output": "Returns the upcoming prayer name, formatted local time, countdown in minutes, and Muslim World League authority notice."
+    },
+    {
+      "description": "Configure custom prayer preferences and madhab",
+      "user_prompt": "Set my prayer calculation method to Egyptian Authority and madhab to Hanafi.",
+      "tools_triggered": "configure_prayer_preferences",
+      "expected_output": "Confirms saved preferences in persistent storage with Egyptian method and Hanafi madhab."
+    },
+    {
+      "description": "Inspect saved user calculation preferences",
+      "user_prompt": "Show my current prayer preferences.",
+      "tools_triggered": "get_prayer_preferences",
+      "expected_output": "Returns current user calculation method, madhab, and notification configuration."
+    }
+  ],
+  "negative_test_cases": [
+    {
+      "description": "Do not trigger for general weather queries",
+      "user_prompt": "What is the weather forecast for Dubai this weekend?"
+    },
+    {
+      "description": "Do not trigger for coding and software development questions",
+      "user_prompt": "Write a Python function to sort a list of numbers."
+    },
+    {
+      "description": "Do not trigger for document summarization or translation",
+      "user_prompt": "Summarize this PDF document for me."
+    }
+  ]
+}
