@@ -4,10 +4,20 @@ jobs:
   test_ar:
     runs-on: ubuntu-latest
     steps:
-      - name: Test Curl
+      - name: Test Messages Endpoint
+        run: |
+          curl -v -X POST "https://agentrouter.org/v1/messages" \
+            -H "Authorization: Bearer ${{ secrets.AGENTROUTER_API_KEY }}" \
+            -H "Content-Type: application/json" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "User-Agent: claude-cli/1.0.108 (external, cli)" \
+            -d '{"model": "glm-5.3", "max_tokens": 20, "messages": [{"role": "user", "content": "hi"}]}'
+
+      - name: Test Chat Completions Endpoint with extra browser headers
         run: |
           curl -v -X POST "https://agentrouter.org/v1/chat/completions" \
             -H "Authorization: Bearer ${{ secrets.AGENTROUTER_API_KEY }}" \
             -H "Content-Type: application/json" \
             -H "User-Agent: claude-cli/1.0.108 (external, cli)" \
+            -H "Accept: application/json" \
             -d '{"model": "glm-5.3", "max_tokens": 20, "messages": [{"role": "user", "content": "hi"}]}'
