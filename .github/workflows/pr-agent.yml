@@ -69,6 +69,7 @@ jobs:
           openai.key: ${{ secrets.ARK_API_KEY }}
           openai.api_base: "https://ark.ap-southeast.bytepluses.com/api/v3"
           config.model: "openai/deepseek-v4-pro-ga-260813"
+          config.fallback_models: "[]"
           config.custom_model_max_tokens: "1000000"
           pr_reviewer.review_heading: "🤖 BytePlus DeepSeek-V4 Reviewer"
           pr_reviewer.persistent_comment: "false"
@@ -94,6 +95,7 @@ jobs:
           openai.key: ${{ secrets.DASHSCOPE_API_KEY }}
           openai.api_base: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
           config.model: "openai/qwen3.8-max"
+          config.fallback_models: "[]"
           config.custom_model_max_tokens: "1000000"
           pr_reviewer.review_heading: "🤖 Alibaba Qwen-3.8-Max Reviewer"
           pr_reviewer.persistent_comment: "false"
@@ -119,6 +121,7 @@ jobs:
           openai.key: ${{ secrets.DASHSCOPE_API_KEY }}
           openai.api_base: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
           config.model: "openai/deepseek-v4-pro"
+          config.fallback_models: "[]"
           config.custom_model_max_tokens: "1000000"
           pr_reviewer.review_heading: "🤖 Alibaba DeepSeek-V4 Reviewer"
           pr_reviewer.persistent_comment: "false"
@@ -140,12 +143,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_KEY: ${{ secrets.AGENTROUTER_API_KEY }}
-          OPENAI_API_BASE: "https://agentrouter.org/v1"
+          OPENAI_API_BASE: "https://agentrouter-proxy.najetareqz.workers.dev/v1"
           openai.key: ${{ secrets.AGENTROUTER_API_KEY }}
-          openai.api_base: "https://agentrouter.org/v1"
+          openai.api_base: "https://agentrouter-proxy.najetareqz.workers.dev/v1"
           config.model: "openai/glm-5.3"
+          config.fallback_models: "[]"
           config.custom_model_max_tokens: "1000000"
-          litellm.extra_headers: '{"User-Agent": "claude-cli/1.0.108 (external, cli)"}'
           pr_reviewer.review_heading: "🤖 AgentRouter GLM-5.3 Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
