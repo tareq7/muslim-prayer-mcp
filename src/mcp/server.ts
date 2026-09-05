@@ -1,10 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import {
   ConfigurePrayerPreferencesInputSchema,
+  ConfigurePrayerPreferencesOutputSchema,
   GetNextPrayerInputSchema,
+  NextPrayerOutputSchema,
   GetPrayerPreferencesInputSchema,
+  GetPrayerPreferencesOutputSchema,
   GetPrayerStatusInputSchema,
   GetTodayPrayerTimesInputSchema,
+  PrayerScheduleOutputSchema,
+  PrayerStatusOutputSchema,
 } from './schemas.ts';
 import {
   calculateDailySchedule,
@@ -36,6 +41,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       description:
         'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
       inputSchema: GetPrayerStatusInputSchema.shape,
+      outputSchema: PrayerStatusOutputSchema.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -83,6 +89,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       }
 
       return {
+        structuredContent: status,
         content: [
           {
             type: 'text',
@@ -101,6 +108,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       description:
         'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
       inputSchema: GetTodayPrayerTimesInputSchema.shape,
+      outputSchema: PrayerScheduleOutputSchema.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -143,6 +151,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       });
 
       return {
+        structuredContent: schedule,
         content: [
           {
             type: 'text',
@@ -161,6 +170,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       description:
         'Returns the immediate next prayer name, scheduled time, authority calculation method, and remaining countdown in minutes. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
       inputSchema: GetNextPrayerInputSchema.shape,
+      outputSchema: NextPrayerOutputSchema.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -221,6 +231,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       };
 
       return {
+        structuredContent: payload,
         content: [
           {
             type: 'text',
@@ -239,6 +250,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       description:
         'Configures prayer calculation parameters, location behavior (fixed or auto_travel), madhab, reminder mode, and notification language in persistent storage.',
       inputSchema: ConfigurePrayerPreferencesInputSchema.shape,
+      outputSchema: ConfigurePrayerPreferencesOutputSchema.shape,
       annotations: {
         readOnlyHint: false,
         destructiveHint: false,
@@ -280,11 +292,13 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
 
       await storage.saveUserPreferences(updated);
 
+      const result = { success: true, preferences: updated };
       return {
+        structuredContent: result,
         content: [
           {
             type: 'text',
-            text: JSON.stringify({ success: true, preferences: updated }, null, 2),
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };
@@ -298,6 +312,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       title: 'Retrieve Stored Prayer Preferences',
       description: 'Returns the currently active calculation settings and preferences for a user. Read-only operation.',
       inputSchema: GetPrayerPreferencesInputSchema.shape,
+      outputSchema: GetPrayerPreferencesOutputSchema.shape,
       annotations: {
         readOnlyHint: true,
         destructiveHint: false,
@@ -307,11 +322,13 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     },
     async (args) => {
       const prefs = await storage.getUserPreferences(args.userId);
+      const result = prefs || { message: 'No preferences configured; defaults active.' };
       return {
+        structuredContent: result,
         content: [
           {
             type: 'text',
-            text: JSON.stringify(prefs || { message: 'No preferences configured; defaults active.' }, null, 2),
+            text: JSON.stringify(result, null, 2),
           },
         ],
       };

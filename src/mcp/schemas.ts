@@ -88,3 +88,113 @@ export const ConfigurePrayerPreferencesInputSchema = z.object({
 export const GetPrayerPreferencesInputSchema = z.object({
   userId: z.string().min(1).describe('Unique user identifier'),
 });
+
+export const AuthorityNoticeOutputSchema = z.object({
+  method: CalculationMethodEnum.describe('The calculation authority method'),
+  madhab: MadhabEnum.describe('The Asr jurisprudence school'),
+  authorityDescription: z.string().describe('Full descriptive name of the calculation authority'),
+  selectionReason: z.string().describe('Rationale for selecting this authority'),
+  requiredDisplayInstruction: z.string().describe('Mandatory theological notice for AI presentation'),
+});
+
+export const PrayerStatusOutputSchema = z.object({
+  reminderDue: z.boolean().describe('Whether a prayer is currently due for reminder'),
+  prayer: z.string().optional().describe('The name of the currently due prayer if applicable'),
+  localDate: z.string().describe('Current local date in YYYY-MM-DD'),
+  startedAtUtc: z.string().optional().describe('UTC start time of the active prayer window'),
+  expiresAtUtc: z.string().optional().describe('UTC expiration time of the active prayer window'),
+  nextPrayer: z.string().describe('The name of the next upcoming prayer'),
+  nextPrayerAtUtc: z.string().describe('UTC timestamp of the next upcoming prayer'),
+  timezone: z.string().describe('Resolved IANA timezone'),
+  calculationMethod: CalculationMethodEnum.describe('Active calculation authority'),
+  madhab: MadhabEnum.describe('Active Asr jurisprudence'),
+  minuteAdjustments: MinuteAdjustmentsSchema.optional().describe('Applied minute adjustments'),
+  authorityDescription: z.string().optional().describe('Description of the calculation authority'),
+  selectionReason: z.string().optional().describe('Reason for authority selection'),
+  authorityNotice: AuthorityNoticeOutputSchema.optional().describe('Mandatory theological transparency notice'),
+  reminderText: z.string().optional().describe('Localized reminder message'),
+  dedupeKey: z.string().optional().describe('Deduplication cache key'),
+  locationSource: z.string().describe('Source of location resolution'),
+});
+
+export const PrayerTimesUtcSchema = z.object({
+  fajr: z.string().describe('Fajr UTC timestamp'),
+  sunrise: z.string().describe('Sunrise UTC timestamp'),
+  dhuhr: z.string().describe('Dhuhr UTC timestamp'),
+  asr: z.string().describe('Asr UTC timestamp'),
+  maghrib: z.string().describe('Maghrib UTC timestamp'),
+  isha: z.string().describe('Isha UTC timestamp'),
+});
+
+export const PrayerTimesLocalSchema = z.object({
+  Fajr: z.string().describe('Fajr local 24h time HH:mm'),
+  Sunrise: z.string().describe('Sunrise local 24h time HH:mm'),
+  Dhuhr: z.string().describe('Dhuhr local 24h time HH:mm'),
+  Asr: z.string().describe('Asr local 24h time HH:mm'),
+  Maghrib: z.string().describe('Maghrib local 24h time HH:mm'),
+  Isha: z.string().describe('Isha local 24h time HH:mm'),
+});
+
+export const PrayerScheduleOutputSchema = z.object({
+  localDate: z.string().describe('Local schedule date YYYY-MM-DD'),
+  timezone: z.string().describe('Resolved IANA timezone'),
+  coordinates: z.object({
+    latitude: z.number().describe('Latitude in degrees'),
+    longitude: z.number().describe('Longitude in degrees'),
+  }),
+  calculationMethod: CalculationMethodEnum.describe('Active calculation authority'),
+  madhab: MadhabEnum.describe('Active Asr jurisprudence'),
+  minuteAdjustments: MinuteAdjustmentsSchema.optional(),
+  authorityDescription: z.string().optional(),
+  selectionReason: z.string().optional(),
+  authorityNotice: AuthorityNoticeOutputSchema.optional(),
+  timesUtc: PrayerTimesUtcSchema,
+  timesLocal: PrayerTimesLocalSchema,
+});
+
+export const NextPrayerOutputSchema = z.object({
+  currentLocalDate: z.string().describe('Current local date YYYY-MM-DD'),
+  timezone: z.string().describe('Resolved IANA timezone'),
+  nextPrayer: z.string().describe('Name of the upcoming prayer'),
+  nextPrayerAtUtc: z.string().describe('UTC timestamp of the upcoming prayer'),
+  nextPrayerLocalTime: z.string().describe('Formatted local time HH:mm'),
+  remainingMinutes: z.number().int().describe('Minutes remaining until prayer start'),
+  calculationMethod: CalculationMethodEnum.describe('Active calculation authority'),
+  madhab: MadhabEnum.describe('Active Asr jurisprudence'),
+  authorityDescription: z.string().optional(),
+  selectionReason: z.string().optional(),
+  authorityNotice: AuthorityNoticeOutputSchema.optional(),
+  minuteAdjustments: MinuteAdjustmentsSchema.optional(),
+  locationSource: z.string().describe('Source of location resolution'),
+});
+
+export const GetNextPrayerOutputSchema = NextPrayerOutputSchema;
+
+export const UserPreferencesObjectSchema = z.object({
+  userId: z.string().optional(),
+  locationMode: LocationModeEnum.optional(),
+  fixedCoordinates: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }).optional(),
+  fixedCity: z.string().optional(),
+  timezone: z.string().optional(),
+  calculationMethod: CalculationMethodEnum.optional(),
+  madhab: MadhabEnum.optional(),
+  highLatitudeRule: HighLatitudeRuleEnum.optional(),
+  reminderMode: ReminderModeEnum.optional(),
+  exactWindowMinutes: z.number().optional(),
+  locale: LocaleEnum.optional(),
+  minuteAdjustments: MinuteAdjustmentsSchema.optional(),
+  enabled: z.boolean().optional(),
+  updatedAtUtc: z.string().optional(),
+  message: z.string().optional(),
+});
+
+export const ConfigurePrayerPreferencesOutputSchema = z.object({
+  success: z.boolean().describe('Whether configuration succeeded'),
+  preferences: UserPreferencesObjectSchema,
+});
+
+export const GetPrayerPreferencesOutputSchema = UserPreferencesObjectSchema;
+
