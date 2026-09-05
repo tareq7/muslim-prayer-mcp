@@ -129,6 +129,32 @@ jobs:
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
 
+  alibaba_coder_reviewer:
+    name: "🤖 Alibaba Qwen-3-Coder"
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Run Alibaba Qwen-3-Coder Reviewer
+        uses: qodo-ai/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          OPENAI_API_BASE: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+          openai.key: ${{ secrets.DASHSCOPE_API_KEY }}
+          openai.api_base: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+          config.model: "openai/qwen3-coder-plus"
+          config.fallback_models: "[]"
+          config.custom_model_max_tokens: "1000000"
+          pr_reviewer.review_heading: "🤖 Alibaba Qwen-3-Coder Reviewer"
+          pr_reviewer.persistent_comment: "false"
+          github_action_config.auto_review: "true"
+          github_action_config.auto_describe: "false"
+          github_action_config.auto_improve: "false"
+
   agentrouter_glm_reviewer:
     name: "🤖 AgentRouter GLM-5.3"
     if: ${{ !github.event.pull_request.draft }}
