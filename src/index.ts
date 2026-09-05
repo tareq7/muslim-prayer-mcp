@@ -120,7 +120,9 @@ export default {
 
     // OpenAI Apps Challenge Verification Endpoint
     if (url.pathname === '/.well-known/openai-apps-challenge') {
-      const token = (env as any).OPENAI_VERIFICATION_TOKEN || 'muslim-prayer-mcp-verified';
+      const token =
+        (env as any).OPENAI_VERIFICATION_TOKEN ||
+        'MLVjA8AU-omfsOI7YwHNqDPsXpG6XRZundaSs1D04lI';
       return new Response(token, {
         status: 200,
         headers: { 'Content-Type': 'text/plain; charset=utf-8', ...CORS_HEADERS },
