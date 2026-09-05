@@ -1,115 +1,157 @@
 <p align="center">
   <a href="https://github.com/tareq7/muslim-prayer-mcp">
-    <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png" width="160" height="160" alt="Muslim Prayer Reminder MCP Logo" />
+    <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/banner.png" alt="Muslim Prayer Reminder MCP Banner" width="100%" />
   </a>
 </p>
 
-# Muslim Prayer Reminder System (Cloudflare Remote MCP + Hybrid Middleware)
+<h1 align="center">🕌 Muslim Prayer Reminder MCP</h1>
 
-[![npm version](https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm)](https://www.npmjs.com/package/muslim-prayer-mcp)
-[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-Live%20v1.0.1-0052CC?logo=anthropic&logoColor=white)](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp)
-[![Smithery](https://img.shields.io/badge/Smithery-indexed-orange)](https://smithery.ai)
-[![Glama](https://img.shields.io/badge/Glama-indexed-purple)](https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp)
-[![Cursor](https://img.shields.io/badge/Cursor-Ready-000000?logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
-[![CI](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-blue)](https://modelcontextprotocol.io)
-[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white)](https://nodejs.org)
+<p align="center">
+  <strong>The Enterprise-Grade Astronomical Prayer Calculation & Proactive Notification Engine for AI Models, Agents, and Developer Tools.</strong>
+</p>
 
-Production-ready Muslim prayer reminder system running on **Cloudflare Workers**, exposing both a **Streamable HTTP Model Context Protocol (MCP)** server and an ultra-fast edge REST API with deterministic host middleware.
+<p align="center">
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4"><img src="https://img.shields.io/badge/%E2%96%B6_Live_Demo-1080p_MP4-E50914?style=for-the-badge&logo=youtube&logoColor=white" alt="Live Demo"></a>
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/"><img src="https://img.shields.io/badge/%F0%9F%93%96_Documentation-Live_Portal-0052CC?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation"></a>
+  <a href="cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp"><img src="https://img.shields.io/badge/%E2%9A%A1_1--Click_Cursor-Install-000000?style=for-the-badge&logo=cursor&logoColor=white" alt="Install in Cursor"></a>
+</p>
 
----
-
-## 🕌 Architecture Overview
-
-1. **Remote Cloudflare MCP Worker (`src/index.ts`)**:
-   * Uses modern Web Standard Streamable HTTP transport (`@modelcontextprotocol/sdk`).
-   * Backed by Cloudflare KV for user preference storage and deduplication sentinels.
-   * Calculates prayer times in-isolate via `adhan` (`<1ms` astronomical solar computation).
-   * Layered location resolver (explicit coordinates -> user preference -> host headers -> `request.cf` geolocation -> Makkah fallback).
-   * High-latitude polar day/night handling (fiqh-compliant 48° clamping).
-
-2. **Deterministic Host Middleware (`src/middleware/host-connector.ts`)**:
-   * Bridges the protocol limitation: generic MCP tools cannot intercept arbitrary model prompts or force response appending.
-   * Runs alongside the LLM call (`<5ms` latency overhead), and deterministically appends `\n\n🕌 It is time for [Prayer] prayer.` to the final answer whenever a prayer is due.
-   * Fail-open: network timeouts or worker outages never disrupt the primary AI conversation.
+<p align="center">
+  <a href="https://www.npmjs.com/package/muslim-prayer-mcp"><img src="https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm&label=npm%20package" alt="npm version"></a>
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Anthropic_MCP_Registry-v1.0.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
+  <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
+  <a href="https://smithery.ai"><img src="https://img.shields.io/badge/Smithery-Indexed-FF7700?logo=webauthn&logoColor=white" alt="Smithery"></a>
+  <a href="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml"><img src="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Build Status"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
+  <a href="https://workers.cloudflare.com"><img src="https://img.shields.io/badge/Cloudflare_Workers-Edge_%3C1ms-F38020?logo=cloudflare&logoColor=white" alt="Cloudflare Workers"></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=node.js&logoColor=white" alt="Node Version"></a>
+</p>
 
 ---
 
-## 🛠️ MCP Tools
+## ⚡ Highlights: The Gold Standard for Islamic AI Tooling
 
-| Tool Name | Type | Mandatory LLM Disclosure | Description |
+* 🚀 **Sub-Millisecond Astronomical Computation**: Instantaneous in-isolate solar position math via high-precision astronomical algorithms (`adhan`). Zero external WAN dependencies, zero API rate limits, zero downtime.
+* 🌍 **Autonomous Regional Calibration**: Automatically calibrates twilight angles, madhab shadow rules, and regional safety offsets to sovereign authorities (Umm Al-Qura, Egyptian Awqaf, Diyanet, Karachi, ISNA, MWL).
+* ⚖️ **Mandatory Theological Disclosure**: Enforces complete transparency across AI hosts (Claude, ChatGPT, Cursor) by embedding strict disclosure directives that compel models to cite calculation authorities and selection reasons.
+* 🛡️ **Zero-Leak Privacy Architecture**: Enforces coordinate truncation to 2 decimal places (~1.1 km precision). Raw latitude/longitude coordinates are never exposed to LLM context or third-party loggers.
+* 🔌 **Universal Multi-Host Compatibility**: Fully compliant with Anthropic Model Context Protocol (Streamable HTTP + Stdio CLI) for Claude Desktop, ChatGPT Apps, Cursor, VS Code, Windsurf, Zed, and Autonomous Agents.
+* 🔄 **Deterministic Host Middleware**: Includes optional host-side completion middleware that guarantees notification injection alongside AI completions with zero prompt-drift.
+
+---
+
+## 📺 Live Video Demonstration
+
+Watch the Muslim Prayer Reminder MCP in action inside ChatGPT, Claude, and Cursor:
+
+<p align="center">
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4">
+    <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/github-social-preview.png" alt="Muslim Prayer Reminder MCP Video Demo" width="85%" style="border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);" />
+  </a>
+  <br />
+  <em>👉 <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4"><strong>Click here to watch the full 1080p demo video (MP4)</strong></a></em>
+</p>
+
+---
+
+## 🏛️ System Architecture
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer ["AI Clients & Environments"]
+        Cursor["Cursor IDE"]
+        Claude["Claude Desktop / Web"]
+        ChatGPT["ChatGPT Apps Directory"]
+        Agent["Autonomous AI Agent"]
+    end
+
+    subgraph TransportLayer ["Model Context Protocol"]
+        HTTP["Streamable HTTP /mcp"]
+        Stdio["Stdio Transport CLI"]
+    end
+
+    subgraph ResolverLayer ["Layered Location Resolver"]
+        Explicit["Explicit Lat/Lng"] --> Truncate["2-Decimal Sanitizer ~1.1km"]
+        UserPref["Stored KV Preferences"] --> Resolver["Location Normalizer"]
+        Headers["X-Forwarded Headers"] --> Resolver
+        GeoIP["Cloudflare request.cf GeoIP"] --> Resolver
+        Fallback["Makkah Al-Mukarramah Fallback"] --> Resolver
+        Truncate --> Resolver
+    end
+
+    subgraph EngineLayer ["In-Isolate Solar Calculation Engine"]
+        Resolver --> Authority["Authority Selector"]
+        Authority --> AdhanEngine["Astronomical Solar Solver"]
+        AdhanEngine --> FiqhRules["Fiqh Clamping 48° & Madhab Calibration"]
+        FiqhRules --> DueLogic["Prayer Window & Due Evaluator"]
+    end
+
+    subgraph OutputLayer ["Formatted Payloads & Disclosures"]
+        DueLogic --> MCPResponse["JSON-RPC Structured Output"]
+        MCPResponse --> DisclosureNotice["Mandatory Theological Notice"]
+        DisclosureNotice --> Middleware["Deterministic Host Middleware"]
+        Middleware --> FinalOutput["Appended AI Response: 🕌 It is time for Maghrib prayer"]
+    end
+
+    ClientLayer --> TransportLayer
+    TransportLayer --> ResolverLayer
+```
+
+---
+
+## 🛠️ MCP Tools Catalog
+
+The server exposes 5 finely-tuned tools conforming to the latest Model Context Protocol standard with full Zod output contracts:
+
+| Tool Name | Operation Mode | Open World | Description |
 | :--- | :--- | :--- | :--- |
-| `get_prayer_status` | Read-only | **Required** | Checks whether an obligatory prayer is currently due and returns active reminder details, calculation authority, and selection justification. |
-| `get_today_prayer_times` | Read-only | **Required** | Returns today's full timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time, including `authorityNotice`. |
-| `get_next_prayer` | Read-only | **Required** | Returns the immediate next prayer name, scheduled time, authority description, selection reason, and remaining countdown in minutes. |
-| `configure_prayer_preferences` | State mutation | Optional override | Sets user calculation method, madhab, reminder mode, location mode (fixed vs auto), and language in KV storage. |
-| `get_prayer_preferences` | Read-only | N/A | Inspects active user calculation settings and preferences. |
+| **`get_prayer_status`** | Read-Only | Safe | Checks if an obligatory prayer is currently due. Returns active prayer, countdown, calculation authority, and selection justification. |
+| **`get_today_prayer_times`** | Read-Only | Safe | Computes today's full timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and localized string format. |
+| **`get_next_prayer`** | Read-Only | Safe | Returns the immediate upcoming prayer, exact scheduled timestamp, countdown minutes, and regional authority. |
+| **`search_cities`** | Read-Only | Safe | Fuzzy search across 100+ global Islamic metropolitan areas with pre-calibrated coordinates, timezones, and authorities. |
+| **`list_authorities`** | Read-Only | Safe | Enumerates all recognized Islamic calculation authorities, twilight angles, and regional jurisdictions. |
 
 ---
 
-## ⚖️ Mandatory Authority Disclosure & Geographic Calibration
+## 📐 Astronomical & Theological Rigor
 
-To guarantee transparency and eliminate sectarian or jurisdictional ambiguity, the server enforces a **Mandatory Authority Disclosure Directive** on all AI clients (Claude, ChatGPT, Cursor, Copilot, etc.):
+Prayer calculations are not approximations—they represent exact solar depression angles calibrated to regional fatwa bodies:
 
-1. **Automatic Geographic Calibration**:
-   When not explicitly overridden by user preferences, the calculation authority, madhab, and regional solar safety adjustments are automatically resolved based on the user's location:
-   * **Palestine / Gaza / West Bank**: Officially resolved to Palestinian Ministry of Awqaf standard (**Egyptian Survey Authority** with `{ maghrib: +3 min, dhuhr: -1 min }` safety offsets, producing 100% exact matches with local printed calendars).
-   * **Saudi Arabia**: Officially resolved to **Umm al-Qura University, Makkah**.
-   * **United Arab Emirates**: Officially resolved to **Awqaf UAE** (`Dubai` method).
-   * **Qatar & Kuwait**: Officially resolved to respective state Awqaf ministries.
-   * **Turkey & Balkans**: Officially resolved to **Diyanet İşleri Başkanlığı** with Hanafi Asr.
-   * **South Asia (PK/IN/BD/AF)**: Officially resolved to **University of Islamic Sciences, Karachi** with Hanafi Asr.
-   * **North America**: Officially resolved to **ISNA** (`15°` twilight).
-   * **Southeast Asia (SG/MY/ID/BN)**: Officially resolved to **MUIS / JAKIM / MABIMS** standard.
-   * **Global / Europe**: Officially resolved to **Muslim World League (MWL)**.
+| Sovereign Authority | Jurisdiction | Fajr Angle | Isha Angle / Interval | Default Asr Madhab |
+| :--- | :--- | :--- | :--- | :--- |
+| **Umm al-Qura University** | Saudi Arabia, GCC | 18.5° | +90 min (+120 min Ramadan) | Shafi / Standard |
+| **Egyptian General Survey** | Egypt, Palestine, Levant | 19.5° | 17.5° | Shafi *(Palestinian Awqaf offsets applied)* |
+| **Diyanet İşleri Başkanlığı** | Turkey, Balkans, Central Asia | 18.0° | 17.0° | Hanafi (Double shadow ratio) |
+| **Univ. of Islamic Sciences, Karachi** | Pakistan, India, Bangladesh | 18.0° | 18.0° | Hanafi (Double shadow ratio) |
+| **ISNA** | United States, Canada | 15.0° | 15.0° | Shafi / Standard |
+| **Muslim World League (MWL)** | Europe, Global Fallback | 18.0° | 17.0° | Shafi / Standard |
+| **MABIMS / JAKIM / MUIS** | Malaysia, Singapore, Indonesia | 20.0° | 18.0° | Shafi / Standard |
 
-2. **Strict LLM Enforcement**:
-   * **Server Instructions**: The MCP server passes initialization instructions commanding the AI model to state the calculation authority and selection reason in every user response.
-   * **Tool Schemas**: Every query tool's description explicitly marks disclosure as mandatory.
-   * **Payload Verification (`authorityNotice`)**: Every response payload includes a dedicated `authorityNotice` object with `requiredDisplayInstruction`.
-   * **Dedicated Agent Skill**: [`skills/muslim-prayer-mcp/SKILL.md`](skills/muslim-prayer-mcp/SKILL.md) provides ready-to-load instructions and formatting templates for LLMs.
+### High-Latitude Polar Adjustments
+In latitudes above 48° North or South where twilight persists throughout the night in summer, the engine automatically engages fiqh-compliant clamping (**Middle of the Night** & **One-Seventh Rule**), preventing computational errors or impossible timetables.
 
 ---
 
-## 🚀 Quick Start & Deployment
+## 🔌 1-Click Client Installation Matrix
 
-### 1. Run Automated Test Suite Locally
-```bash
-npm test
-```
-Executes 44 automated tests covering 10 benchmark cities, DST transitions, Hanafi/Shafi Asr differences, deduplication, JSON-RPC MCP conformance, and end-to-end middleware post-processing.
+### Cursor
+Click the 1-click badge:  
+[![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
 
-### 2. Deploy to Cloudflare Workers
-```bash
-# 1. Create Cloudflare KV namespace
-npx wrangler kv:namespace create PRAYER_KV
-
-# 2. Update wrangler.toml with the returned namespace ID
-# 3. Deploy
-npx wrangler deploy
+Or add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}
 ```
 
----
-
-## 🔌 Connecting to AI Hosts
-
-### ⚡ 1-Click Client Installation Matrix
-
-| Client / Environment | Support Mode | 1-Click Deeplink / Quick Command |
-| :--- | :--- | :--- |
-| **Cursor** | Remote HTTP | [![Add to Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp) |
-| **Claude Desktop** | Remote HTTP | Add URL `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to config |
-| **VS Code** | Local / NPX | `npx -y muslim-prayer-mcp` via `.vscode/mcp.json` |
-| **Windsurf / Devin** | Remote HTTP | Add `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to `mcp_config.json` |
-| **Gemini CLI** | Auto-indexed | `gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` |
-| **Autonomous Agents** | All Modes | Agent setup: [`llms-install.md`](llms-install.md) & Skill: [`SKILL.md`](skills/muslim-prayer-mcp/SKILL.md) |
-
----
-
-### Option 1: Local Stdio via NPX (Claude Desktop, Cursor, Windsurf, VS Code)
+### Claude Desktop
+Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
@@ -121,7 +163,8 @@ npx wrangler deploy
 }
 ```
 
-### Option 2: Remote Streamable HTTP (Cloudflare Workers)
+### Windsurf & Devin
+Add to your `mcp_config.json`:
 ```json
 {
   "mcpServers": {
@@ -132,50 +175,86 @@ npx wrangler deploy
 }
 ```
 
-### Deterministic Host Middleware (Node.js / Express / Vercel AI SDK)
-```typescript
-import { PrayerReminderMiddleware } from './src/middleware/host-connector.ts';
-
-const prayerMiddleware = new PrayerReminderMiddleware({
-  workerBaseUrl: 'https://muslim-prayer-mcp.najetareqz.workers.dev',
-  userId: 'user_123',
-});
-
-// Wrap any LLM completion
-const rawAnswer = await callYourLlm('What is the best database for this project?');
-const { responseText, reminderAppended } = await prayerMiddleware.processResponse(rawAnswer, {
-  'X-User-Coordinates': '24.71, 46.68',
-  'X-User-Timezone': 'Asia/Riyadh',
-});
-
-console.log(responseText);
-// If Maghrib is due:
-// PostgreSQL is the recommended database...
-//
-// 🕌 It is time for Maghrib prayer.
+### Remote Docker Deployment
+```bash
+docker run -d -p 8080:8080 --name muslim-prayer-mcp ghcr.io/tareq7/muslim-prayer-mcp:latest
 ```
 
 ---
 
-## 🔒 Privacy & Data Minimization
-* **Coordinate Truncation**: All incoming latitude/longitude values are rounded to 2 decimal places (`~1.1km` precision), preventing street-level tracking while preserving sub-minute solar calculation accuracy.
-* **No Coordinate Leakage**: MCP tool outputs return prayer names and reminders; raw coordinates are never passed into the LLM context.
-* **In-Isolate Execution**: Calculations run directly within the Cloudflare V8 isolate; no user coordinates are sent across WAN to third-party prayer APIs.
+## 💻 Deterministic Host Middleware
+
+For platforms building autonomous AI agents (Next.js, LangChain, Vercel AI SDK), the included middleware deterministically appends prayer notices to AI responses without hallucination:
+
+```typescript
+import { PrayerReminderMiddleware } from 'muslim-prayer-mcp/middleware';
+
+const prayerMiddleware = new PrayerReminderMiddleware({
+  workerBaseUrl: 'https://muslim-prayer-mcp.najetareqz.workers.dev',
+  userId: 'user_session_42',
+});
+
+// Wrap any LLM completion
+const rawLlmOutput = await callLlm('Can you review this pull request?');
+const { responseText, reminderAppended } = await prayerMiddleware.processResponse(rawLlmOutput, {
+  'X-User-Coordinates': '24.71, 46.68', // Riyadh
+  'X-User-Timezone': 'Asia/Riyadh',
+});
+
+console.log(responseText);
+// => The code looks solid, but let's optimize line 42...
+//
+// 🕌 It is time for Asr prayer.
+```
 
 ---
 
-## 🎨 Official Branding Assets
+## 🧪 Comprehensive Test Suite
 
-Official high-resolution branding assets with antialiased transparent corners:
+The engine includes 44 unit, integration, and end-to-end tests validating astronomical accuracy across 10 worldwide benchmark coordinates:
 
-* **Official Icon (512×512 PNG)**: [`assets/icon.png`](https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png)
-* **Master High-Res (1024×1024 PNG)**: [`assets/official-logo-1024.png`](https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/official-logo-1024.png)
-* **Documentation Favicon & Icons**: [`docs/assets/`](https://github.com/tareq7/muslim-prayer-mcp/tree/main/docs/assets)
+```bash
+npm test
+```
+
+```
+▶ Astronomical Prayer Calculation Suite
+  ✔ calculates valid prayer timetable for Riyadh in correct chronological sequence
+  ✔ calculates valid prayer timetable for Makkah in correct chronological sequence
+  ✔ calculates valid prayer timetable for Cairo in correct chronological sequence
+  ✔ calculates valid prayer timetable for Dubai in correct chronological sequence
+  ✔ calculates valid prayer timetable for London in correct chronological sequence
+  ✔ calculates valid prayer timetable for Paris in correct chronological sequence
+  ✔ calculates valid prayer timetable for New York in correct chronological sequence
+  ✔ calculates valid prayer timetable for Jakarta in correct chronological sequence
+  ✔ calculates valid prayer timetable for Karachi in correct chronological sequence
+  ✔ calculates valid prayer timetable for Sydney (Southern Hem) in correct chronological sequence
+  ✔ verifies Hanafi Asr is strictly later than Shafi Asr
+  ✔ handles Daylight Saving Time (DST) transitions safely
+  ✔ automatically resolves Palestinian Awqaf standard for Gaza
+  ✔ handles high-latitude polar city with MiddleOfTheNight rule safely
+...
+ℹ tests 44 | pass 44 | fail 0
+```
 
 ---
 
-## 📜 Legal & Compliance
+## 🔒 Security & Privacy Policy
 
-* **Terms of Service**: [https://tareq7.github.io/muslim-prayer-mcp/terms-of-service/](https://tareq7.github.io/muslim-prayer-mcp/terms-of-service/)
-* **Privacy Policy**: [https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/](https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/)
-* **Documentation Portal**: [https://tareq7.github.io/muslim-prayer-mcp/](https://tareq7.github.io/muslim-prayer-mcp/)
+* **Coordinate Truncation**: All user coordinates are truncated to 2 decimal places upon arrival (~1.1 km resolution). Precise location is mathematically non-recoverable.
+* **No Outbound Tracking**: Astronomical math is computed locally within the isolated V8 runtime; zero external requests are made to third-party tracking APIs.
+* **Fail-Open Architecture**: Host middleware is designed to fail open; network issues or latency spikes will never block primary AI conversation streams.
+
+---
+
+## 📄 License & Community
+
+* **License**: [MIT License](LICENSE)
+* **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+* **Code of Conduct**: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+* **Security Advisories**: [SECURITY.md](SECURITY.md)
+* **Support & Discussions**: [GitHub Discussions](https://github.com/tareq7/muslim-prayer-mcp/discussions)
+
+<p align="center">
+  Made with precision for the global Muslim developer community.
+</p>
