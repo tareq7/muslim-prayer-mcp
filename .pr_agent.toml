@@ -1,7 +1,9 @@
 [config]
-model = "gemini/gemini-2.5-pro"
-fallback_models = ["gemini/gemini-2.5-flash", "gemini/gemini-flash-latest"]
-model_turbo = "gemini/gemini-2.5-flash"
+# Primary engine: Google Gemini 3.8 Flash
+model = "gemini/gemini-3.8-flash"
+fallback_models = ["gemini/gemini-3.7-flash", "gemini/gemini-2.5-flash"]
+model_turbo = "gemini/gemini-3.8-flash"
+model_reasoning = "gemini/gemini-3.8-flash"
 git_provider = "github"
 verbosity_level = 0
 temperature = 0.1
