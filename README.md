@@ -9,7 +9,7 @@
 [![npm version](https://img.shields.io/npm/v/muslim-prayer-mcp.svg?color=CB3837&logo=npm)](https://www.npmjs.com/package/muslim-prayer-mcp)
 [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-Live%20v1.0.1-0052CC?logo=anthropic&logoColor=white)](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp)
 [![Smithery](https://img.shields.io/badge/Smithery-indexed-orange)](https://smithery.ai)
-[![Glama](https://img.shields.io/badge/Glama-indexed-purple)](https://glama.ai/mcp/servers)
+[![Glama](https://img.shields.io/badge/Glama-indexed-purple)](https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp)
 [![Cursor](https://img.shields.io/badge/Cursor-Ready-000000?logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
 [![CI](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
