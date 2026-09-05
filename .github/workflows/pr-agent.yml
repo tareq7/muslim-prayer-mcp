@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   gemini_reviewer:
-    name: "ðŸ¤– Gemini 3.8 Flash"
+    name: "🤖 Gemini 3.8 Flash"
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
@@ -30,7 +30,7 @@ jobs:
           config.model: "gemini/gemini-3.8-flash"
           config.fallback_models: '["gemini/gemini-3.7-flash", "gemini/gemini-2.5-flash"]'
           config.custom_model_max_tokens: "1000000"
-          pr_reviewer.review_heading: "ðŸ¤– Gemini 3.8 Flash Reviewer"
+          pr_reviewer.review_heading: "🤖 Gemini 3.8 Flash Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
@@ -45,14 +45,14 @@ jobs:
           config.model: "gemini/gemini-3.8-flash"
           config.fallback_models: '["gemini/gemini-3.7-flash", "gemini/gemini-2.5-flash"]'
           config.custom_model_max_tokens: "1000000"
-          pr_reviewer.review_heading: "ðŸ¤– Gemini 3.8 Flash Reviewer"
+          pr_reviewer.review_heading: "🤖 Gemini 3.8 Flash Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
 
   byteplus_deepseek_reviewer:
-    name: "ðŸ¤– BytePlus DeepSeek-V4"
+    name: "🤖 BytePlus DeepSeek-V4"
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
@@ -70,14 +70,14 @@ jobs:
           openai.api_base: "https://ark.ap-southeast.bytepluses.com/api/v3"
           config.model: "openai/deepseek-v4-pro-ga-260813"
           config.custom_model_max_tokens: "1000000"
-          pr_reviewer.review_heading: "ðŸ¤– BytePlus DeepSeek-V4 Reviewer"
+          pr_reviewer.review_heading: "🤖 BytePlus DeepSeek-V4 Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
 
   alibaba_qwen_reviewer:
-    name: "ðŸ¤– Alibaba Qwen-3.8-Max"
+    name: "🤖 Alibaba Qwen-3.8-Max"
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
@@ -95,14 +95,14 @@ jobs:
           openai.api_base: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
           config.model: "openai/qwen3.8-max"
           config.custom_model_max_tokens: "1000000"
-          pr_reviewer.review_heading: "ðŸ¤– Alibaba Qwen-3.8-Max Reviewer"
+          pr_reviewer.review_heading: "🤖 Alibaba Qwen-3.8-Max Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
 
   alibaba_deepseek_reviewer:
-    name: "ðŸ¤– Alibaba DeepSeek-V4"
+    name: "🤖 Alibaba DeepSeek-V4"
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
@@ -120,14 +120,14 @@ jobs:
           openai.api_base: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
           config.model: "openai/deepseek-v4-pro"
           config.custom_model_max_tokens: "1000000"
-          pr_reviewer.review_heading: "ðŸ¤– Alibaba DeepSeek-V4 Reviewer"
+          pr_reviewer.review_heading: "🤖 Alibaba DeepSeek-V4 Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
           github_action_config.auto_improve: "false"
 
-  alibaba_kimi_reviewer:
-    name: "ðŸ¤– Alibaba Kimi-Code"
+  agentrouter_glm_reviewer:
+    name: "🤖 AgentRouter GLM-5.3"
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     permissions:
@@ -135,17 +135,18 @@ jobs:
       pull-requests: write
       contents: read
     steps:
-      - name: Run Alibaba Kimi Reviewer
+      - name: Run AgentRouter GLM-5.3 Reviewer
         uses: qodo-ai/pr-agent@main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
-          OPENAI_API_BASE: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-          openai.key: ${{ secrets.DASHSCOPE_API_KEY }}
-          openai.api_base: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-          config.model: "openai/kimi-k2.7-code"
+          OPENAI_KEY: ${{ secrets.AGENTROUTER_API_KEY }}
+          OPENAI_API_BASE: "https://agentrouter.org/v1"
+          openai.key: ${{ secrets.AGENTROUTER_API_KEY }}
+          openai.api_base: "https://agentrouter.org/v1"
+          config.model: "openai/glm-5.3"
           config.custom_model_max_tokens: "1000000"
-          pr_reviewer.review_heading: "ðŸ¤– Alibaba Kimi-Code Reviewer"
+          litellm.extra_headers: '{"User-Agent": "claude-cli/1.0.108 (external, cli)"}'
+          pr_reviewer.review_heading: "🤖 AgentRouter GLM-5.3 Reviewer"
           pr_reviewer.persistent_comment: "false"
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "false"
