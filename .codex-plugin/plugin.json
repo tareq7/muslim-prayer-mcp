@@ -1,0 +1,45 @@
+{
+  "name": "muslim-prayer-mcp",
+  "version": "1.0.1",
+  "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP and automatic location calibration.",
+  "author": {
+    "name": "Tareq Naji",
+    "url": "https://github.com/tareq7"
+  },
+  "homepage": "https://tareq7.github.io/muslim-prayer-mcp",
+  "repository": "https://github.com/tareq7/muslim-prayer-mcp",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "prayer-times",
+    "adhan",
+    "islamic",
+    "salat"
+  ],
+  "skills": "./skills/muslim-prayer-mcp/",
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  },
+  "interface": {
+    "displayName": "Muslim Prayer Reminder",
+    "shortDescription": "Astronomical prayer calculation and proactive reminders",
+    "longDescription": "Sub-millisecond astronomical prayer calculations, regional authority calibration, and deterministic prayer notifications for AI agents.",
+    "developerName": "Tareq Naji",
+    "category": "Productivity",
+    "capabilities": [
+      "MCP Server",
+      "Skills"
+    ],
+    "websiteURL": "https://tareq7.github.io/muslim-prayer-mcp",
+    "defaultPrompt": [
+      "Check if any prayer is currently due.",
+      "What are today's prayer times for my location?",
+      "When is the next prayer?"
+    ],
+    "brandColor": "#007A3D",
+    "composerIcon": "./assets/icon.png",
+    "logo": "./assets/icon.png"
+  }
+}

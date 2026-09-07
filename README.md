@@ -157,16 +157,184 @@ In latitudes above 48° North or South where twilight persists throughout the ni
 
 ---
 
-## 🔌 Client Installation Matrix
+## 🔌 Install & Multi-Agent Setup
 
-| Client | Mode | Config Snippet / Deeplink |
+Connect Muslim Prayer Reminder to any AI agent harness, developer IDE, or container runtime:
+
+### 1-Click & Matrix Overview
+
+| Environment / Harness | Protocol Mode | Quick Command / Deeplink |
 | :--- | :--- | :--- |
-| **Cursor** | Remote HTTP | [![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp) |
-| **Claude Desktop** | Stdio CLI | Add `"command": "npx", "args": ["-y", "muslim-prayer-mcp"]` to `claude_desktop_config.json` |
-| **Windsurf / Devin** | Remote HTTP | Add URL `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` to `mcp_config.json` |
-| **VS Code / Copilot** | Local / NPX | Add `"command": "npx", "args": ["-y", "muslim-prayer-mcp"]` to `.vscode/mcp.json` |
-| **Docker** | Container | `docker run -d -p 8080:8080 ghcr.io/tareq7/muslim-prayer-mcp:latest` |
-| **AI Agents (Code/SDK)** | All Modes | See [AGENTS.md](AGENTS.md) and [SKILL.md](skills/muslim-prayer-mcp/SKILL.md) |
+| **Cursor IDE** | Remote HTTP | [![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=flat-square&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp) |
+| **Claude Code** | Native Plugin | `/plugin marketplace add tareq7/muslim-prayer-mcp` |
+| **Codex** | Native Plugin | `codex plugin marketplace add tareq7/muslim-prayer-mcp` |
+| **GitHub Copilot CLI** | Copilot Plugin | `copilot plugin marketplace add tareq7/muslim-prayer-mcp` |
+| **Claude Desktop** | Stdio CLI | `npx -y muslim-prayer-mcp` via `claude_desktop_config.json` |
+| **VS Code & Cline** | Local NPX | `npx -y muslim-prayer-mcp` via `.vscode/mcp.json` |
+| **Windsurf & Devin** | Remote HTTP | Remote URL to `mcp_config.json` |
+| **Gemini CLI** | Native Extension | `gemini-cli --mcp-server https://.../mcp` |
+| **Pi Agent Harness** | Git Extension | `pi install git:github.com/tareq7/muslim-prayer-mcp` |
+| **OpenCode** | Agent Plugin | Auto-loaded via `opencode.json` & `AGENTS.md` |
+| **Docker Container** | Container | `docker run -d -p 8080:8080 ghcr.io/tareq7/muslim-prayer-mcp:latest` |
+
+---
+
+### Claude Code
+
+Run inside your Claude Code session:
+
+```bash
+/plugin marketplace add tareq7/muslim-prayer-mcp
+/plugin install muslim-prayer-mcp@muslim-prayer-mcp
+```
+
+*(Note: Send as two separate prompts). In the **Claude Code Desktop app**, click the **+** button next to the prompt box ➔ **Plugins** ➔ **Add plugin** to browse and install from the marketplace.*
+
+---
+
+### Codex
+
+Run in your terminal:
+
+```bash
+codex plugin marketplace add tareq7/muslim-prayer-mcp
+codex plugin add muslim-prayer-mcp@muslim-prayer-mcp
+```
+
+*Run `codex` and open `/hooks` (or start a new thread). This also activates the plugin in the Codex Desktop app upon restart.*
+
+---
+
+### GitHub Copilot CLI
+
+In your terminal:
+
+```bash
+copilot plugin marketplace add tareq7/muslim-prayer-mcp
+copilot plugin install muslim-prayer-mcp@muslim-prayer-mcp
+```
+
+Or inside an interactive Copilot CLI session:
+
+```text
+/plugin marketplace add tareq7/muslim-prayer-mcp
+/plugin install muslim-prayer-mcp@muslim-prayer-mcp
+```
+
+---
+
+### Cursor IDE
+
+Click to install with one click:  
+[![Install in Cursor](https://img.shields.io/badge/Install%20in%20Cursor-000000?style=for-the-badge&logo=cursor&logoColor=white)](cursor://anysphere.cursor-deeplink/mcp/install?name=muslim-prayer&url=https%3A%2F%2Fmuslim-prayer-mcp.najetareqz.workers.dev%2Fmcp)
+
+Or manually add to `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}
+```
+
+---
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "command": "npx",
+      "args": ["-y", "muslim-prayer-mcp"]
+    }
+  }
+}
+```
+
+---
+
+### VS Code & Cline
+
+Add to `.vscode/mcp.json` or Cline settings:
+
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "command": "npx",
+      "args": ["-y", "muslim-prayer-mcp"]
+    }
+  }
+}
+```
+
+---
+
+### Windsurf & Devin
+
+Add to `mcp_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "muslim-prayer": {
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}
+```
+
+---
+
+### Gemini CLI
+
+Connect directly using the live edge endpoint:
+
+```bash
+gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+```
+
+---
+
+### Pi Agent Harness
+
+```bash
+pi install git:github.com/tareq7/muslim-prayer-mcp
+```
+
+---
+
+### OpenCode
+
+Add to your `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "muslim-prayer": {
+      "type": "remote",
+      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}
+```
+
+*OpenCode automatically loads this repository's [`AGENTS.md`](AGENTS.md) and [`skills/muslim-prayer-mcp/SKILL.md`](skills/muslim-prayer-mcp/SKILL.md).*
+
+---
+
+### Docker Container
+
+```bash
+docker run -d -p 8080:8080 ghcr.io/tareq7/muslim-prayer-mcp:latest
+```
 
 ---
 
