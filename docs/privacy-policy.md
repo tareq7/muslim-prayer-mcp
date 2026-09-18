@@ -9,33 +9,69 @@ permalink: /privacy-policy/
 
 # Privacy Policy
 
-Last updated: 2026-09-04
+Last updated: 2026-09-18
 
-**Muslim Prayer Reminder MCP** is an open-source tool and server designed with a strict **privacy-by-default, zero-tracking** architecture.
+**Muslim Prayer Reminder** is an open-source MCP server and application designed with a strict **privacy-by-default, zero-tracking, data-minimization** architecture.
 
-## 1. Data Minimization & Geolocation
+This policy clearly details every category of data processed, stored, or returned by this application across all endpoints and tools.
 
-To calculate astronomical prayer schedules, geographical coordinates are required. Our system handles location data under strict data minimization guidelines:
+---
 
-* **Fuzzy Coordinate Truncation**: When coordinates are passed (either explicitly or inferred via Cloudflare edge geolocation headers), they are immediately rounded to two decimal places (`~1.1 km` city-level resolution). High-precision GPS coordinates are never stored.
-* **No Coordinate Leakage**: Tool responses return only prayer names, timetables, and notification text. Geographic coordinates and IP addresses are never echoed into the LLM conversational context.
-* **Ephemeral Processing**: Calculations run within an isolated Cloudflare V8 worker. No coordinates or queries are forwarded across WAN to third-party ad networks or tracking services.
+## 1. Data Categories & Processing
 
-## 2. Storage & Persistence
+### A. Input Data Processed Ephemerally
+To compute astronomical prayer times and determine whether an obligatory prayer is currently due, the application accepts the following optional parameters:
+* **Location & Coordinates**: City name or latitude/longitude coordinates. If coordinates are provided (or inferred from edge network headers), they are immediately truncated to 2 decimal places (`~1.1 km` city-level resolution). High-precision GPS or fine-grained location tracking is never captured, stored, or logged.
+* **Timezone**: An IANA timezone string (e.g., `Asia/Riyadh`, `America/New_York`) to calculate local wall-clock prayer times.
+* **Calculation Preferences**: Optional calculation method (e.g., Umm al-Qura, Egyptian Authority, MWL, ISNA), madhab (Shafi/Hanafi), or time offsets.
 
-* **Default Mode**: If you query prayer times without saving preferences, no data is written to persistent storage.
-* **User Preferences**: If you explicitly invoke the `configure_prayer_preferences` tool, only your chosen calculation parameters (such as `calculationMethod`, `madhab`, `locale`, or custom minutes offset) are saved under your assigned `userId` in Cloudflare Key-Value (KV) storage.
-* **Deduplication Sentinels**: Time-window deduplication flags automatically expire from KV storage within 24 hours.
+*All inputs are processed ephemerally in-isolate within a stateless Cloudflare Workers V8 execution environment and discarded immediately after completing the calculation.*
 
-## 3. Third-Party Sharing & Tracking
+### B. Output Data Returned to Hosts and Models
+The tools (`get_prayer_status`, `get_today_prayer_times`, `get_next_prayer`) return strictly prayer calculation results:
+* **Prayer Names & Timetables**: Standard Islamic prayer names (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) and corresponding calculated times in ISO-8601 UTC and localized 24-hour time strings.
+* **Prayer Status & Countdown**: Active prayer status boolean, time elapsed or remaining in minutes, and human-readable reminder strings in Arabic or English.
+* **Theological Metadata**: Official calculation authority name (e.g., "Umm al-Qura University, Makkah") and theological selection justification explaining why that calculation standard applies to the region.
 
-* **No Analytics or Trackers**: We do not embed tracking pixels, telemetry probes, Google Analytics, or third-party marketing SDKs.
-* **No Commercial Data Sales**: We do not sell, license, or monetize any user data.
+### C. Zero Debug Telemetry & No Sensitive Echoing
+* **No Coordinate Leakage**: Geographic coordinates (latitude, longitude) and IP addresses are **never echoed or returned** in tool output payloads.
+* **No Internal Debug Metadata**: Tool responses contain **no internal tracking keys, deduplication hashes (`dedupeKey`), or internal system diagnostic tags (`locationSource`)**.
+* **No User Identifiers in Read Queries**: Read-only prayer lookups operate anonymously without requiring or returning user IDs.
 
-## 4. Host Environments & Client Boundaries
+---
 
-When invoking this tool through host applications (such as Claude Desktop, ChatGPT, Cursor, Windsurf, or VS Code), your interaction is subject to the respective host application's privacy policy and data governance terms.
+## 2. Persistent Storage & Retention
 
-## 5. Contact & Data Deletion Requests
+* **Read-Only Inquiries**: Standard prayer queries (`get_today_prayer_times`, `get_prayer_status`, `get_next_prayer`) write zero data to persistent disks or databases.
+* **Explicit User Preferences**: When a user explicitly invokes the `configure_prayer_preferences` tool, only non-identifying prayer calculation settings (`calculationMethod`, `madhab`, `locale`, `customOffsets`, `reminderMode`, `exactWindowMinutes`) are persisted in an encrypted Cloudflare Key-Value (KV) namespace under the user's assigned scope.
+* **Deduplication Flags**: Temporary in-memory/KV reminder deduplication sentinels automatically expire and are purged within 24 hours.
 
-If you have configured persistent preferences via Cloudflare KV and wish to inspect or delete your stored records, please submit a request via [GitHub Issues](https://github.com/tareq7/muslim-prayer-mcp/issues) or reset your preferences by invoking the configuration tool with empty defaults.
+---
+
+## 3. Third-Party Sharing & Network Isolation
+
+* **Local In-Isolate Computation**: All solar angles, shadows, and astronomical coordinates are computed locally inside the Cloudflare Worker isolate using deterministic astronomical algorithms (`adhan` library).
+* **No External API Calls**: The server does not contact external third-party prayer APIs, ad networks, telemetry collectors, or analytics vendors.
+* **Zero Monetization**: We do not sell, license, share, or monetize user data under any circumstances.
+
+---
+
+## 4. Host Environments & Platform Scope
+
+When used within host platforms (such as ChatGPT, OpenAI Apps, Claude Desktop, Cursor, or Windsurf), the transmission of prompts and responses between your host client and the model is governed by the respective platform's privacy policy.
+
+---
+
+## 5. User Rights & Data Deletion
+
+Users retain full control over their preferences:
+* **Inspection**: You can inspect active saved calculation settings at any time using `get_prayer_preferences`.
+* **Deletion**: You can overwrite or reset stored preferences by invoking `configure_prayer_preferences` with default values, or request data deletion by opening an issue at [GitHub Issues](https://github.com/tareq7/muslim-prayer-mcp/issues).
+
+---
+
+## 6. Contact & Open Source Verification
+
+The complete source code and calculation logic are public and open-source:
+* **Repository**: [https://github.com/tareq7/muslim-prayer-mcp](https://github.com/tareq7/muslim-prayer-mcp)
+* **Maintainer**: Tareq Naji ([https://github.com/tareq7](https://github.com/tareq7))

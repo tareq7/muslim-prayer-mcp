@@ -50,7 +50,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const userId = args.userId || 'default_user';
+      const userId = 'default_user';
       const userPrefs = await storage.getUserPreferences(userId);
 
       const location = resolveLocation({
@@ -88,12 +88,14 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         await storage.recordDedupeSent(status.dedupeKey);
       }
 
+      const { dedupeKey, locationSource, ...cleanStatus } = status;
+
       return {
-        structuredContent: status,
+        structuredContent: cleanStatus,
         content: [
           {
             type: 'text',
-            text: JSON.stringify(status, null, 2),
+            text: JSON.stringify(cleanStatus, null, 2),
           },
         ],
       };
@@ -117,7 +119,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const userId = args.userId || 'default_user';
+      const userId = 'default_user';
       const userPrefs = await storage.getUserPreferences(userId);
 
       const location = resolveLocation({
@@ -150,12 +152,14 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         authorityNotice: params.authorityNotice,
       });
 
+      const { coordinates, ...cleanSchedule } = schedule;
+
       return {
-        structuredContent: schedule,
+        structuredContent: cleanSchedule,
         content: [
           {
             type: 'text',
-            text: JSON.stringify(schedule, null, 2),
+            text: JSON.stringify(cleanSchedule, null, 2),
           },
         ],
       };
@@ -179,7 +183,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const userId = args.userId || 'default_user';
+      const userId = 'default_user';
       const userPrefs = await storage.getUserPreferences(userId);
 
       const location = resolveLocation({
@@ -227,7 +231,6 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         selectionReason: status.selectionReason,
         authorityNotice: status.authorityNotice,
         minuteAdjustments: status.minuteAdjustments,
-        locationSource: status.locationSource,
       };
 
       return {

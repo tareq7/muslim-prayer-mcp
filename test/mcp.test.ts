@@ -13,6 +13,17 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.equal(data.service, 'muslim-prayer-reminder-mcp');
   });
 
+  it('GET /privacy returns comprehensive data category disclosures', async () => {
+    const req = new Request('http://localhost/privacy', { method: 'GET' });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const data = (await res.json()) as any;
+    assert.equal(data.app, 'Muslim Prayer Reminder');
+    assert.ok(data.dataCategories.inputsProcessedEphemerally);
+    assert.ok(data.dataCategories.outputsReturnedToHosts);
+    assert.ok(data.dataCategories.explicitlyExcludedFromOutputs);
+  });
+
   it('GET /api/status returns valid prayer status payload', async () => {
     const req = new Request('http://localhost/api/status?lat=24.71&lng=46.68&timezone=Asia/Riyadh', {
       method: 'GET',
@@ -138,6 +149,9 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     const statusPayload = JSON.parse(rpcRes.result.content[0].text);
     assert.equal(typeof statusPayload.reminderDue, 'boolean');
     assert.ok(statusPayload.nextPrayer);
+    // Data minimization: verify internal debug keys are NOT returned to the LLM
+    assert.equal(statusPayload.dedupeKey, undefined, 'dedupeKey must not be returned in MCP tool output');
+    assert.equal(statusPayload.locationSource, undefined, 'locationSource must not be returned in MCP tool output');
   });
 
   it('POST /mcp auto-resolves Palestinian Awqaf calculation method and offsets for Gaza coordinates', async () => {
@@ -182,6 +196,42 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.equal(schedule.authorityNotice.method, 'Egyptian');
     assert.ok(schedule.authorityNotice.selectionReason.includes('Palestine'));
     assert.ok(schedule.authorityNotice.requiredDisplayInstruction.includes('MANDATORY'));
+    // Data minimization: verify coordinates are NOT leaked in MCP tool output
+    assert.equal(schedule.coordinates, undefined, 'coordinates must not be leaked in get_today_prayer_times output');
+  });
+
+  it('POST /mcp handles get_next_prayer without returning internal telemetry', async () => {
+    const rpcCall = {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {
+        name: 'get_next_prayer',
+        arguments: {
+          latitude: 24.71,
+          longitude: 46.68,
+          timezone: 'Asia/Riyadh',
+        },
+      },
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcCall),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.id, 4);
+    const nextPayload = JSON.parse(rpcRes.result.content[0].text);
+    assert.ok(nextPayload.nextPrayer);
+    assert.ok(typeof nextPayload.remainingMinutes === 'number');
+    assert.equal(nextPayload.locationSource, undefined, 'locationSource must not be returned in get_next_prayer output');
   });
 
   it('GET /.well-known/mcp/server-card.json returns registry discovery card', async () => {

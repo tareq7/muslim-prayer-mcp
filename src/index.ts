@@ -97,12 +97,35 @@ export default {
     // Privacy Policy Endpoint (OpenAI Apps & Public Directories compliance)
     if (url.pathname === '/privacy') {
       return jsonResponse({
-        policy: 'Privacy Policy for Muslim Prayer Reminder MCP',
-        dataCollection: 'Zero PII collected or stored by default.',
-        geolocation: 'Coordinates are processed ephemerally and sanitized to 2 decimal places (city-level precision). No exact GPS tracks are retained.',
-        storage: 'User preferences (calculation method, madhab, notification window) are stored in Cloudflare KV strictly when explicitly submitted via configure_prayer_preferences.',
-        thirdPartySharing: 'None. All astronomical prayer calculations run locally at the edge using open mathematical formulas.',
-        retention: 'Ephemeral deduplication caches expire automatically within 24 hours.',
+        app: 'Muslim Prayer Reminder',
+        version: '1.0.1',
+        fullPolicyUrl: 'https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/',
+        privacyStandard: 'Privacy by default, zero tracking, strict data minimization',
+        dataCategories: {
+          inputsProcessedEphemerally: [
+            'City name or approximate latitude/longitude (truncated to 2 decimal places / ~1.1km)',
+            'IANA timezone string for local wall-clock conversion',
+            'Calculation method and madhab preferences',
+          ],
+          outputsReturnedToHosts: [
+            'Prayer names (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha)',
+            'Calculated prayer times in ISO-8601 UTC and local HH:mm format',
+            'Prayer due status boolean and countdown in minutes',
+            'Localized prayer alert notifications (Arabic and English)',
+            'Calculation authority name and theological selection justification',
+          ],
+          explicitlyExcludedFromOutputs: [
+            'Zero coordinate leakage: latitude and longitude are NEVER returned in tool outputs',
+            'Zero internal debug keys: deduplication sentinels and location sources are stripped',
+            'Zero user identifiers in read queries',
+          ],
+          storageAndRetention: [
+            'Standard prayer timetable and status queries write zero data to persistent storage',
+            'User preferences are saved in Cloudflare KV strictly upon calling configure_prayer_preferences',
+            'Ephemeral deduplication sentinels expire automatically within 24 hours',
+          ],
+          thirdPartySharing: 'None. Calculations execute locally in-isolate at the edge without external API calls or tracking SDKs.',
+        },
         contact: 'https://github.com/tareq7/muslim-prayer-mcp',
       });
     }

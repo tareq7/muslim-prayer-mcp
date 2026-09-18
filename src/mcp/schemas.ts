@@ -39,7 +39,6 @@ export const MinuteAdjustmentsSchema = z.object({
 });
 
 export const GetPrayerStatusInputSchema = z.object({
-  userId: z.string().optional().describe('Unique user or device ID for preference and deduplication tracking'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
   timezone: z.string().optional().describe('Optional IANA timezone override (e.g. Asia/Riyadh)'),
@@ -48,7 +47,6 @@ export const GetPrayerStatusInputSchema = z.object({
 });
 
 export const GetTodayPrayerTimesInputSchema = z.object({
-  userId: z.string().optional().describe('Unique user or device ID'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe('Date in YYYY-MM-DD format (defaults to today)'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
@@ -58,7 +56,6 @@ export const GetTodayPrayerTimesInputSchema = z.object({
 });
 
 export const GetNextPrayerInputSchema = z.object({
-  userId: z.string().optional().describe('Unique user or device ID'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
   timezone: z.string().optional().describe('Optional IANA timezone override'),
@@ -113,8 +110,6 @@ export const PrayerStatusOutputSchema = z.object({
   selectionReason: z.string().optional().describe('Reason for authority selection'),
   authorityNotice: AuthorityNoticeOutputSchema.optional().describe('Mandatory theological transparency notice'),
   reminderText: z.string().optional().describe('Localized reminder message'),
-  dedupeKey: z.string().optional().describe('Deduplication cache key'),
-  locationSource: z.string().describe('Source of location resolution'),
 });
 
 export const PrayerTimesUtcSchema = z.object({
@@ -138,10 +133,6 @@ export const PrayerTimesLocalSchema = z.object({
 export const PrayerScheduleOutputSchema = z.object({
   localDate: z.string().describe('Local schedule date YYYY-MM-DD'),
   timezone: z.string().describe('Resolved IANA timezone'),
-  coordinates: z.object({
-    latitude: z.number().describe('Latitude in degrees'),
-    longitude: z.number().describe('Longitude in degrees'),
-  }),
   calculationMethod: CalculationMethodEnum.describe('Active calculation authority'),
   madhab: MadhabEnum.describe('Active Asr jurisprudence'),
   minuteAdjustments: MinuteAdjustmentsSchema.optional(),
@@ -165,7 +156,6 @@ export const NextPrayerOutputSchema = z.object({
   selectionReason: z.string().optional(),
   authorityNotice: AuthorityNoticeOutputSchema.optional(),
   minuteAdjustments: MinuteAdjustmentsSchema.optional(),
-  locationSource: z.string().describe('Source of location resolution'),
 });
 
 export const GetNextPrayerOutputSchema = NextPrayerOutputSchema;
