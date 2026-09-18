@@ -10,8 +10,9 @@
 
 | Name / Entity | GitHub | Role | Area of Responsibility |
 | :--- | :--- | :--- | :--- |
-| **Smart Creations** | [@tareq7](https://github.com/tareq7) | Verified Publisher & Organization | Product Governance, Cloud Infrastructure, Legal & Brand Ownership |
+| **Smart Creations** | [@Smart-Creations](https://github.com/Smart-Creations) | Verified Publisher & Organization | Product Governance, Cloud Infrastructure, Legal & Brand Ownership |
 | **Tareq Naji** | [@tareq7](https://github.com/tareq7) | Lead Maintainer / Author | Project Architecture, Fiqh Calibration, Core Engine & Releases |
+
 
 ---
 

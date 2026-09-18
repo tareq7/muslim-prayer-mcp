@@ -25,14 +25,15 @@
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions"><img src="https://img.shields.io/badge/Tests-46%20Passing-brightgreen" alt="Tests"></a>
   <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.0.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
   <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
-  <a href="MAINTAINERS.md"><img src="https://img.shields.io/badge/Publisher-Smart%20Creations-0052CC" alt="Publisher: Smart Creations"></a>
+  <a href="https://github.com/Smart-Creations"><img src="https://img.shields.io/badge/Publisher-Smart%20Creations-0052CC?logo=github&logoColor=white" alt="Publisher: Smart Creations"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Enforced-success" alt="Security Policy"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
 </p>
 
 > **Project Status**: 🟢 **Actively Maintained (v1.0.1)**  
-> **Published by**: **Smart Creations** (OpenAI Org: `org-deULP4GGInsTcWmuaHWp3lxy`) • **Lead Maintainer**: **Tareq Naji** ([@tareq7](https://github.com/tareq7))  
+> **Published by**: [**Smart Creations**](https://github.com/Smart-Creations) (OpenAI Org: `org-deULP4GGInsTcWmuaHWp3lxy`) • **Lead Maintainer**: [**Tareq Naji**](https://github.com/tareq7)  
 > Supported across Cloudflare Workers, Node.js 22/24 (Ubuntu & Windows), and all Model Context Protocol (MCP) clients.
+
 
 ---
 
@@ -408,8 +409,9 @@ npm test
 
 ## 📄 Governance, Ownership & Community
 
-* **Publisher & Organization**: **Smart Creations** (OpenAI Organization ID: `org-deULP4GGInsTcWmuaHWp3lxy`)
+* **Publisher & Organization**: [**Smart Creations**](https://github.com/Smart-Creations) (OpenAI Organization ID: `org-deULP4GGInsTcWmuaHWp3lxy`)
 * **Lead Maintainer & Author**: **Tareq Naji** ([@tareq7](https://github.com/tareq7))
+
 * **License**: [MIT License](LICENSE) (Copyright © 2026 Smart Creations & Tareq Naji)
 * **Citation**: [CITATION.cff](CITATION.cff)
 * **Maintainers**: [MAINTAINERS.md](MAINTAINERS.md)

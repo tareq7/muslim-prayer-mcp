@@ -72,9 +72,10 @@ Users retain full control over their preferences:
 
 ## 6. Publisher, Ownership & Open Source Verification
 
-* **Publisher & Entity**: **Smart Creations** (OpenAI Organization ID: `org-deULP4GGInsTcWmuaHWp3lxy`)
+* **Publisher & Entity**: [**Smart Creations**](https://github.com/Smart-Creations) (OpenAI Organization ID: `org-deULP4GGInsTcWmuaHWp3lxy`)
 * **Lead Maintainer & Author**: Tareq Naji ([@tareq7](https://github.com/tareq7))
 * **Official Repository**: [https://github.com/tareq7/muslim-prayer-mcp](https://github.com/tareq7/muslim-prayer-mcp)
 * **Documentation**: [https://tareq7.github.io/muslim-prayer-mcp](https://tareq7.github.io/muslim-prayer-mcp)
 * **Contact & Support**: [GitHub Issues](https://github.com/tareq7/muslim-prayer-mcp/issues)
+
 
