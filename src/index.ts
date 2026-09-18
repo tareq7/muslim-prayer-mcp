@@ -56,6 +56,8 @@ export default {
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
         version: '1.0.1',
+        publisher: 'Smart Creations',
+        author: 'Tareq Naji (@tareq7)',
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
         docs: 'https://tareq7.github.io/muslim-prayer-mcp',
         timestamp: new Date().toISOString(),
@@ -74,6 +76,7 @@ export default {
         serverInfo: {
           name: 'muslim-prayer-reminder',
           version: '1.0.1',
+          publisher: 'Smart Creations',
         },
         description: 'Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.',
         iconUrl: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
@@ -99,6 +102,8 @@ export default {
       return jsonResponse({
         app: 'Muslim Prayer Reminder',
         version: '1.0.1',
+        publisher: 'Smart Creations',
+        author: 'Tareq Naji (@tareq7)',
         fullPolicyUrl: 'https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/',
         privacyStandard: 'Privacy by default, zero tracking, strict data minimization',
         dataCategories: {
@@ -134,12 +139,15 @@ export default {
     if (url.pathname === '/terms') {
       return jsonResponse({
         service: 'Muslim Prayer Reminder MCP',
-        license: 'MIT License',
+        publisher: 'Smart Creations',
+        author: 'Tareq Naji (@tareq7)',
+        license: 'MIT License (Copyright (c) 2026 Smart Creations & Tareq Naji)',
         accuracy: 'Prayer times are computed using standard astronomical algorithms (Adhan engine). Users should verify with local authorities for region-specific adjustments.',
         availability: 'Provided as-is on Cloudflare Workers edge infrastructure with no uptime warranty.',
         repository: 'https://github.com/tareq7/muslim-prayer-mcp',
       });
     }
+
 
     // OpenAI Apps Challenge Verification Endpoint
     if (url.pathname === '/.well-known/openai-apps-challenge') {

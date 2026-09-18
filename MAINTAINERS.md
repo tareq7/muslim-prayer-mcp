@@ -1,9 +1,16 @@
-﻿# Maintainers
+# Maintainers & Publisher
 
-The following individuals have commit, release, and administrative rights to **Muslim Prayer Reminder MCP**:
+**Muslim Prayer Reminder** is published and maintained by **Smart Creations**.
 
-| Name | GitHub | Role | Area of Responsibility |
+## Organization & Ownership
+
+* **Publisher / Business Entity**: **Smart Creations** (OpenAI Organization ID: `org-deULP4GGInsTcWmuaHWp3lxy`)
+* **Legal / Brand Owner**: Smart Creations
+* **Lead Maintainer & Founder**: **Tareq Naji** ([@tareq7](https://github.com/tareq7))
+
+| Name / Entity | GitHub | Role | Area of Responsibility |
 | :--- | :--- | :--- | :--- |
+| **Smart Creations** | [@tareq7](https://github.com/tareq7) | Verified Publisher & Organization | Product Governance, Cloud Infrastructure, Legal & Brand Ownership |
 | **Tareq Naji** | [@tareq7](https://github.com/tareq7) | Lead Maintainer / Author | Project Architecture, Fiqh Calibration, Core Engine & Releases |
 
 ---
@@ -11,3 +18,4 @@ The following individuals have commit, release, and administrative rights to **M
 ## Emeritus Maintainers & Contributors
 
 We gratefully acknowledge all contributors who help improve calculation precision, documentation, and client integrations. See [Contributors](https://github.com/tareq7/muslim-prayer-mcp/graphs/contributors).
+

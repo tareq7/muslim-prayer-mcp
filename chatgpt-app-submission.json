@@ -5,7 +5,8 @@
     "display_name": "Muslim Prayer Reminder",
     "subtitle": "Accurate prayer times & alerts",
     "description": "Muslim Prayer Reminder provides astronomical prayer times and due alerts directly in ChatGPT. Features automatic calculation authority calibration for each country, madhab adjustments, countdowns, and theological transparency.",
-    "category": "PRODUCTIVITY"
+    "category": "PRODUCTIVITY",
+    "developer_name": "Smart Creations"
   },
   "tools": {
     "get_prayer_status": {
