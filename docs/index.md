@@ -10,7 +10,7 @@ layout: default
 
 A production-ready Islamic prayer reminder system exposing both a **Streamable HTTP Model Context Protocol (MCP)** server on Cloudflare Workers and a local CLI runner for AI agents.
 
-[Terms of Service](/muslim-prayer-mcp/terms-of-service/) | [Privacy Policy](/muslim-prayer-mcp/privacy-policy/) | [GitHub Repository](https://github.com/tareq7/muslim-prayer-mcp) | [NPM Package](https://www.npmjs.com/package/muslim-prayer-mcp) | [Agent Installation Guide](llms-install.md)
+[Terms of Service](/muslim-prayer-mcp/terms-of-service/) | [Privacy Policy](/muslim-prayer-mcp/privacy-policy/) | [GitHub Repository](https://github.com/tareq7/muslim-prayer-mcp) | [NPM Package](https://www.npmjs.com/package/muslim-prayer-mcp) | [M8ven Score](https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp) | [Agent Installation Guide](llms-install.md)
 
 ---
 
