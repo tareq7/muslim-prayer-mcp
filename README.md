@@ -26,9 +26,11 @@
   <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.0.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
   <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
   <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>
+  <a href="https://wellknown.network/agents/muslim-prayer-reminder-mcp"><img src="https://wellknown.network/agents/muslim-prayer-reminder-mcp/badge.svg" alt="Wellknown"></a>
   <a href="https://github.com/Smart-Creations"><img src="https://img.shields.io/badge/Publisher-Smart%20Creations-0052CC?logo=github&logoColor=white" alt="Publisher: Smart Creations"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Enforced-success" alt="Security Policy"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
+
 </p>
 
 > **Project Status**: 🟢 **Actively Maintained (v1.0.1)**  
