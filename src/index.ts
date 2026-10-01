@@ -411,12 +411,15 @@ export default {
                     requestCf?.country ||
                     request.headers.get('cf-ipcountry') ||
                     undefined;
-                  await trackAnalytics(storage.getKV(), {
-                    tool,
-                    subject,
-                    session,
-                    country,
-                  });
+                  const isLocalTest = url.hostname === 'localhost' && !subject && !session;
+                  if (!isLocalTest) {
+                    await trackAnalytics(storage.getKV(), {
+                      tool,
+                      subject,
+                      session,
+                      country,
+                    });
+                  }
                 }
               } catch {}
             })();

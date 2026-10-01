@@ -55,10 +55,6 @@ export async function hashToken(token: string): Promise<string> {
 }
 
 export async function trackAnalytics(kv: KVNamespaceLike, event: AnalyticsEvent): Promise<void> {
-  // Only track when OpenAI subject or session identifier is present
-  if (!event.subject && !event.session) {
-    return;
-  }
 
   try {
     const now = new Date();
