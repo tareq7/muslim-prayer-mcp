@@ -38,13 +38,16 @@ JSON snippet:
 #### 3. VS Code (`.vscode/mcp.json`)
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "muslim-prayer": {
+      "type": "http",
       "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
     }
   }
 }
 ```
+
+See the [VS Code MCP configuration guide](https://code.visualstudio.com/docs/agent-customization/mcp-servers).
 
 #### 4. Windsurf (`~/.codeium/windsurf/mcp_config.json`)
 ```json
@@ -58,8 +61,9 @@ JSON snippet:
 ```
 
 #### 5. Gemini CLI
+Use the [Gemini MCP add command](https://geminicli.com/docs/tools/mcp-server/).
 ```bash
-gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+gemini mcp add --transport http muslim-prayer https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
 ```
 
 ---

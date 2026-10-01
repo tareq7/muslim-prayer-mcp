@@ -18,6 +18,25 @@ import type {
   ResolvedLocation,
   UserPreferences,
 } from './types.ts';
+import { inferCountryFromTimezone } from '../location/resolver.ts';
+
+export function isValidCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  // Adhan's UTC date constructor treats years 00..99 as 1900..1999.
+  if (year < 100) return false;
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+export function addDaysToCalendarDate(value: string, days: number): string {
+  if (!isValidCalendarDate(value)) throw new RangeError(`Invalid calendar date: ${value}`);
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day + days);
+  return date.toISOString().slice(0, 10);
+}
 
 export function getMethodParameters(methodName: CalculationMethodName): CalculationParameters {
   switch (methodName) {
@@ -73,7 +92,9 @@ export function getLocalDateString(date: Date, timeZone: string): string {
     month: '2-digit',
     day: '2-digit',
   });
-  return formatter.format(date); // Returns YYYY-MM-DD
+  const parts = formatter.formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((entry) => entry.type === type)!.value;
+  return `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
 }
 
 export function formatLocalTime(date: Date, timeZone: string): string {
@@ -89,7 +110,7 @@ export function formatLocalTime(date: Date, timeZone: string): string {
 export interface CalculateOptions {
   latitude: number;
   longitude: number;
-  date: Date;
+  date: Date | string;
   timezone: string;
   method?: CalculationMethodName;
   madhab?: MadhabName;
@@ -116,11 +137,14 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
   } = options;
 
   // Extract calendar day in the target timezone
-  const localDateStr = getLocalDateString(date, timezone);
+  const localDateStr = typeof date === 'string' ? date : getLocalDateString(date, timezone);
+  if (!isValidCalendarDate(localDateStr)) throw new RangeError(`Invalid calendar date: ${localDateStr}`);
   const [year, month, day] = localDateStr.split('-').map(Number);
 
-  // Initialize calculation date at 12:00:00 UTC for the target calendar day to avoid timezone day shifts
-  const calcDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+  // Adhan reads host-local calendar fields and returns UTC instants.
+  const calcDate = new Date(0);
+  calcDate.setFullYear(year, month - 1, day);
+  calcDate.setHours(12, 0, 0, 0);
 
   const coordinates = new Coordinates(latitude, longitude);
   const params = getMethodParameters(method);
@@ -134,19 +158,22 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
   if (minuteAdjustments.maghrib) params.adjustments.maghrib = minuteAdjustments.maghrib;
   if (minuteAdjustments.isha) params.adjustments.isha = minuteAdjustments.isha;
 
-  let prayerTimes = new PrayerTimes(coordinates, calcDate, params);
-
-  // High-latitude polar fallback: if astronomical dawn or sunset cannot be computed (polar day/night)
-  // clamp latitude to 48.0 degrees as mandated by contemporary Islamic Fiqh academies
-  if (
-    !prayerTimes.fajr ||
-    isNaN(prayerTimes.fajr.getTime()) ||
-    !prayerTimes.maghrib ||
-    isNaN(prayerTimes.maghrib.getTime())
-  ) {
-    const clampedLat = latitude > 0 ? Math.min(latitude, 48.0) : Math.max(latitude, -48.0);
-    const fallbackCoords = new Coordinates(clampedLat, longitude);
-    prayerTimes = new PrayerTimes(fallbackCoords, calcDate, params);
+  const computePrayerTimes = (): PrayerTimes => {
+    const times = new PrayerTimes(coordinates, calcDate, params);
+    // High-latitude polar fallback: if astronomical dawn or sunset cannot be computed (polar day/night)
+    // clamp latitude to 48.0 degrees as mandated by contemporary Islamic Fiqh academies
+    if (!times.fajr || isNaN(times.fajr.getTime()) || !times.maghrib || isNaN(times.maghrib.getTime())) {
+      const clampedLat = latitude > 0 ? Math.min(latitude, 48.0) : Math.max(latitude, -48.0);
+      return new PrayerTimes(new Coordinates(clampedLat, longitude), calcDate, params);
+    }
+    return times;
+  };
+  let prayerTimes = computePrayerTimes();
+  // Civil timezones can fall on the opposite side of the date line from their longitude.
+  const transitLocalDate = getLocalDateString(prayerTimes.dhuhr, timezone);
+  if (transitLocalDate !== localDateStr) {
+    calcDate.setDate(calcDate.getDate() + (transitLocalDate > localDateStr ? -1 : 1));
+    prayerTimes = computePrayerTimes();
   }
 
   const timesUtc: PrayerTimesUtc = {
@@ -199,6 +226,7 @@ export interface CalculationDefaults {
   highLatitudeRule: HighLatitudeRuleName;
   minuteAdjustments: MinuteAdjustments;
   authorityDescription: string;
+  selectionReason: string;
 }
 
 export function isPalestineLocation(loc: LocationSignals): boolean {
@@ -364,7 +392,8 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
   }
 
   // 9. North America: USA & Canada (ISNA Standard)
-  if (country === 'US' || country === 'CA' || tz.startsWith('America/')) {
+  const timezoneCountry = inferCountryFromTimezone(tz);
+  if (country === 'US' || country === 'CA' || (!country && ['US', 'CA'].includes(timezoneCountry || ''))) {
     return {
       method: 'NorthAmerica',
       madhab: 'Shafi',
@@ -455,9 +484,15 @@ export function resolveCalculationParameters(
 
   const isAuto = !overrideMethod && !userPrefs?.calculationMethod;
   const authorityDescription = isAuto ? defaults.authorityDescription : `Custom Override (${method})`;
-  const selectionReason = isAuto
+  let selectionReason = isAuto
     ? defaults.selectionReason
     : `Selected per explicit user preference override for calculation method '${method}' and madhab '${madhab}'.`;
+  if (isAuto && location.source === 'fallback_default') {
+    selectionReason = 'No usable location was supplied. Using the default Makkah location and its calculation authority.';
+  }
+  if (isAuto && madhab !== defaults.madhab) {
+    selectionReason = `${selectionReason} The Asr madhab was explicitly changed from '${defaults.madhab}' to '${madhab}'.`;
+  }
 
   const authorityNotice: AuthorityNotice = {
     method,

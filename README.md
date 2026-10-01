@@ -43,7 +43,7 @@
 ## ⚡ Quick Start
 
 ### 1. Run via NPX (Zero Installation)
-Add to your Claude Desktop, Cursor, or VS Code MCP configuration:
+Add to your Claude Desktop or Cursor MCP configuration:
 ```json
 {
   "mcpServers": {
@@ -136,11 +136,11 @@ The server exposes 5 finely-tuned tools conforming to the latest Model Context P
 
 | Tool Name | Operation Mode | Open World | Description |
 | :--- | :--- | :--- | :--- |
-| **`get_prayer_status`** | Read-Only | Safe | Checks if an obligatory prayer is currently due. Returns active prayer, countdown, calculation authority, and selection justification. |
+| **`get_prayer_status`** | Temporary state write | Safe | Checks if an obligatory prayer is currently due. Returns active prayer, countdown, calculation authority, and selection justification. |
 | **`get_today_prayer_times`** | Read-Only | Safe | Computes today's full timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and localized string format. |
 | **`get_next_prayer`** | Read-Only | Safe | Returns the immediate upcoming prayer, exact scheduled timestamp, countdown minutes, and regional authority. |
-| **`search_cities`** | Read-Only | Safe | Fuzzy search across 100+ global Islamic metropolitan areas with pre-calibrated coordinates, timezones, and authorities. |
-| **`list_authorities`** | Read-Only | Safe | Enumerates all recognized Islamic calculation authorities, twilight angles, and regional jurisdictions. |
+| **`configure_prayer_preferences`** | Mutation | Safe | Saves user calculation, fixed location, and reminder preferences. |
+| **`get_prayer_preferences`** | Read-Only | Safe | Reads saved public preference settings. |
 
 ---
 
@@ -150,7 +150,7 @@ Prayer calculations are not approximations—they represent exact solar depressi
 
 | Sovereign Authority | Jurisdiction | Fajr Angle | Isha Angle / Interval | Default Asr Madhab |
 | :--- | :--- | :--- | :--- | :--- |
-| **Umm al-Qura University** | Saudi Arabia, GCC | 18.5° | +90 min (+120 min Ramadan) | Shafi / Standard |
+| **Umm al-Qura University** | Saudi Arabia | 18.5° | +90 min | Shafi / Standard |
 | **Egyptian General Survey** | Egypt, Palestine, Levant | 19.5° | 17.5° | Shafi *(Palestinian Awqaf offsets applied)* |
 | **Diyanet İşleri Başkanlığı** | Turkey, Balkans, Central Asia | 18.0° | 17.0° | Hanafi (Double shadow ratio) |
 | **Univ. of Islamic Sciences, Karachi** | Pakistan, India, Bangladesh | 18.0° | 18.0° | Hanafi (Double shadow ratio) |
@@ -178,10 +178,10 @@ Connect Muslim Prayer Reminder to any AI agent harness, developer IDE, or contai
 | **Claude Desktop** | Stdio CLI | `npx -y muslim-prayer-mcp` via `claude_desktop_config.json` |
 | **VS Code & Cline** | Local NPX | `npx -y muslim-prayer-mcp` via `.vscode/mcp.json` |
 | **Windsurf & Devin** | Remote HTTP | Remote URL to `mcp_config.json` |
-| **Gemini CLI** | Native Extension | `gemini-cli --mcp-server https://.../mcp` |
+| **Gemini CLI** | Native Extension | `gemini mcp add --transport http muslim-prayer https://muslim-prayer-mcp.najetareqz.workers.dev/mcp` |
 | **Pi Agent Harness** | Git Extension | `pi install git:github.com/tareq7/muslim-prayer-mcp` |
 | **OpenCode** | Agent Plugin | Auto-loaded via `opencode.json` & `AGENTS.md` |
-| **Docker Container** | Container | `docker run -d -p 8080:8080 ghcr.io/tareq7/muslim-prayer-mcp:latest` |
+| **Docker Container** | Container | `docker build -t muslim-prayer-mcp .` then `docker run --rm -i muslim-prayer-mcp` (stdio) |
 
 ---
 
@@ -267,18 +267,21 @@ Add to your `claude_desktop_config.json`:
 
 ### VS Code & Cline
 
-Add to `.vscode/mcp.json` or Cline settings:
+Add this to `.vscode/mcp.json` using [VS Code's `servers` format](https://code.visualstudio.com/docs/agent-customization/mcp-servers):
 
 ```json
 {
-  "mcpServers": {
+  "servers": {
     "muslim-prayer": {
+      "type": "stdio",
       "command": "npx",
       "args": ["-y", "muslim-prayer-mcp"]
     }
   }
 }
 ```
+
+Cline settings use the `mcpServers` format shown in Quick Start.
 
 ---
 
@@ -303,7 +306,7 @@ Add to `mcp_config.json`:
 Connect directly using the live edge endpoint:
 
 ```bash
-gemini-cli --mcp-server https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+gemini mcp add --transport http muslim-prayer https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
 ```
 
 ---
@@ -339,7 +342,8 @@ Add to your `opencode.json`:
 ### Docker Container
 
 ```bash
-docker run -d -p 8080:8080 ghcr.io/tareq7/muslim-prayer-mcp:latest
+docker build -t muslim-prayer-mcp .
+docker run --rm -i muslim-prayer-mcp
 ```
 
 ---

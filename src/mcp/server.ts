@@ -10,6 +10,7 @@ import {
   GetTodayPrayerTimesInputSchema,
   PrayerScheduleOutputSchema,
   PrayerStatusOutputSchema,
+  UserPreferencesObjectSchema,
 } from './schemas.ts';
 import {
   calculateDailySchedule,
@@ -17,15 +18,17 @@ import {
   resolveCalculationParameters,
 } from '../engine/calculator.ts';
 import { evaluatePrayerStatus } from '../engine/reminder.ts';
-import { resolveLocation } from '../location/resolver.ts';
+import { resolveLocation, type ResolveLocationParams } from '../location/resolver.ts';
 import { PrayerStorage } from '../storage/kv-store.ts';
-import type { UserPreferences } from '../engine/types.ts';
+import type { ReminderMode, Locale } from '../engine/types.ts';
 
-export function createPrayerMcpServer(storage: PrayerStorage) {
+export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<ResolveLocationParams, 'headers' | 'cf'> & {
+  reminderMode?: ReminderMode; exactWindowMinutes?: number; locale?: Locale;
+} = {}) {
   const server = new McpServer(
     {
       name: 'muslim-prayer-reminder',
-      version: '1.0.0',
+      version: '1.0.1',
     },
     {
       instructions:
@@ -40,66 +43,71 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       title: 'Check Muslim Prayer Due Status',
       description:
         'Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
-      inputSchema: GetPrayerStatusInputSchema.shape,
+      inputSchema: GetPrayerStatusInputSchema,
       outputSchema: PrayerStatusOutputSchema.shape,
       annotations: {
-        readOnlyHint: true,
+        readOnlyHint: false,
         destructiveHint: false,
-        idempotentHint: true,
+        idempotentHint: false,
         openWorldHint: false,
       },
     },
     async (args) => {
-      const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
-      const dedupeUserId = args.userId || 'anon';
+      return storage.withUserLock(args.userId, async () => {
+        const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
+        const dedupeUserId = args.userId || 'anon';
 
-      const location = resolveLocation({
-        explicitLat: args.latitude,
-        explicitLng: args.longitude,
-        explicitTimezone: args.timezone,
-        userPrefs,
+        const location = resolveLocation({
+          ...context,
+          explicitLat: args.latitude,
+          explicitLng: args.longitude,
+          explicitTimezone: args.timezone,
+          userPrefs,
+        });
+
+        const params = resolveCalculationParameters(
+          location,
+          userPrefs,
+          args.calculationMethod,
+          args.madhab
+        );
+
+        const status = await evaluatePrayerStatus({
+          now: new Date(),
+          location,
+          method: params.method,
+          madhab: params.madhab,
+          highLatitudeRule: params.highLatitudeRule,
+          minuteAdjustments: params.minuteAdjustments,
+          authorityDescription: params.authorityDescription,
+          selectionReason: params.selectionReason,
+          authorityNotice: params.authorityNotice,
+          enabled: userPrefs?.enabled,
+          reminderMode: userPrefs?.reminderMode ?? context.reminderMode ?? 'prayer_window',
+          exactWindowMinutes: userPrefs?.exactWindowMinutes ?? context.exactWindowMinutes ?? 20,
+          locale: userPrefs?.locale ?? context.locale ?? 'en',
+          userId: dedupeUserId,
+          isAlreadySent: args.userId ? (key) => storage.isDedupeSent(key) : () => false,
+        });
+
+
+        if (args.userId && status.reminderDue && status.dedupeKey && status.expiresAtUtc && (userPrefs?.reminderMode ?? context.reminderMode) !== 'persistent') {
+          const ttl = Math.min(86400, Math.ceil((Date.parse(status.expiresAtUtc) - Date.now()) / 1000));
+          await storage.recordDedupeSent(status.dedupeKey, ttl);
+        }
+
+        const { dedupeKey, locationSource, ...cleanStatus } = status;
+
+        return {
+          structuredContent: cleanStatus,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(cleanStatus, null, 2),
+            },
+          ],
+        };
       });
-
-      const params = resolveCalculationParameters(
-        location,
-        userPrefs,
-        args.calculationMethod,
-        args.madhab
-      );
-
-      const status = await evaluatePrayerStatus({
-        now: new Date(),
-        location,
-        method: params.method,
-        madhab: params.madhab,
-        highLatitudeRule: params.highLatitudeRule,
-        minuteAdjustments: params.minuteAdjustments,
-        authorityDescription: params.authorityDescription,
-        selectionReason: params.selectionReason,
-        authorityNotice: params.authorityNotice,
-        reminderMode: userPrefs?.reminderMode || 'prayer_window',
-        exactWindowMinutes: userPrefs?.exactWindowMinutes || 20,
-        locale: userPrefs?.locale || 'en',
-        userId: dedupeUserId,
-        isAlreadySent: async (key) => storage.isDedupeSent(key),
-      });
-
-
-      if (status.reminderDue && status.dedupeKey) {
-        await storage.recordDedupeSent(status.dedupeKey);
-      }
-
-      const { dedupeKey, locationSource, ...cleanStatus } = status;
-
-      return {
-        structuredContent: cleanStatus,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(cleanStatus, null, 2),
-          },
-        ],
-      };
     }
   );
 
@@ -110,7 +118,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       title: 'Get Full Daily Prayer Timetable',
       description:
         'Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
-      inputSchema: GetTodayPrayerTimesInputSchema.shape,
+      inputSchema: GetTodayPrayerTimesInputSchema,
       outputSchema: PrayerScheduleOutputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -123,6 +131,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
 
       const location = resolveLocation({
+        ...context,
         explicitLat: args.latitude,
         explicitLng: args.longitude,
         explicitTimezone: args.timezone,
@@ -130,7 +139,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       });
 
 
-      const targetDate = args.date ? new Date(`${args.date}T12:00:00Z`) : new Date();
+      const targetDate = args.date ?? new Date();
 
       const params = resolveCalculationParameters(
         location,
@@ -174,7 +183,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       title: 'Get Upcoming Prayer and Countdown',
       description:
         'Returns the immediate next prayer name, scheduled time, authority calculation method, and remaining countdown in minutes. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).',
-      inputSchema: GetNextPrayerInputSchema.shape,
+      inputSchema: GetNextPrayerInputSchema,
       outputSchema: NextPrayerOutputSchema.shape,
       annotations: {
         readOnlyHint: true,
@@ -188,6 +197,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       const dedupeUserId = args.userId || 'anon';
 
       const location = resolveLocation({
+        ...context,
         explicitLat: args.latitude,
         explicitLng: args.longitude,
         explicitTimezone: args.timezone,
@@ -264,40 +274,10 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const existing = (await storage.getUserPreferences(args.userId)) || {
-        userId: args.userId,
-        locationMode: 'auto_travel',
-        calculationMethod: 'UmmAlQura',
-        madhab: 'Shafi',
-        highLatitudeRule: 'MiddleOfTheNight',
-        reminderMode: 'prayer_window',
-        exactWindowMinutes: 20,
-        locale: 'en',
-        minuteAdjustments: {},
-        enabled: true,
-        updatedAtUtc: new Date().toISOString(),
-      };
+      const updated = await storage.updateUserPreferences(args);
+      const preferences = UserPreferencesObjectSchema.parse(updated);
 
-      const updated: UserPreferences = {
-        ...existing,
-        locationMode: args.locationMode ?? existing.locationMode,
-        fixedCity: args.fixedCity ?? existing.fixedCity,
-        fixedCoordinates: args.fixedCoordinates ?? existing.fixedCoordinates,
-        timezone: args.timezone ?? existing.timezone,
-        calculationMethod: args.calculationMethod ?? existing.calculationMethod,
-        madhab: args.madhab ?? existing.madhab,
-        highLatitudeRule: args.highLatitudeRule ?? existing.highLatitudeRule,
-        reminderMode: args.reminderMode ?? existing.reminderMode,
-        exactWindowMinutes: args.exactWindowMinutes ?? existing.exactWindowMinutes,
-        locale: args.locale ?? existing.locale,
-        minuteAdjustments: args.minuteAdjustments ?? existing.minuteAdjustments,
-        enabled: args.enabled ?? existing.enabled,
-        updatedAtUtc: new Date().toISOString(),
-      };
-
-      await storage.saveUserPreferences(updated);
-
-      const result = { success: true, preferences: updated };
+      const result = { success: true, preferences };
       return {
         structuredContent: result,
         content: [
@@ -327,7 +307,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
     },
     async (args) => {
       const prefs = await storage.getUserPreferences(args.userId);
-      const result = prefs || { message: 'No preferences configured; defaults active.' };
+      const result = UserPreferencesObjectSchema.parse(prefs || { message: 'No preferences configured; defaults active.' });
       return {
         structuredContent: result,
         content: [

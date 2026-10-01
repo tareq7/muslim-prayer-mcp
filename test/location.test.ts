@@ -4,6 +4,28 @@ import { resolveLocation, sanitizeCoordinate } from '../src/location/resolver.ts
 import type { UserPreferences } from '../src/engine/types.ts';
 
 describe('Location & Timezone Layered Resolver Suite', () => {
+  it('rejects invalid coordinate pairs instead of calculating unrelated locations', () => {
+    for (const value of ['Infinity,0', '91,181', '40foo,-74bar', '40,-74,900', ',25']) {
+      const location = resolveLocation({ headers: new Headers({ 'X-User-Coordinates': value }), cf: { latitude: 25.2, longitude: 55.27, timezone: 'Asia/Dubai' } });
+      assert.equal(location.source, 'cf_geo', value);
+    }
+    assert.equal(resolveLocation({ explicitLat: NaN, explicitLng: 0 }).source, 'fallback_default');
+    assert.equal(resolveLocation({ cf: { latitude: Infinity, longitude: 0 } }).source, 'fallback_default');
+  });
+
+  it('accepts zero coordinates from Cloudflare', () => {
+    assert.equal(resolveLocation({ cf: { latitude: 0, longitude: 25, timezone: 'Africa/Kinshasa' } }).source, 'cf_geo');
+    assert.equal(resolveLocation({ cf: { latitude: 25, longitude: 0, timezone: 'Africa/Accra' } }).longitude, 0);
+  });
+
+  it('honors explicit timezone overrides on every location layer and rejects invalid fallbacks', () => {
+    const prefs = { locationMode: 'fixed', fixedCity: 'London' } as UserPreferences;
+    assert.equal(resolveLocation({ userPrefs: prefs, explicitTimezone: 'UTC' }).timezone, 'UTC');
+    assert.equal(resolveLocation({ explicitTimezone: 'UTC' }).timezone, 'UTC');
+    assert.equal(resolveLocation({ cf: { latitude: 25.2, longitude: 55.27, timezone: 'Asia/Dubai' }, explicitTimezone: 'UTC' }).timezone, 'UTC');
+    const location = resolveLocation({ explicitLat: 1, explicitLng: 1, cf: { timezone: 'Bad/Zone' } });
+    assert.equal(location.timezone, 'UTC');
+  });
   it('sanitizes coordinates to 2 decimal places for data minimization', () => {
     assert.equal(sanitizeCoordinate(24.713554), 24.71);
     assert.equal(sanitizeCoordinate(46.675296), 46.68);

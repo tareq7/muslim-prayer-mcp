@@ -11,12 +11,12 @@
   "tools": {
     "get_prayer_status": {
       "annotations": {
-        "readOnlyHint": true,
+        "readOnlyHint": false,
         "openWorldHint": false,
         "destructiveHint": false
       },
       "justifications": {
-        "read_only_justification": "Only evaluates whether an obligatory prayer is currently due using astronomical calculations and does not modify persistent user state.",
+        "read_only_justification": "Evaluates whether an obligatory prayer is due and records a temporary deduplication marker when a user identifier is supplied.",
         "open_world_justification": "Performs calculations locally in-isolate at the edge without calling third-party APIs or modifying external internet resources.",
         "destructive_justification": "Does not delete, overwrite, revoke access, or execute destructive actions."
       }

@@ -5,6 +5,24 @@ import { calculateDailySchedule } from '../src/engine/calculator.ts';
 import type { ResolvedLocation } from '../src/engine/types.ts';
 
 describe('Prayer Reminder & Due Logic Suite', () => {
+  it('uses adjacent calendar dates across daylight saving transitions', async () => {
+    const location: ResolvedLocation = { latitude: 51.51, longitude: -0.13, timezone: 'Europe/London', source: 'explicit_request', isApproximated: true };
+    const status = await evaluatePrayerStatus({ now: new Date('2026-03-28T23:30:00Z'), location, method: 'MuslimWorldLeague' });
+    assert.equal(status.nextPrayerAtUtc, '2026-03-29T03:46:00.000Z');
+    const afterSpringMidnight = await evaluatePrayerStatus({ now: new Date('2026-03-29T23:30:00Z'), location, method: 'MuslimWorldLeague' });
+    assert.equal(afterSpringMidnight.startedAtUtc, '2026-03-29T20:19:00.000Z');
+    assert.equal(afterSpringMidnight.dedupeKey, 'anon:2026-03-29:Isha:prayer_window');
+    const autumn = await evaluatePrayerStatus({ now: new Date('2026-10-25T00:30:00Z'), location, method: 'MuslimWorldLeague' });
+    assert.equal(autumn.startedAtUtc, '2026-10-24T18:34:00.000Z');
+    assert.equal(autumn.dedupeKey, 'anon:2026-10-24:Isha:prayer_window');
+  });
+
+  it('suppresses disabled reminders while retaining the next prayer', async () => {
+    const status = await evaluatePrayerStatus({ now: new Date(maghribMs), location: riyadhLocation, enabled: false });
+    assert.equal(status.reminderDue, false);
+    assert.equal(status.prayer, undefined);
+    assert.equal(status.nextPrayer, 'Isha');
+  });
   const riyadhLocation: ResolvedLocation = {
     latitude: 24.71,
     longitude: 46.68,

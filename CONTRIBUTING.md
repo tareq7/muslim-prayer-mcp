@@ -22,6 +22,7 @@ Thank you for your interest in improving this project!
 
 ## Pull Request Guidelines
 
-* All pull requests must pass the automated test suite (`npm test`).
+* All pull requests must pass `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`.
+* Run `npm run build` before using `node bin/cli.js` locally. Published npm packages include compiled JavaScript; Docker runs the source directly.
 * Keep changes scoped and minimal.
 * Add unit tests for new calculation parameters, fiqh adjustments, or transport features.

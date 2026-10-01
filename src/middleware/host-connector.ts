@@ -9,13 +9,13 @@ export interface HostMiddlewareOptions {
 
 export class PrayerReminderMiddleware {
   private workerBaseUrl: string;
-  private userId: string;
+  private userId?: string;
   private timeoutMs: number;
   private authToken?: string;
 
   constructor(options: HostMiddlewareOptions) {
     this.workerBaseUrl = options.workerBaseUrl.replace(/\/+$/, '');
-    this.userId = options.userId || 'default_user';
+    this.userId = options.userId;
     this.timeoutMs = options.timeoutMs || 250;
     this.authToken = options.authToken;
   }
@@ -38,13 +38,16 @@ export class PrayerReminderMiddleware {
         reqHeaders['Authorization'] = `Bearer ${this.authToken}`;
       }
 
-      const res = await fetch(`${this.workerBaseUrl}/api/status?userId=${encodeURIComponent(this.userId)}`, {
+      const res = await fetch(`${this.workerBaseUrl}/api/status${this.userId ? `?userId=${encodeURIComponent(this.userId)}` : ''}`, {
         method: 'GET',
         headers: reqHeaders,
         signal: controller.signal,
       });
 
-      if (!res.ok) return null;
+      if (!res.ok) {
+        await res.body?.cancel();
+        return null;
+      }
       const data = (await res.json()) as PrayerStatusResult;
       return data;
     } catch {

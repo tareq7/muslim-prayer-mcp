@@ -35,7 +35,7 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.ok(data.nextPrayer);
     assert.ok(data.nextPrayerAtUtc);
     assert.equal(data.timezone, 'Asia/Riyadh');
-    assert.equal(data.locationSource, 'explicit_request');
+    assert.equal(data.locationSource, undefined);
   });
 
   it('GET /api/timetable returns full 6 prayer times', async () => {

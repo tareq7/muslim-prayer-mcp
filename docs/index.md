@@ -27,7 +27,7 @@ A production-ready Islamic prayer reminder system exposing both a **Streamable H
 }
 ```
 
-### Option 2: Local NPX Runner (Claude Desktop, Cursor, VS Code, Windsurf)
+### Option 2: Local NPX Runner (Claude Desktop, Cursor, Windsurf)
 ```json
 {
   "mcpServers": {
@@ -41,11 +41,13 @@ A production-ready Islamic prayer reminder system exposing both a **Streamable H
 
 ---
 
+For VS Code `.vscode/mcp.json`, use a top-level `servers` object and `type: "stdio"`; see the [VS Code MCP configuration guide](https://code.visualstudio.com/docs/agent-customization/mcp-servers).
+
 ## 🛠️ MCP Tools Overview
 
 | Tool Name | Operation | Mandatory LLM Disclosure | Description |
 | :--- | :--- | :--- | :--- |
-| `get_prayer_status` | Read-only | **Required** | Checks whether an obligatory prayer is currently due. Returns reminder status, prayer name, calculation authority, and selection reason. |
+| `get_prayer_status` | Temporary state write | **Required** | Checks whether an obligatory prayer is currently due. Returns reminder status, prayer name, calculation authority, and selection reason. |
 | `get_today_prayer_times` | Read-only | **Required** | Computes today's full prayer schedule (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time with `authorityNotice`. |
 | `get_next_prayer` | Read-only | **Required** | Identifies the immediate upcoming prayer, local scheduled time, remaining countdown in minutes, and `authorityNotice`. |
 | `configure_prayer_preferences` | Mutation | N/A | Stores custom calculation method, madhab, reminder mode, or fixed location in Cloudflare KV. |
@@ -88,7 +90,7 @@ An official skill specification is included at [`skills/muslim-prayer-mcp/SKILL.
 
 When the user asks: *"What are the prayer times in Gaza today?"*
 
-The agent calls `get_today_prayer_times({ lat: 31.50, lng: 34.46, timezone: "Asia/Gaza" })` and formats the response:
+The agent calls `get_today_prayer_times({ latitude: 31.50, longitude: 34.46, timezone: "Asia/Gaza" })` and formats the response:
 
 ```markdown
 ### Today's Prayer Times for Gaza (Friday, Sep 4, 2026)

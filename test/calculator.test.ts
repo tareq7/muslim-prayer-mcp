@@ -6,9 +6,57 @@ import {
   getLocalDateString,
   getDefaultCalculationParameters,
   resolveCalculationParameters,
+  isValidCalendarDate,
 } from '../src/engine/calculator.ts';
 
 describe('Astronomical Prayer Calculation Suite', () => {
+  it('preserves literal requested calendar dates and rejects impossible dates', () => {
+    const schedule = calculateDailySchedule({ latitude: -36.85, longitude: 174.76, timezone: 'Pacific/Auckland', date: '2026-09-03' });
+    assert.equal(schedule.localDate, '2026-09-03');
+    assert.equal(getLocalDateString(new Date(schedule.timesUtc.dhuhr), schedule.timezone), '2026-09-03');
+    assert.equal(isValidCalendarDate('2026-02-30'), false);
+    assert.equal(isValidCalendarDate('2024-02-29'), true);
+    assert.equal(isValidCalendarDate('2026-13-01'), false);
+    assert.equal(isValidCalendarDate('0099-02-28'), false);
+    assert.throws(() => calculateDailySchedule({ latitude: 0, longitude: 0, timezone: 'UTC', date: '2026-02-30' }), /Invalid calendar date/);
+  });
+
+  it('calculates identical UTC instants across host timezones', () => {
+    const originalTimezone = process.env.TZ;
+    try {
+      const options = { latitude: 24.71, longitude: 46.68, timezone: 'Asia/Riyadh', date: new Date('2026-09-03T12:00:00Z') };
+      process.env.TZ = 'UTC';
+      const baseline = calculateDailySchedule(options);
+      for (const timezone of ['Pacific/Auckland', 'Pacific/Kiritimati', 'America/Los_Angeles']) {
+        process.env.TZ = timezone;
+        assert.deepEqual(calculateDailySchedule(options).timesUtc, baseline.timesUtc);
+      }
+    } finally {
+      if (originalTimezone === undefined) delete process.env.TZ;
+      else process.env.TZ = originalTimezone;
+    }
+  });
+
+  it('aligns prayer instants with the requested day across the International Date Line', () => {
+    for (const location of [
+      { latitude: 1.87, longitude: -157.43, timezone: 'Pacific/Kiritimati' },
+      { latitude: -13.83, longitude: -171.75, timezone: 'Pacific/Apia' },
+    ]) {
+      const schedule = calculateDailySchedule({ ...location, date: '2026-09-03' });
+      for (const time of Object.values(schedule.timesUtc)) {
+        assert.equal(getLocalDateString(new Date(time), location.timezone), '2026-09-03');
+      }
+    }
+  });
+
+  it('does not classify South America or Mexico as USA/Canada', () => {
+    for (const location of [{ country: 'BR', timezone: 'America/Sao_Paulo' }, { country: 'MX', timezone: 'America/Mexico_City' }, { timezone: 'America/Argentina/Buenos_Aires' }]) {
+      assert.equal(getDefaultCalculationParameters(location).method, 'MuslimWorldLeague');
+    }
+    for (const timezone of ['America/New_York', 'America/Regina', 'America/Whitehorse', 'Pacific/Honolulu']) {
+      assert.equal(getDefaultCalculationParameters({ timezone }).method, 'NorthAmerica');
+    }
+  });
   const testLocations = [
     { name: 'Riyadh', lat: 24.7136, lng: 46.6753, tz: 'Asia/Riyadh', method: 'UmmAlQura' as const },
     { name: 'Makkah', lat: 21.4225, lng: 39.8262, tz: 'Asia/Riyadh', method: 'UmmAlQura' as const },

@@ -57,6 +57,21 @@ export function sanitizeCoordinate(val: number): number {
   return Math.round(val * 100) / 100;
 }
 
+function validCoordinatePair(latitude: unknown, longitude: unknown): boolean {
+  return typeof latitude === 'number' && Number.isFinite(latitude) && Math.abs(latitude) <= 90 &&
+    typeof longitude === 'number' && Number.isFinite(longitude) && Math.abs(longitude) <= 180;
+}
+
+function parseCoordinate(value: string | number | undefined): number {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string' || !/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value.trim())) return NaN;
+  return Number(value.trim());
+}
+
+function validTimezone(...values: (string | undefined)[]): string | undefined {
+  return values.find((value) => !!value && isValidIanaTimezone(value));
+}
+
 export function isValidIanaTimezone(tz: string): boolean {
   try {
     Intl.DateTimeFormat(undefined, { timeZone: tz });
@@ -97,24 +112,38 @@ export function inferCountryFromTimezone(tz: string): string | undefined {
   if (t === 'Europe/Berlin') return 'DE';
   if (t === 'Europe/Rome') return 'IT';
   if (t === 'Europe/Madrid') return 'ES';
-  if (
-    t.startsWith('America/Toronto') ||
-    t.startsWith('America/Vancouver') ||
-    t.startsWith('America/Montreal') ||
-    t.startsWith('America/Edmonton') ||
-    t.startsWith('America/Winnipeg') ||
-    t.startsWith('America/Halifax') ||
-    t.startsWith('America/St_Johns')
-  ) {
+  // Country-specific zones from https://data.iana.org/time-zones/tzdb/zone.tab, plus legacy aliases.
+  if ([
+    'America/St_Johns', 'America/Halifax', 'America/Glace_Bay', 'America/Moncton', 'America/Goose_Bay',
+    'America/Blanc-Sablon', 'America/Toronto', 'America/Iqaluit', 'America/Atikokan', 'America/Winnipeg',
+    'America/Resolute', 'America/Rankin_Inlet', 'America/Regina', 'America/Swift_Current',
+    'America/Edmonton', 'America/Cambridge_Bay', 'America/Inuvik', 'America/Vancouver', 'America/Creston',
+    'America/Dawson_Creek', 'America/Fort_Nelson', 'America/Whitehorse', 'America/Dawson',
+    'America/Montreal', 'America/Nipigon', 'America/Thunder_Bay', 'America/Pangnirtung',
+    'America/Rainy_River', 'America/Yellowknife', 'Canada/Atlantic', 'Canada/Central', 'Canada/Eastern',
+    'Canada/Mountain', 'Canada/Newfoundland', 'Canada/Pacific', 'Canada/Saskatchewan', 'Canada/Yukon',
+  ].includes(t)) {
     return 'CA';
   }
-  if (t.startsWith('America/')) return 'US';
+  if ([
+    'America/New_York', 'America/Detroit', 'America/Kentucky/Louisville', 'America/Kentucky/Monticello',
+    'America/Indiana/Indianapolis', 'America/Indiana/Vincennes', 'America/Indiana/Winamac',
+    'America/Indiana/Marengo', 'America/Indiana/Petersburg', 'America/Indiana/Vevay',
+    'America/Indiana/Tell_City', 'America/Indiana/Knox', 'America/Chicago', 'America/Menominee',
+    'America/North_Dakota/Center', 'America/North_Dakota/New_Salem', 'America/North_Dakota/Beulah',
+    'America/Denver', 'America/Boise', 'America/Phoenix', 'America/Los_Angeles', 'America/Anchorage',
+    'America/Juneau', 'America/Sitka', 'America/Metlakatla', 'America/Yakutat', 'America/Nome',
+    'America/Adak', 'Pacific/Honolulu', 'US/Eastern', 'US/Central', 'US/Mountain', 'US/Pacific',
+    'US/Alaska', 'US/Aleutian', 'US/Arizona', 'US/Hawaii', 'US/East-Indiana', 'US/Indiana-Starke',
+    'America/Indianapolis', 'America/Louisville', 'America/Knox_IN', 'America/Shiprock', 'America/Atka',
+  ].includes(t)) return 'US';
   if (t.startsWith('Australia/')) return 'AU';
   return undefined;
 }
 
 export function resolveLocation(params: ResolveLocationParams): ResolvedLocation {
   const { explicitLat, explicitLng, explicitTimezone, userPrefs, headers, cf } = params;
+  const timezoneOverride = validTimezone(explicitTimezone);
 
   const enrichLocation = (loc: ResolvedLocation): ResolvedLocation => {
     if (
@@ -124,7 +153,7 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
       loc.longitude <= 35.8
     ) {
       if (!loc.country) loc.country = 'PS';
-      if (!loc.timezone || loc.timezone === 'UTC') loc.timezone = 'Asia/Gaza';
+      if (!timezoneOverride && (!loc.timezone || loc.timezone === 'UTC')) loc.timezone = 'Asia/Gaza';
     }
 
     if (!loc.country) {
@@ -132,14 +161,13 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
         loc.country = inferCountryFromTimezone(loc.timezone);
       }
     }
+    if (timezoneOverride) loc.timezone = timezoneOverride;
     return loc;
   };
 
   // Layer 1: Explicit coordinates in request
-  if (typeof explicitLat === 'number' && typeof explicitLng === 'number') {
-    const tz = explicitTimezone && isValidIanaTimezone(explicitTimezone)
-      ? explicitTimezone
-      : (userPrefs?.timezone || cf?.timezone || 'UTC');
+  if (typeof explicitLat === 'number' && typeof explicitLng === 'number' && validCoordinatePair(explicitLat, explicitLng)) {
+    const tz = validTimezone(explicitTimezone, userPrefs?.timezone, headers?.get('X-User-Timezone') ?? undefined, cf?.timezone) || 'UTC';
     return enrichLocation({
       latitude: sanitizeCoordinate(explicitLat),
       longitude: sanitizeCoordinate(explicitLng),
@@ -151,11 +179,11 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
 
   // Layer 2: User configured fixed preferences
   if (userPrefs && userPrefs.locationMode === 'fixed') {
-    if (userPrefs.fixedCoordinates) {
+    if (userPrefs.fixedCoordinates && validCoordinatePair(userPrefs.fixedCoordinates.latitude, userPrefs.fixedCoordinates.longitude)) {
       return enrichLocation({
         latitude: sanitizeCoordinate(userPrefs.fixedCoordinates.latitude),
         longitude: sanitizeCoordinate(userPrefs.fixedCoordinates.longitude),
-        timezone: userPrefs.timezone || 'Asia/Riyadh',
+        timezone: validTimezone(userPrefs.timezone) || 'Asia/Riyadh',
         city: userPrefs.fixedCity,
         source: 'user_fixed_preference',
         isApproximated: true,
@@ -163,7 +191,7 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
     }
     if (userPrefs.fixedCity) {
       const normalizedCity = userPrefs.fixedCity.toLowerCase().replace(/[^a-z]/g, '');
-      const matched = MAJOR_CITIES[normalizedCity];
+      const matched = Object.hasOwn(MAJOR_CITIES, normalizedCity) ? MAJOR_CITIES[normalizedCity] : undefined;
       if (matched) {
         return enrichLocation({
           latitude: sanitizeCoordinate(matched.latitude),
@@ -185,13 +213,11 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
     const headerCity = headers.get('X-User-City');
 
     if (headerCoords) {
-      const [latStr, lngStr] = headerCoords.split(',').map((s) => s.trim());
-      const lat = parseFloat(latStr);
-      const lng = parseFloat(lngStr);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        const tz = headerTz && isValidIanaTimezone(headerTz)
-          ? headerTz
-          : (userPrefs?.timezone || cf?.timezone || 'UTC');
+      const values = headerCoords.split(',');
+      const lat = parseCoordinate(values[0]);
+      const lng = parseCoordinate(values[1]);
+      if (values.length === 2 && validCoordinatePair(lat, lng)) {
+        const tz = validTimezone(headerTz ?? undefined, userPrefs?.timezone, cf?.timezone) || 'UTC';
         return enrichLocation({
           latitude: sanitizeCoordinate(lat),
           longitude: sanitizeCoordinate(lng),
@@ -205,10 +231,10 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
   }
 
   // Layer 4: Cloudflare Geolocation
-  if (cf && cf.latitude && cf.longitude) {
-    const lat = typeof cf.latitude === 'string' ? parseFloat(cf.latitude) : cf.latitude;
-    const lng = typeof cf.longitude === 'string' ? parseFloat(cf.longitude) : cf.longitude;
-    if (!isNaN(lat) && !isNaN(lng)) {
+  if (cf) {
+    const lat = parseCoordinate(cf.latitude);
+    const lng = parseCoordinate(cf.longitude);
+    if (validCoordinatePair(lat, lng)) {
       const tz = cf.timezone && isValidIanaTimezone(cf.timezone) ? cf.timezone : 'UTC';
       return enrichLocation({
         latitude: sanitizeCoordinate(lat),

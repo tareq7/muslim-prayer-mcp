@@ -31,3 +31,12 @@ jobs:
 
       - name: Run Test Suite
         run: npm test
+
+      - name: Check Types
+        run: npm run typecheck
+
+      - name: Build Package
+        run: npm run build
+
+      - name: Audit Dependencies
+        run: npm audit

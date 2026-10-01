@@ -7,7 +7,7 @@
   "repository": "https://github.com/tareq7/muslim-prayer-mcp",
   "mcpServers": {
     "muslim-prayer": {
-      "url": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+      "httpUrl": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
     }
   }
 }

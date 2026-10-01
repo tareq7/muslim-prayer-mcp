@@ -12,7 +12,7 @@ import type {
   ReminderMode,
   ResolvedLocation,
 } from './types.ts';
-import { calculateDailySchedule, getLocalDateString } from './calculator.ts';
+import { addDaysToCalendarDate, calculateDailySchedule, getLocalDateString } from './calculator.ts';
 
 const ARABIC_PRAYER_NAMES: Record<ObligatoryPrayerName, string> = {
   Fajr: 'الفجر',
@@ -43,6 +43,7 @@ export interface EvaluateStatusOptions {
   exactWindowMinutes?: number;
   locale?: Locale;
   userId?: string;
+  enabled?: boolean;
   isAlreadySent?: (dedupeKey: string) => Promise<boolean> | boolean;
 }
 
@@ -61,6 +62,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     exactWindowMinutes = 20,
     locale = 'en',
     userId = 'anon',
+    enabled = true,
     isAlreadySent = () => false,
   } = options;
 
@@ -98,7 +100,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
 
   if (nowMs < fajrMs) {
     // Early morning before Fajr: active prayer is Isha from yesterday
-    const yesterday = new Date(nowMs - 24 * 60 * 60 * 1000);
+    const yesterday = addDaysToCalendarDate(todaySchedule.localDate, -1);
     const ySchedule = calculateDailySchedule({
       latitude: location.latitude,
       longitude: location.longitude,
@@ -153,7 +155,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     nextPrayerMs = ishaMs;
   } else {
     // Isha window of today (until tomorrow's Fajr)
-    const tomorrow = new Date(nowMs + 24 * 60 * 60 * 1000);
+    const tomorrow = addDaysToCalendarDate(todaySchedule.localDate, 1);
     const tSchedule = calculateDailySchedule({
       latitude: location.latitude,
       longitude: location.longitude,
@@ -190,7 +192,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     locationSource: location.source,
   };
 
-  if (!activePrayer) {
+  if (!activePrayer || !enabled) {
     return result;
   }
 

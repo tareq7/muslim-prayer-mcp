@@ -25,53 +25,24 @@ Every time you present prayer times, next prayer countdowns, or prayer status to
 
 ## Tool Reference
 
+Calculation tools accept optional `userId`, `latitude`, `longitude`, `timezone`, `calculationMethod`, and `madhab`. Supply coordinates as a pair. Omit `userId` for anonymous calculation without saved preferences or deduplication. Read the advertised input schema before calling a tool.
+
 ### 1. `get_prayer_status`
-Checks if an obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due within the active reminder window.
-- **Parameters**:
-  - `userId` (string, optional): User ID for fetching stored preferences. Default: `'default_user'`.
-  - `lat` (number, optional): Latitude in decimal degrees (e.g., `31.50`).
-  - `lng` (number, optional): Longitude in decimal degrees (e.g., `34.46`).
-  - `timezone` (string, optional): IANA timezone identifier (e.g., `'Asia/Gaza'`).
-- **Response Shape**:
-  - `due` (boolean): `true` if a prayer is within its active reminder window.
-  - `prayer` (string | null): Name of the prayer due (`'Fajr'`, `'Dhuhr'`, `'Asr'`, `'Maghrib'`, `'Isha'`).
-  - `message` (string | null): Localized alert message (e.g., `"It is time for Maghrib prayer."`).
-  - `prayerTimeUtc` / `prayerTimeFormatted`: Timestamp of the prayer.
-  - `authorityNotice`: Mandatory authority details object.
+Returns `reminderDue`, optional `prayer`, `reminderText`, `startedAtUtc`, and `expiresAtUtc`, plus `localDate`, `nextPrayer`, `nextPrayerAtUtc`, `timezone`, `calculationMethod`, `madhab`, and `authorityNotice`. An identified user can receive one reminder per prayer window; this tool writes a temporary deduplication marker. `persistent` mode bypasses deduplication, and `enabled: false` suppresses reminders.
 
 ### 2. `get_today_prayer_times`
-Retrieves today's complete prayer schedule: Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha.
-- **Parameters**: `userId`, `lat`, `lng`, `timezone`.
-- **Response Shape**:
-  - `date`: Date string (`YYYY-MM-DD`).
-  - `timezone`: Active IANA timezone.
-  - `method`: Calculation method identifier.
-  - `madhab`: Madhab used for Asr calculation (`'shafi'` or `'hanafi'`).
-  - `times`: Map of prayers to `{ utc: ISOString, formatted: "HH:MM" }`.
-  - `authorityNotice`: Mandatory authority details object.
+Also accepts optional `date` as a real calendar date in `YYYY-MM-DD` format. Returns `localDate`, `timezone`, `calculationMethod`, `madhab`, `timesUtc` (lowercase prayer keys), `timesLocal` (`Fajr`, `Sunrise`, `Dhuhr`, `Asr`, `Maghrib`, `Isha`), and `authorityNotice`.
 
 ### 3. `get_next_prayer`
-Identifies the upcoming prayer and remaining countdown time in minutes.
-- **Parameters**: `userId`, `lat`, `lng`, `timezone`.
-- **Response Shape**:
-  - `currentPrayer`: Currently ongoing prayer period.
-  - `nextPrayer`: Name of the next incoming prayer.
-  - `nextPrayerTimeFormatted`: Formatted local time.
-  - `minutesRemaining`: Minutes until prayer time.
-  - `authorityNotice`: Mandatory authority details object.
+Returns `currentLocalDate`, `nextPrayer`, `nextPrayerAtUtc`, `nextPrayerLocalTime`, `remainingMinutes`, `timezone`, `calculationMethod`, `madhab`, and `authorityNotice`.
 
 ### 4. `configure_prayer_preferences`
-Persists user prayer settings into Cloudflare KV.
-- **Parameters**:
-  - `userId` (string, required): Unique identifier for the user.
-  - `method` (string, optional): `'UmmAlQura'`, `'Egyptian'`, `'MuslimWorldLeague'`, `'Dubai'`, `'Qatar'`, `'Kuwait'`, `'Turkey'`, `'Karachi'`, `'NorthAmerica'`, `'Singapore'`, `'Tehran'`.
-  - `madhab` (string, optional): `'shafi'` or `'hanafi'`.
-  - `reminderMode` (string, optional): `'gentle'`, `'standard'`, `'persistent'`.
-  - `latitude` / `longitude` / `timezone` (optional): Pin a permanent fixed location.
-  - `language` (string, optional): `'en'` or `'ar'`.
+Requires `userId`. Optional settings are `locationMode` (`auto_travel` or `fixed`), `fixedCity` (a supported predefined city), `fixedCoordinates` (`{ latitude, longitude }`), `timezone`, `calculationMethod`, `madhab` (`Shafi` or `Hanafi`), `highLatitudeRule`, `reminderMode` (`prayer_window`, `exact_window`, or `persistent`), `exactWindowMinutes` (5–120), `locale` (`en` or `ar`), `minuteAdjustments`, and `enabled`.
+
+Omitted settings preserve existing preferences. New preferences retain geographic calculation defaults unless the user explicitly chooses a method or madhab. Switching to a city replaces old fixed coordinates; switching to coordinates replaces the old city. Coordinates are rounded before storage and excluded from tool output. Returns `success` and public `preferences`.
 
 ### 5. `get_prayer_preferences`
-Inspects stored preferences in KV for a given `userId`.
+Requires `userId`. Returns public saved settings or a message when unset. User identifiers and fixed coordinates are excluded from output.
 
 ---
 
@@ -113,7 +84,7 @@ When generating user-facing responses containing prayer times or alerts, format 
 | **Isha** | 08:23 PM |
 
 > **Calculation Authority**: Palestinian Ministry of Awqaf (Egyptian Survey Authority + Awqaf Offsets)
-> **Authority Selection Reason**: Automatically selected based on detected Palestine coordinates (31.50, 34.46) with official Awqaf solar safety adjustments (+3m Maghrib, -1m Dhuhr).
+> **Authority Selection Reason**: Automatically selected based on the supplied Palestine location with official Awqaf solar safety adjustments (+3m Maghrib, -1m Dhuhr).
 ```
 
 ### Example 2: Next Prayer / Status Query
@@ -127,6 +98,6 @@ When generating user-facing responses containing prayer times or alerts, format 
 ---
 
 ## Error Handling & Fallbacks
-- If coordinates are unavailable, the MCP automatically uses client headers (`X-User-Coordinates`, `CF-Connecting-IP`, `request.cf.timezone`), or user preferences.
+- If coordinates are unavailable, the MCP automatically uses saved fixed preferences, host headers (`X-User-Coordinates`, `X-User-Timezone`), or Cloudflare edge geolocation. Explicit tool coordinates take priority.
 - If completely unresolved, it safely defaults to Makkah (`21.42, 39.83`, `Asia/Riyadh`, `UmmAlQura`) and notes the fallback in `authorityNotice.selectionReason`.
 - Polar/high-latitude locations (>48°) automatically engage nearest-latitude fiqh clamping to prevent invalid twilight calculations.

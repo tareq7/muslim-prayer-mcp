@@ -43,3 +43,9 @@ When a private report is submitted:
 1. **Strict Coordinate Truncation**: All latitude and longitude inputs are truncated to 2 decimal places (~1.1km radius) in isolate memory. High-precision street-level coordinates are immediately discarded and never recoverable.
 2. **Zero Coordinate Leakage**: Raw coordinates are strictly barred from tool return values and never injected into the LLM context window.
 3. **Isolated Solar Math**: Calculations run purely within the local V8 isolate without outbound WAN requests to third-party tracking APIs.
+
+## Host access boundary
+
+The public deployment supports anonymous prayer calculations. A `userId` selects a caller-supplied preference namespace; it does not authenticate an account. Hosts that expose saved preferences must authorize the caller, use opaque per-user identifiers, and prevent callers from choosing another user's namespace. Set the Worker secret `AUTH_TOKEN` to require a bearer token on `/api/*` and `/mcp`; this protects the service as a whole and does not create per-user authorization. Do not expose a shared service token in browser code.
+
+POST request bodies are limited to 64 KiB. Fixed coordinates are rounded before storage. Status reads and preference updates are serialized per user within a Worker isolate; Cloudflare KV provides no global atomic read/write transaction, so cross-region deduplication and concurrent preference updates remain best effort.

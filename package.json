@@ -27,11 +27,12 @@
     "ai-agents"
   ],
   "icon": "assets/icon.png",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "bin": {
     "muslim-prayer-mcp": "bin/cli.js"
   },
   "files": [
+    "dist",
     "bin",
     "src",
     "assets/icon.png",
@@ -39,12 +40,15 @@
     "assets/official-logo-512.png",
     "tsconfig.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "tsconfig.build.json"
   ],
   "type": "module",
   "scripts": {
-    "build": "node -e \"console.log('Build complete')\"",
-    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts"
+    "build": "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts test/review.test.ts test/analytics.test.ts",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -55,5 +59,13 @@
     "@cloudflare/workers-types": "^5.20260902.1",
     "@types/node": "^26.4.1",
     "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.8",
+    "hono": "^4.13.12",
+    "ip-address": "^10.7.2"
   }
 }
