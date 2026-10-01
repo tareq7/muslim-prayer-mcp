@@ -50,8 +50,8 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const userId = 'default_user';
-      const userPrefs = await storage.getUserPreferences(userId);
+      const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
+      const dedupeUserId = args.userId || 'anon';
 
       const location = resolveLocation({
         explicitLat: args.latitude,
@@ -80,9 +80,10 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         reminderMode: userPrefs?.reminderMode || 'prayer_window',
         exactWindowMinutes: userPrefs?.exactWindowMinutes || 20,
         locale: userPrefs?.locale || 'en',
-        userId,
+        userId: dedupeUserId,
         isAlreadySent: async (key) => storage.isDedupeSent(key),
       });
+
 
       if (status.reminderDue && status.dedupeKey) {
         await storage.recordDedupeSent(status.dedupeKey);
@@ -119,8 +120,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const userId = 'default_user';
-      const userPrefs = await storage.getUserPreferences(userId);
+      const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
 
       const location = resolveLocation({
         explicitLat: args.latitude,
@@ -128,6 +128,7 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         explicitTimezone: args.timezone,
         userPrefs,
       });
+
 
       const targetDate = args.date ? new Date(`${args.date}T12:00:00Z`) : new Date();
 
@@ -183,8 +184,8 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
       },
     },
     async (args) => {
-      const userId = 'default_user';
-      const userPrefs = await storage.getUserPreferences(userId);
+      const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
+      const dedupeUserId = args.userId || 'anon';
 
       const location = resolveLocation({
         explicitLat: args.latitude,
@@ -212,8 +213,9 @@ export function createPrayerMcpServer(storage: PrayerStorage) {
         selectionReason: params.selectionReason,
         authorityNotice: params.authorityNotice,
         locale: userPrefs?.locale || 'en',
-        userId,
+        userId: dedupeUserId,
       });
+
 
       const nextPrayerDate = new Date(status.nextPrayerAtUtc);
       const remainingMinutes = Math.max(0, Math.round((nextPrayerDate.getTime() - now.getTime()) / 60000));

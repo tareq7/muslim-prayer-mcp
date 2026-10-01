@@ -42,11 +42,13 @@ export class MemoryKV implements KVNamespaceLike {
   }
 }
 
+const defaultMemoryKV = new MemoryKV();
+
 export class PrayerStorage {
   private kv: KVNamespaceLike;
 
   constructor(kv?: KVNamespaceLike) {
-    this.kv = kv || new MemoryKV();
+    this.kv = kv || defaultMemoryKV;
   }
 
   async getUserPreferences(userId: string): Promise<UserPreferences | null> {
@@ -63,6 +65,11 @@ export class PrayerStorage {
   async saveUserPreferences(prefs: UserPreferences): Promise<void> {
     await this.kv.put(`pref:${prefs.userId}`, JSON.stringify(prefs));
   }
+
+  async deleteUserPreferences(userId: string): Promise<void> {
+    await this.kv.delete(`pref:${userId}`);
+  }
+
 
   async getCachedSchedule(userId: string, localDate: string): Promise<PrayerSchedule | null> {
     try {

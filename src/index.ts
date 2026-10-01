@@ -178,14 +178,25 @@ export default {
 
     const storage = new PrayerStorage(env.PRAYER_KV);
 
+    // Auto-cleanup legacy shared default_user override from KV
+    try {
+      const legacyPref = await storage.getUserPreferences('default_user');
+      if (legacyPref && legacyPref.calculationMethod === 'Egyptian') {
+        await storage.deleteUserPreferences('default_user');
+      }
+    } catch {
+      // Ignore background cleanup error
+    }
+
     // REST Fast Status Check Endpoint: /api/status
     if (url.pathname === '/api/status' && request.method === 'GET') {
-      const userId = url.searchParams.get('userId') || 'default_user';
+      const userId = url.searchParams.get('userId');
       const latParam = url.searchParams.get('lat');
       const lngParam = url.searchParams.get('lng');
       const tzParam = url.searchParams.get('timezone');
 
-      const userPrefs = await storage.getUserPreferences(userId);
+      const userPrefs = userId ? await storage.getUserPreferences(userId) : null;
+      const dedupeUserId = userId || 'anon';
 
       const location = resolveLocation({
         explicitLat: latParam ? parseFloat(latParam) : undefined,
@@ -214,7 +225,7 @@ export default {
         reminderMode,
         exactWindowMinutes,
         locale,
-        userId,
+        userId: dedupeUserId,
         isAlreadySent: async (key) => storage.isDedupeSent(key),
       });
 
@@ -227,9 +238,9 @@ export default {
 
     // REST Timetable Endpoint: /api/timetable
     if (url.pathname === '/api/timetable' && request.method === 'GET') {
-      const userId = url.searchParams.get('userId') || 'default_user';
+      const userId = url.searchParams.get('userId');
       const dateParam = url.searchParams.get('date');
-      const userPrefs = await storage.getUserPreferences(userId);
+      const userPrefs = userId ? await storage.getUserPreferences(userId) : null;
 
       const location = resolveLocation({
         userPrefs,
@@ -257,12 +268,17 @@ export default {
       return jsonResponse(schedule);
     }
 
-    // REST Preferences Save Endpoint: /api/preferences
+    // REST Preferences Save Endpoint: /api/preferences (POST)
     if (url.pathname === '/api/preferences' && request.method === 'POST') {
       try {
-        const body = (await request.json()) as Partial<UserPreferences> & { userId: string };
+        const body = (await request.json()) as Partial<UserPreferences> & { userId: string; reset?: boolean };
         if (!body.userId) {
           return jsonResponse({ error: 'userId is required' }, 400);
+        }
+
+        if (body.reset) {
+          await storage.deleteUserPreferences(body.userId);
+          return jsonResponse({ success: true, message: `Preferences reset for ${body.userId}` });
         }
 
         const existing = (await storage.getUserPreferences(body.userId)) || {
@@ -291,6 +307,17 @@ export default {
         return jsonResponse({ error: err.message || 'Invalid JSON body' }, 400);
       }
     }
+
+    // REST Preferences Delete Endpoint: /api/preferences (DELETE)
+    if (url.pathname === '/api/preferences' && request.method === 'DELETE') {
+      const userId = url.searchParams.get('userId');
+      if (!userId) {
+        return jsonResponse({ error: 'userId query parameter is required' }, 400);
+      }
+      await storage.deleteUserPreferences(userId);
+      return jsonResponse({ success: true, message: `Preferences deleted for ${userId}` });
+    }
+
 
     // MCP Protocol Handler: /mcp
     if (url.pathname === '/mcp') {
