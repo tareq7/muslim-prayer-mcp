@@ -113,6 +113,9 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.ok(toolNames.includes('get_next_prayer'));
     assert.ok(toolNames.includes('configure_prayer_preferences'));
     assert.ok(toolNames.includes('get_prayer_preferences'));
+    const configure = rpcRes.result.tools.find((tool: any) => tool.name === 'configure_prayer_preferences');
+    assert.equal(configure.annotations.readOnlyHint, false);
+    assert.equal(configure.annotations.destructiveHint, true);
   });
 
   it('POST /mcp handles JSON-RPC tools/call for get_prayer_status', async () => {

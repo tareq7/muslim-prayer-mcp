@@ -140,7 +140,7 @@ The server exposes 5 finely-tuned tools conforming to the latest Model Context P
 | **`get_prayer_status`** | Temporary state write | Safe | Checks if an obligatory prayer is currently due. Returns active prayer, countdown, calculation authority, and selection justification. |
 | **`get_today_prayer_times`** | Read-Only | Safe | Computes today's full timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and localized string format. |
 | **`get_next_prayer`** | Read-Only | Safe | Returns the immediate upcoming prayer, exact scheduled timestamp, countdown minutes, and regional authority. |
-| **`configure_prayer_preferences`** | Mutation | Safe | Saves user calculation, fixed location, and reminder preferences. |
+| **`configure_prayer_preferences`** | Overwrites saved settings (`destructiveHint: true`) | Safe | Updates supplied preferences; switching fixed location can clear the previous location and timezone. Previous values are not retained for undo. |
 | **`get_prayer_preferences`** | Read-Only | Safe | Reads saved public preference settings. |
 
 ---

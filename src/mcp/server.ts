@@ -289,12 +289,12 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     {
       title: 'Configure User Prayer Preferences',
       description:
-        'Configures prayer calculation parameters, location behavior (fixed or auto_travel), madhab, reminder mode, and notification language in persistent storage.',
+        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and clears the stored timezone unless supplied; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Previous values are not retained for undo.',
       inputSchema: ConfigurePrayerPreferencesInputSchema.shape,
       outputSchema: ConfigurePrayerPreferencesOutputSchema.shape,
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: true,
         openWorldHint: false,
       },
