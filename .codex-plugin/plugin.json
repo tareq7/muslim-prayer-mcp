@@ -1,6 +1,6 @@
 {
   "name": "muslim-prayer-mcp",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Production-ready Muslim prayer reminder system on Cloudflare Workers with Streamable HTTP MCP and automatic location calibration.",
   "author": {
     "name": "Tareq Naji",

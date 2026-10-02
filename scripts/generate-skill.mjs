@@ -1,0 +1,80 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { z } from 'zod';
+import * as schemas from '../src/mcp/schemas.ts';
+import { MAJOR_CITIES } from '../src/location/resolver.ts';
+
+const tools = [
+  ['get_prayer_status', schemas.GetPrayerStatusInputSchema, schemas.PrayerStatusOutputSchema],
+  ['get_today_prayer_times', schemas.GetTodayPrayerTimesInputSchema, schemas.PrayerScheduleOutputSchema],
+  ['get_next_prayer', schemas.GetNextPrayerInputSchema, schemas.NextPrayerOutputSchema],
+  ['configure_prayer_preferences', schemas.ConfigurePrayerPreferencesInputSchema, schemas.ConfigurePrayerPreferencesOutputSchema],
+  ['get_prayer_preferences', schemas.GetPrayerPreferencesInputSchema, schemas.GetPrayerPreferencesOutputSchema],
+];
+const clean = value => String(value ?? '').replaceAll('|', '\\|').replaceAll('\n', ' ');
+function typeOf(field) {
+  if (field.enum) return field.enum.map(value => '`' + value + '`').join(', ');
+  if (field.const !== undefined) return '`' + field.const + '`';
+  if (field.anyOf) return field.anyOf.map(typeOf).join(' or ');
+  return field.type === 'array' ? 'array of ' + typeOf(field.items || {}) : field.type || 'value';
+}
+function fields(schema, prefix = '') {
+  const rows = [];
+  for (const [name, field] of Object.entries(schema.properties || {})) {
+    const key = prefix + name;
+    rows.push(`| \`${key}\` | ${clean(typeOf(field))} | ${schema.required?.includes(name) ? 'required' : 'optional'} | ${clean(field.description)} |`);
+    if (field.type === 'object' && name === 'fixedCoordinates') rows.push(...fields(field, key + '.'));
+  }
+  return rows;
+}
+let body = `# Muslim Prayer Reminder MCP
+
+Generated from src/mcp/schemas.ts by scripts/generate-skill.mjs. Regenerate with npm run docs:generate; verify with npm run docs:check.
+
+## Location and error handling
+
+Use an explicit supported city, a latitude/longitude pair with an IANA timezone, or a stored complete fixed location. Explicit per-call location overrides stored settings. Trusted host headers may supply end-user coordinates/timezone or a supported city. Never infer the user location from connector/server IP or Cloudflare network geolocation. A timezone alone cannot locate the user.
+
+If a prayer tool returns isError:true and structuredContent.code is location_required, ask for a supported city or coordinates/timezone. Do not substitute Makkah or guess a location. If code is invalid_calculation, ask the user to correct minute adjustments that reverse prayer windows.
+
+Public coordinates are rounded before calculation/storage and never echoed. Preferences expose fixedCoordinatesConfigured/fixedCityConfigured indicators. Read-only prayer queries do not return user identifiers.
+
+Always disclose authorityNotice.authorityDescription and authorityNotice.selectionReason. When highLatitudeAdjustment.applied is true, also disclose its explanation: clamped sunrise/sunset are substitutes, not observed local events. calculationDetails explains location basis, overrides, regional/custom/method offsets, and calendar alignment. Use the actual returned values; never invent timings or transformations.
+
+MCP endpoint: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+Local runner: npx -y muslim-prayer-mcp
+Supported cities: ${Object.keys(MAJOR_CITIES).join(', ')}.
+
+## Tool contracts
+
+Omitted preference fields preserve existing settings. New preferences inherit geographic/service defaults. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. KV deduplication is best effort across regions.
+`;
+for (const [name, input, output] of tools) {
+  body += `\n### ${name}\n\nInput\n\n| Field | Type / allowed values | Presence | Description |\n| --- | --- | --- | --- |\n`;
+  body += fields(z.toJSONSchema(input, { unrepresentable: 'any' })).join('\n') + '\n';
+  body += '\nOutput\n\n| Field | Type / allowed values | Presence | Description |\n| --- | --- | --- | --- |\n';
+  body += fields(z.toJSONSchema(output, { unrepresentable: 'any' })).join('\n') + '\n';
+}
+body += '\nThe `preferences` configuration result uses the same fields as `get_prayer_preferences`. Nested disclosure objects are defined below once for all prayer tools.\n';
+for (const [name, schema] of [
+  ['highLatitudeAdjustment', schemas.HighLatitudeAdjustmentSchema],
+  ['calculationDetails', schemas.CalculationDetailsSchema],
+  ['authorityNotice', schemas.AuthorityNoticeOutputSchema],
+]) {
+  body += `\n## ${name}\n\n| Field | Type / allowed values | Presence | Description |\n| --- | --- | --- | --- |\n`;
+  body += fields(z.toJSONSchema(schema, { unrepresentable: 'any' })).join('\n') + '\n';
+}
+const check = process.argv.includes('--check');
+for (const name of ['muslim-prayer-mcp', 'muslim-prayer']) {
+  const path = fileURLToPath(new URL(`../skills/${name}/SKILL.md`, import.meta.url));
+  const contents = `---\nname: ${name}\ndescription: Query prayer times and status using verified user location; explain calculation authority and applied approximations.\n---\n\n` + body;
+  if (check) {
+    if ((await readFile(path, 'utf8')).replaceAll('\r\n', '\n') !== contents) {
+      throw new Error(`Generated skill is stale: ${name}`);
+    }
+  } else {
+    await mkdir(fileURLToPath(new URL(`../skills/${name}/`, import.meta.url)), { recursive: true });
+    await writeFile(path, contents, 'utf8');
+  }
+}
+console.log(check ? 'Generated skill contracts match schemas.' : 'Generated both skill contracts from schemas.');

@@ -102,13 +102,14 @@ flowchart TD
     end
 
     subgraph ResolverLayer ["Layered Location Resolver"]
-        Explicit["Explicit Lat/Lng"] --> Truncate["2-Decimal Sanitizer ~1.1km"]
+        Explicit["User coordinates + timezone or supported city"] --> Truncate["2-Decimal Sanitizer ~1.1km"]
         UserPref["Stored KV Preferences"] --> Resolver["Location Normalizer"]
-        Headers["X-Forwarded Headers"] --> Resolver
-        GeoIP["Cloudflare request.cf GeoIP"] --> Resolver
-        Fallback["Makkah Al-Mukarramah Fallback"] --> Resolver
+        Headers["Verified end-user location headers"] --> Resolver
+        Resolver --> Missing["No usable user location: location_required"]
         Truncate --> Resolver
     end
+
+    GeoIP["Cloudflare network metadata"] --> Analytics["Operational analytics only"]
 
     subgraph EngineLayer ["In-Isolate Solar Calculation Engine"]
         Resolver --> Authority["Authority Selector"]
@@ -433,3 +434,11 @@ npm test
 <p align="center">
   Made with precision for the global Muslim developer community.
 </p>
+
+### Verified location and calculation disclosures (v1.1.0)
+
+Prayer tools accept a supported `city`, coordinates with `timezone`, or complete stored fixed settings. Missing location returns `location_required`; connector/IP geolocation and automatic Makkah fallback are not used. Explicit per-call inputs override fixed preferences. Host headers must represent the end user.
+
+`highLatitudeAdjustment` discloses twilight substitutions and polar clamping; `effectiveLatitude` is present only for the +/-48-degree substitute and never echoes the original coordinate. `calculationDetails` reports location basis and regional, user, and method offsets. Invalid offsets that reverse prayer windows return `invalid_calculation`. Preferences expose `fixedCoordinatesConfigured` and `fixedCityConfigured` while redacting coordinates.
+
+Analytics is pseudonymous and approximate: daily buckets 60 days, subject hashes 90 days, sessions 7 days, aggregate counters without expiry. Counts are not global atomic delivery metrics. Both dashboard aliases honor configured service authentication. See the privacy policy for the full retention and trust boundaries.

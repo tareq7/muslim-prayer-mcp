@@ -259,3 +259,58 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
     isApproximated: false,
   });
 }
+
+export class LocationRequiredError extends Error {
+  readonly code = 'location_required';
+  constructor() {
+    super('Provide a supported city or a latitude/longitude pair with an IANA timezone, or configure a complete fixed location. Connector/IP geolocation is not used for prayer queries.');
+    this.name = 'LocationRequiredError';
+  }
+}
+
+export function resolveUserLocation(params: ResolveLocationParams & { explicitCity?: string }): ResolvedLocation {
+  const { explicitCity, explicitLat, explicitLng, explicitTimezone, userPrefs, headers } = params;
+  const knownCity = (value?: string | null) => {
+    const key = value?.toLowerCase().replace(/[^a-z]/g, '') || '';
+    return Object.hasOwn(MAJOR_CITIES, key) ? MAJOR_CITIES[key] : undefined;
+  };
+  const cityLocation = (city: string, basis: ResolvedLocation['basis']): ResolvedLocation => {
+    const found = knownCity(city);
+    if (!found) throw new LocationRequiredError();
+    return {
+      latitude: sanitizeCoordinate(found.latitude), longitude: sanitizeCoordinate(found.longitude),
+      timezone: validTimezone(explicitTimezone) || found.timezone, country: found.country, city,
+      source: basis === 'stored_fixed_city' ? 'user_fixed_preference' : basis === 'host_city' ? 'host_header' : 'explicit_request',
+      isApproximated: true, basis,
+    };
+  };
+  if (explicitLat !== undefined || explicitLng !== undefined) {
+    const timezone = validTimezone(explicitTimezone, headers?.get('X-User-Timezone') ?? undefined, userPrefs?.timezone);
+    if (!validCoordinatePair(explicitLat, explicitLng) || !timezone) throw new LocationRequiredError();
+    return { ...resolveLocation({ explicitLat, explicitLng, explicitTimezone: timezone }), basis: 'explicit_coordinates' };
+  }
+  if (explicitCity) return cityLocation(explicitCity, 'explicit_city');
+  if (userPrefs?.locationMode === 'fixed') {
+    if (userPrefs.fixedCoordinates) {
+      const timezone = validTimezone(explicitTimezone, userPrefs.timezone);
+      if (!timezone || !validCoordinatePair(userPrefs.fixedCoordinates.latitude, userPrefs.fixedCoordinates.longitude)) throw new LocationRequiredError();
+      const location = resolveLocation({ userPrefs: { ...userPrefs, fixedCity: undefined, timezone: userPrefs.timezone || timezone }, explicitTimezone: timezone });
+      // A display-timezone override must not change the stored geographic authority.
+      return { ...location, basis: 'stored_fixed_coordinates' };
+    }
+    if (userPrefs.fixedCity) return cityLocation(userPrefs.fixedCity, 'stored_fixed_city');
+    throw new LocationRequiredError();
+  }
+  const headerCoordinates = headers?.get('X-User-Coordinates');
+  if (headerCoordinates) {
+    const pair = headerCoordinates.split(',');
+    const latitude = parseCoordinate(pair[0]);
+    const longitude = parseCoordinate(pair[1]);
+    const timezone = validTimezone(explicitTimezone, headers?.get('X-User-Timezone') ?? undefined, userPrefs?.timezone);
+    if (pair.length !== 2 || !validCoordinatePair(latitude, longitude) || !timezone) throw new LocationRequiredError();
+    return { ...resolveLocation({ explicitLat: latitude, explicitLng: longitude, explicitTimezone: timezone }), source: 'host_header', basis: 'host_coordinates' };
+  }
+  const headerCity = headers?.get('X-User-City');
+  if (headerCity) return cityLocation(headerCity, 'host_city');
+  throw new LocationRequiredError();
+}

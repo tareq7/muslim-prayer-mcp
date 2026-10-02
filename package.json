@@ -1,7 +1,7 @@
 {
   "name": "muslim-prayer-mcp",
   "mcpName": "io.github.tareq7/muslim-prayer-mcp",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.",
   "license": "MIT",
   "author": "Tareq Naji / Smart Creations <najetareqz@gmail.com>",
@@ -41,14 +41,18 @@
     "tsconfig.json",
     "README.md",
     "LICENSE",
-    "tsconfig.build.json"
+    "tsconfig.build.json",
+    "skills",
+    "scripts/generate-skill.mjs"
   ],
   "type": "module",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
-    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts test/review.test.ts test/analytics.test.ts",
+    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts test/review.test.ts test/analytics.test.ts test/remaining.test.ts",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
-    "prepack": "npm run build"
+    "prepack": "npm run build",
+    "docs:generate": "node --experimental-strip-types scripts/generate-skill.mjs",
+    "docs:check": "node --experimental-strip-types scripts/generate-skill.mjs --check"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

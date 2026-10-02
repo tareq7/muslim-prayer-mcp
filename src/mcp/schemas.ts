@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import type { UserPreferences } from '../engine/types.ts';
 import { isValidIanaTimezone, MAJOR_CITIES } from '../location/resolver.ts';
 import { isValidCalendarDate } from '../engine/calculator.ts';
 
 export const UserIdSchema = z.string().min(1).refine((value) => new TextEncoder().encode(value).length <= 256, 'userId must be at most 256 UTF-8 bytes');
 export const TimezoneSchema = z.string().refine(isValidIanaTimezone, 'Invalid IANA timezone');
 export const CalendarDateSchema = z.string().refine(isValidCalendarDate, 'Invalid calendar date; expected YYYY-MM-DD');
-const KnownCitySchema = z.string().refine((value) => Object.hasOwn(MAJOR_CITIES, value.toLowerCase().replace(/[^a-z]/g, '')), 'Unsupported predefined city; use fixedCoordinates and timezone');
+export const KnownCitySchema = z.string().refine((value) => Object.hasOwn(MAJOR_CITIES, value.toLowerCase().replace(/[^a-z]/g, '')), 'Unsupported predefined city; use fixedCoordinates and timezone');
 const hasCoordinatePair = (input: { latitude?: number; longitude?: number }) =>
   (input.latitude === undefined) === (input.longitude === undefined);
 
@@ -54,6 +55,7 @@ export const MinuteAdjustmentsSchema = z.object({
 });
 
 export const GetPrayerStatusInputSchema = z.object({
+  city: KnownCitySchema.optional().describe('Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used.'),
   userId: UserIdSchema.optional().describe('Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied.'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
@@ -63,6 +65,7 @@ export const GetPrayerStatusInputSchema = z.object({
 }).refine(hasCoordinatePair, 'latitude and longitude must be supplied together');
 
 export const GetTodayPrayerTimesInputSchema = z.object({
+  city: KnownCitySchema.optional().describe('Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used.'),
   userId: UserIdSchema.optional().describe('Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied.'),
   date: CalendarDateSchema.optional().describe('Date in YYYY-MM-DD format (defaults to today)'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
@@ -73,6 +76,7 @@ export const GetTodayPrayerTimesInputSchema = z.object({
 }).refine(hasCoordinatePair, 'latitude and longitude must be supplied together');
 
 export const GetNextPrayerInputSchema = z.object({
+  city: KnownCitySchema.optional().describe('Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used.'),
   userId: UserIdSchema.optional().describe('Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied.'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
@@ -105,15 +109,42 @@ export const GetPrayerPreferencesInputSchema = z.object({
   userId: UserIdSchema.describe('Unique user identifier'),
 });
 
+export const HighLatitudeAdjustmentSchema = z.object({
+  applied: z.boolean(), rule: HighLatitudeRuleEnum,
+  methodSpecificTwilightRule: z.literal('MoonsightingCommittee').optional(),
+  astronomicalLatitudeClamped: z.boolean(),
+  effectiveLatitude: z.union([z.literal(48), z.literal(-48)]).optional().describe('Substitute latitude only; never the user coordinate'),
+  adjustedPrayers: z.array(z.enum(['Fajr', 'Sunrise', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'])),
+  explanation: z.string(),
+});
+export const CalculationDetailsSchema = z.object({
+  locationBasis: z.enum(['explicit_coordinates','explicit_city','stored_fixed_coordinates','stored_fixed_city','host_coordinates','host_city','network_geolocation','default_location']).optional(),
+  locationIsApproximate: z.boolean().optional(), fallbackLocationUsed: z.boolean().optional(),
+  methodSource: z.enum(['explicit_override','stored_preference','geographic_default']).optional(),
+  madhabSource: z.enum(['explicit_override','stored_preference','geographic_default']).optional(),
+  highLatitudeRuleSource: z.enum(['stored_preference','geographic_default']).optional(),
+  regionalMinuteAdjustments: MinuteAdjustmentsSchema.optional(), customMinuteAdjustments: MinuteAdjustmentsSchema.optional(),
+  methodMinuteAdjustments: MinuteAdjustmentsSchema.optional(), appliedMinuteAdjustments: z.record(z.string(), z.number()).optional(),
+  calendarAlignmentAdjusted: z.boolean().optional(),
+});
+
 export const AuthorityNoticeOutputSchema = z.object({
   method: CalculationMethodEnum.describe('The calculation authority method'),
   madhab: MadhabEnum.describe('The Asr jurisprudence school'),
   authorityDescription: z.string().describe('Full descriptive name of the calculation authority'),
   selectionReason: z.string().describe('Rationale for selecting this authority'),
   requiredDisplayInstruction: z.string().describe('Mandatory theological notice for AI presentation'),
+  highLatitudeAdjustment: HighLatitudeAdjustmentSchema.optional(),
+  calculationDetails: CalculationDetailsSchema.optional(),
 });
 
 export const PrayerStatusOutputSchema = z.object({
+  nextPrayerCalculation: z.object({
+    localDate: z.string(),
+    highLatitudeAdjustment: HighLatitudeAdjustmentSchema.optional(),
+    calculationDetails: CalculationDetailsSchema.optional(),
+    authorityNotice: AuthorityNoticeOutputSchema.optional(),
+  }).optional().describe('Adjustment disclosure for the actual schedule of the next event, including tomorrow'),
   reminderDue: z.boolean().describe('Whether a prayer is currently due for reminder'),
   prayer: z.string().optional().describe('The name of the currently due prayer if applicable'),
   localDate: z.string().describe('Current local date in YYYY-MM-DD'),
@@ -127,6 +158,8 @@ export const PrayerStatusOutputSchema = z.object({
   minuteAdjustments: MinuteAdjustmentsSchema.optional().describe('Applied minute adjustments'),
   authorityDescription: z.string().optional().describe('Description of the calculation authority'),
   selectionReason: z.string().optional().describe('Reason for authority selection'),
+  highLatitudeAdjustment: HighLatitudeAdjustmentSchema.optional(),
+  calculationDetails: CalculationDetailsSchema.optional(),
   authorityNotice: AuthorityNoticeOutputSchema.optional().describe('Mandatory theological transparency notice'),
   reminderText: z.string().optional().describe('Localized reminder message'),
 });
@@ -157,6 +190,8 @@ export const PrayerScheduleOutputSchema = z.object({
   minuteAdjustments: MinuteAdjustmentsSchema.optional(),
   authorityDescription: z.string().optional(),
   selectionReason: z.string().optional(),
+  highLatitudeAdjustment: HighLatitudeAdjustmentSchema.optional(),
+  calculationDetails: CalculationDetailsSchema.optional(),
   authorityNotice: AuthorityNoticeOutputSchema.optional(),
   timesUtc: PrayerTimesUtcSchema,
   timesLocal: PrayerTimesLocalSchema,
@@ -173,6 +208,8 @@ export const NextPrayerOutputSchema = z.object({
   madhab: MadhabEnum.describe('Active Asr jurisprudence'),
   authorityDescription: z.string().optional(),
   selectionReason: z.string().optional(),
+  highLatitudeAdjustment: HighLatitudeAdjustmentSchema.optional(),
+  calculationDetails: CalculationDetailsSchema.optional(),
   authorityNotice: AuthorityNoticeOutputSchema.optional(),
   minuteAdjustments: MinuteAdjustmentsSchema.optional(),
 });
@@ -180,6 +217,8 @@ export const NextPrayerOutputSchema = z.object({
 export const GetNextPrayerOutputSchema = NextPrayerOutputSchema;
 
 export const UserPreferencesObjectSchema = z.object({
+  fixedCoordinatesConfigured: z.boolean(),
+  fixedCityConfigured: z.boolean(),
   locationMode: LocationModeEnum.optional(),
   fixedCity: z.string().optional(),
   timezone: TimezoneSchema.optional(),
@@ -213,3 +252,11 @@ export const RestPreferencesInputSchema = ConfigurePrayerPreferencesInputSchema.
 });
 
 export const RestCalculationInputSchema = GetTodayPrayerTimesInputSchema;
+
+export function publicPreferences(prefs: Partial<UserPreferences> | null) {
+  return UserPreferencesObjectSchema.parse({
+    ...(prefs || { message: 'No preferences configured; defaults active.' }),
+    fixedCoordinatesConfigured: !!prefs?.fixedCoordinates,
+    fixedCityConfigured: !!prefs?.fixedCity,
+  });
+}

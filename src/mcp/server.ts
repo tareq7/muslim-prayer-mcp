@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   ConfigurePrayerPreferencesInputSchema,
   ConfigurePrayerPreferencesOutputSchema,
@@ -10,17 +11,28 @@ import {
   GetTodayPrayerTimesInputSchema,
   PrayerScheduleOutputSchema,
   PrayerStatusOutputSchema,
-  UserPreferencesObjectSchema,
+  publicPreferences,
 } from './schemas.ts';
 import {
   calculateDailySchedule,
+  InvalidCalculationError,
   formatLocalTime,
   resolveCalculationParameters,
 } from '../engine/calculator.ts';
 import { evaluatePrayerStatus } from '../engine/reminder.ts';
-import { resolveLocation, type ResolveLocationParams } from '../location/resolver.ts';
+import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from '../location/resolver.ts';
 import { PrayerStorage } from '../storage/kv-store.ts';
 import type { ReminderMode, Locale } from '../engine/types.ts';
+
+async function prayerResult(operation: () => Promise<CallToolResult>): Promise<CallToolResult> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError)) throw error;
+    const details = { code: error.code, message: error.message };
+    return { isError: true, structuredContent: details, content: [{ type: 'text', text: JSON.stringify(details) }] };
+  }
+}
 
 export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<ResolveLocationParams, 'headers' | 'cf'> & {
   reminderMode?: ReminderMode; exactWindowMinutes?: number; locale?: Locale;
@@ -28,11 +40,11 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
   const server = new McpServer(
     {
       name: 'muslim-prayer-reminder',
-      version: '1.0.1',
+      version: '1.1.0',
     },
     {
       instructions:
-        'MANDATORY TRANSPARENCY INSTRUCTION FOR AI MODELS: When answering user queries regarding prayer times, timetable schedules, next prayer countdowns, or prayer status, you MUST ALWAYS explicitly inform the user of: 1) The exact calculation authority method used (e.g. Palestinian Ministry of Awqaf / Egyptian Survey Authority, Umm al-Qura University, Diyanet, Karachi, ISNA, etc.). 2) The exact reason WHY this authority was chosen (e.g. automatically resolved from geographic location or explicit user preference). Never present prayer times without disclosing the authority and reason.',
+        'MANDATORY TRANSPARENCY INSTRUCTION FOR AI MODELS: When answering user queries regarding prayer times, timetable schedules, next prayer countdowns, or prayer status, you MUST ALWAYS explicitly inform the user of: 1) The exact calculation authority method used (e.g. Palestinian Ministry of Awqaf / Egyptian Survey Authority, Umm al-Qura University, Diyanet, Karachi, ISNA, etc.). 2) The exact reason WHY this authority was chosen (e.g. automatically resolved from geographic location or explicit user preference). Never present prayer times without disclosing the authority and reason. Also disclose highLatitudeAdjustment.explanation whenever applied, including substituted polar sunrise/sunset. Require explicit user city or coordinates/timezone; on location_required ask for location and never guess from infrastructure IP.',
     }
   );
 
@@ -53,60 +65,64 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
       },
     },
     async (args) => {
-      return storage.withUserLock(args.userId, async () => {
-        const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
-        const dedupeUserId = args.userId || 'anon';
+      return prayerResult(async () => {
+        return storage.withUserLock(args.userId, async () => {
+          const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
+          const dedupeUserId = args.userId || 'anon';
 
-        const location = resolveLocation({
-          ...context,
-          explicitLat: args.latitude,
-          explicitLng: args.longitude,
-          explicitTimezone: args.timezone,
-          userPrefs,
+          const location = resolveUserLocation({
+            ...context,
+            explicitCity: args.city,
+            explicitLat: args.latitude,
+            explicitLng: args.longitude,
+            explicitTimezone: args.timezone,
+            userPrefs,
+          });
+
+          const params = resolveCalculationParameters(
+            location,
+            userPrefs,
+            args.calculationMethod,
+            args.madhab
+          );
+
+          const status = await evaluatePrayerStatus({
+            now: new Date(),
+            location,
+            method: params.method,
+            madhab: params.madhab,
+            highLatitudeRule: params.highLatitudeRule,
+            minuteAdjustments: params.minuteAdjustments,
+            authorityDescription: params.authorityDescription,
+            selectionReason: params.selectionReason,
+            authorityNotice: params.authorityNotice,
+            calculationDetails: params.calculationDetails,
+            enabled: userPrefs?.enabled,
+            reminderMode: userPrefs?.reminderMode ?? context.reminderMode ?? 'prayer_window',
+            exactWindowMinutes: userPrefs?.exactWindowMinutes ?? context.exactWindowMinutes ?? 20,
+            locale: userPrefs?.locale ?? context.locale ?? 'en',
+            userId: dedupeUserId,
+            isAlreadySent: args.userId ? (key) => storage.isDedupeSent(key) : () => false,
+          });
+
+
+          if (args.userId && status.reminderDue && status.dedupeKey && status.expiresAtUtc && (userPrefs?.reminderMode ?? context.reminderMode) !== 'persistent') {
+            const ttl = Math.min(86400, Math.ceil((Date.parse(status.expiresAtUtc) - Date.now()) / 1000));
+            await storage.recordDedupeSent(status.dedupeKey, ttl);
+          }
+
+          const { dedupeKey, locationSource, ...cleanStatus } = status;
+
+          return {
+            structuredContent: cleanStatus,
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(cleanStatus, null, 2),
+              },
+            ],
+          };
         });
-
-        const params = resolveCalculationParameters(
-          location,
-          userPrefs,
-          args.calculationMethod,
-          args.madhab
-        );
-
-        const status = await evaluatePrayerStatus({
-          now: new Date(),
-          location,
-          method: params.method,
-          madhab: params.madhab,
-          highLatitudeRule: params.highLatitudeRule,
-          minuteAdjustments: params.minuteAdjustments,
-          authorityDescription: params.authorityDescription,
-          selectionReason: params.selectionReason,
-          authorityNotice: params.authorityNotice,
-          enabled: userPrefs?.enabled,
-          reminderMode: userPrefs?.reminderMode ?? context.reminderMode ?? 'prayer_window',
-          exactWindowMinutes: userPrefs?.exactWindowMinutes ?? context.exactWindowMinutes ?? 20,
-          locale: userPrefs?.locale ?? context.locale ?? 'en',
-          userId: dedupeUserId,
-          isAlreadySent: args.userId ? (key) => storage.isDedupeSent(key) : () => false,
-        });
-
-
-        if (args.userId && status.reminderDue && status.dedupeKey && status.expiresAtUtc && (userPrefs?.reminderMode ?? context.reminderMode) !== 'persistent') {
-          const ttl = Math.min(86400, Math.ceil((Date.parse(status.expiresAtUtc) - Date.now()) / 1000));
-          await storage.recordDedupeSent(status.dedupeKey, ttl);
-        }
-
-        const { dedupeKey, locationSource, ...cleanStatus } = status;
-
-        return {
-          structuredContent: cleanStatus,
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(cleanStatus, null, 2),
-            },
-          ],
-        };
       });
     }
   );
@@ -128,51 +144,55 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
       },
     },
     async (args) => {
-      const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
+      return prayerResult(async () => {
+        const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
 
-      const location = resolveLocation({
-        ...context,
-        explicitLat: args.latitude,
-        explicitLng: args.longitude,
-        explicitTimezone: args.timezone,
-        userPrefs,
+        const location = resolveUserLocation({
+          ...context,
+          explicitCity: args.city,
+          explicitLat: args.latitude,
+          explicitLng: args.longitude,
+          explicitTimezone: args.timezone,
+          userPrefs,
+        });
+
+
+        const targetDate = args.date ?? new Date();
+
+        const params = resolveCalculationParameters(
+          location,
+          userPrefs,
+          args.calculationMethod,
+          args.madhab
+        );
+
+        const schedule = calculateDailySchedule({
+          latitude: location.latitude,
+          longitude: location.longitude,
+          date: targetDate,
+          timezone: location.timezone,
+          method: params.method,
+          madhab: params.madhab,
+          highLatitudeRule: params.highLatitudeRule,
+          minuteAdjustments: params.minuteAdjustments,
+          authorityDescription: params.authorityDescription,
+          selectionReason: params.selectionReason,
+          authorityNotice: params.authorityNotice,
+          calculationDetails: params.calculationDetails,
+        });
+
+        const { coordinates, ...cleanSchedule } = schedule;
+
+        return {
+          structuredContent: cleanSchedule,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(cleanSchedule, null, 2),
+            },
+          ],
+        };
       });
-
-
-      const targetDate = args.date ?? new Date();
-
-      const params = resolveCalculationParameters(
-        location,
-        userPrefs,
-        args.calculationMethod,
-        args.madhab
-      );
-
-      const schedule = calculateDailySchedule({
-        latitude: location.latitude,
-        longitude: location.longitude,
-        date: targetDate,
-        timezone: location.timezone,
-        method: params.method,
-        madhab: params.madhab,
-        highLatitudeRule: params.highLatitudeRule,
-        minuteAdjustments: params.minuteAdjustments,
-        authorityDescription: params.authorityDescription,
-        selectionReason: params.selectionReason,
-        authorityNotice: params.authorityNotice,
-      });
-
-      const { coordinates, ...cleanSchedule } = schedule;
-
-      return {
-        structuredContent: cleanSchedule,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(cleanSchedule, null, 2),
-          },
-        ],
-      };
     }
   );
 
@@ -193,67 +213,73 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
       },
     },
     async (args) => {
-      const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
-      const dedupeUserId = args.userId || 'anon';
+      return prayerResult(async () => {
+        const userPrefs = args.userId ? await storage.getUserPreferences(args.userId) : null;
+        const dedupeUserId = args.userId || 'anon';
 
-      const location = resolveLocation({
-        ...context,
-        explicitLat: args.latitude,
-        explicitLng: args.longitude,
-        explicitTimezone: args.timezone,
-        userPrefs,
+        const location = resolveUserLocation({
+          ...context,
+          explicitCity: args.city,
+          explicitLat: args.latitude,
+          explicitLng: args.longitude,
+          explicitTimezone: args.timezone,
+          userPrefs,
+        });
+
+        const now = new Date();
+        const params = resolveCalculationParameters(
+          location,
+          userPrefs,
+          args.calculationMethod,
+          args.madhab
+        );
+
+        const status = await evaluatePrayerStatus({
+          now,
+          location,
+          method: params.method,
+          madhab: params.madhab,
+          highLatitudeRule: params.highLatitudeRule,
+          minuteAdjustments: params.minuteAdjustments,
+          authorityDescription: params.authorityDescription,
+          selectionReason: params.selectionReason,
+          authorityNotice: params.authorityNotice,
+          calculationDetails: params.calculationDetails,
+          locale: userPrefs?.locale || 'en',
+          userId: dedupeUserId,
+        });
+
+
+        const nextPrayerDate = new Date(status.nextPrayerAtUtc);
+        const remainingMinutes = Math.max(0, Math.round((nextPrayerDate.getTime() - now.getTime()) / 60000));
+
+        const payload = {
+          currentLocalDate: status.localDate,
+          timezone: status.timezone,
+          nextPrayer: status.nextPrayer,
+          nextPrayerAtUtc: status.nextPrayerAtUtc,
+          nextPrayerLocalTime: formatLocalTime(nextPrayerDate, status.timezone),
+          remainingMinutes,
+          calculationMethod: status.calculationMethod,
+          madhab: status.madhab,
+          authorityDescription: status.authorityDescription,
+          selectionReason: status.selectionReason,
+          authorityNotice: status.nextPrayerCalculation?.authorityNotice ?? status.authorityNotice,
+          highLatitudeAdjustment: status.nextPrayerCalculation?.highLatitudeAdjustment ?? status.highLatitudeAdjustment,
+          calculationDetails: status.nextPrayerCalculation?.calculationDetails ?? status.calculationDetails,
+          minuteAdjustments: status.minuteAdjustments,
+        };
+
+        return {
+          structuredContent: payload,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(payload, null, 2),
+            },
+          ],
+        };
       });
-
-      const now = new Date();
-      const params = resolveCalculationParameters(
-        location,
-        userPrefs,
-        args.calculationMethod,
-        args.madhab
-      );
-
-      const status = await evaluatePrayerStatus({
-        now,
-        location,
-        method: params.method,
-        madhab: params.madhab,
-        highLatitudeRule: params.highLatitudeRule,
-        minuteAdjustments: params.minuteAdjustments,
-        authorityDescription: params.authorityDescription,
-        selectionReason: params.selectionReason,
-        authorityNotice: params.authorityNotice,
-        locale: userPrefs?.locale || 'en',
-        userId: dedupeUserId,
-      });
-
-
-      const nextPrayerDate = new Date(status.nextPrayerAtUtc);
-      const remainingMinutes = Math.max(0, Math.round((nextPrayerDate.getTime() - now.getTime()) / 60000));
-
-      const payload = {
-        currentLocalDate: status.localDate,
-        timezone: status.timezone,
-        nextPrayer: status.nextPrayer,
-        nextPrayerAtUtc: status.nextPrayerAtUtc,
-        nextPrayerLocalTime: formatLocalTime(nextPrayerDate, status.timezone),
-        remainingMinutes,
-        calculationMethod: status.calculationMethod,
-        madhab: status.madhab,
-        authorityDescription: status.authorityDescription,
-        selectionReason: status.selectionReason,
-        authorityNotice: status.authorityNotice,
-        minuteAdjustments: status.minuteAdjustments,
-      };
-
-      return {
-        structuredContent: payload,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(payload, null, 2),
-          },
-        ],
-      };
     }
   );
 
@@ -275,7 +301,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     },
     async (args) => {
       const updated = await storage.updateUserPreferences(args);
-      const preferences = UserPreferencesObjectSchema.parse(updated);
+      const preferences = publicPreferences(updated);
 
       const result = { success: true, preferences };
       return {
@@ -307,7 +333,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     },
     async (args) => {
       const prefs = await storage.getUserPreferences(args.userId);
-      const result = UserPreferencesObjectSchema.parse(prefs || { message: 'No preferences configured; defaults active.' });
+      const result = publicPreferences(prefs);
       return {
         structuredContent: result,
         content: [

@@ -4,6 +4,15 @@ import worker from '../src/index.ts';
 import { MemoryKV } from '../src/storage/kv-store.ts';
 import { trackAnalytics, getAnalyticsReport, renderAnalyticsHtml } from '../src/analytics/tracker.ts';
 
+describe('Historical analytics bounds', () => {
+  it('rejects oversized historical records before parsing them and keeps tracking fail-open', async () => {
+    const kv = new MemoryKV();
+    await kv.put('analytics:summary', JSON.stringify({ tools: { ['x'.repeat(524288)]: 1 } }));
+    await assert.rejects(getAnalyticsReport(kv), /bounded size/);
+    assert.equal(await trackAnalytics(kv, { tool: 'get_next_prayer' }), 'failed');
+  });
+});
+
 describe('Edge Analytics & OpenAI Subject Tracking Suite', () => {
   it('accurately tracks unique users and active days without storing raw subject identifiers', async () => {
     const kv = new MemoryKV();
@@ -135,5 +144,76 @@ describe('Edge Analytics & OpenAI Subject Tracking Suite', () => {
     assert.equal(report.metrics.totalActiveUsers, 1);
     assert.equal(report.metrics.toolUsage['get_prayer_status'], 1);
     assert.equal(report.metrics.countryDistribution['SA'], 1);
+  });
+});
+
+describe('Analytics boundary regressions', () => {
+  it('rejects unsupported tools and malformed identities before writes', async () => {
+    const kv = new MemoryKV();
+    for (const event of [ { tool: '<img src=x onerror=alert(1)>' }, { tool: 'get_prayer_status', subject: {} }, { tool: 'get_prayer_status', session: 'a'.repeat(2049) }, {tool: 'get_prayer_status', subject: '\u00e9'.repeat(1025)}, {tool: 42} ]) {
+      assert.equal(await trackAnalytics(kv, event as any), 'rejected');
+    }
+    assert.equal(await kv.get('analytics:summary'), null);
+  });
+
+  it('retains all concurrent calls within a shared KV instance', async () => {
+    class DelayedKV extends MemoryKV {
+      override async get(key: string) {
+        const value = await super.get(key);
+        await new Promise(resolve => setTimeout(resolve, 2));
+        return value;
+      }
+    }
+    const kv = new DelayedKV();
+    await Promise.all(Array.from({length: 20}, () => trackAnalytics(kv, { tool: 'get_prayer_status', subject: 'same', session: 'same' })));
+    const report = await getAnalyticsReport(kv);
+    assert.equal(report.metrics.totalCalls, 20);
+    assert.equal(report.metrics.totalActiveUsers, 1);
+    assert.equal(report.metrics.totalSessions, 1);
+    assert.equal(report.metrics.toolUsage.get_prayer_status, 20);
+  });
+
+  it('normalizes historical hostile counters and escapes dashboard strings', async () => {
+    const kv = new MemoryKV();
+    await kv.put('analytics:summary', JSON.stringify({ totalCalls: -2, totalUniqueUsers: 'bad', tools: { '<img src=x onerror=alert(1)>': 1, get_prayer_status: -3 }, countries: { '<svg/onload=alert(1)>': 1, SA: 2 }, lastRecordedAt: '<script>alert(1)</script>' }));
+    const report = await getAnalyticsReport(kv);
+    assert.equal(report.metrics.totalCalls, 0);
+    assert.deepEqual(report.metrics.toolUsage, {});
+    assert.deepEqual(report.metrics.countryDistribution, {SA: 2});
+    const html = renderAnalyticsHtml({ ...report, lastUpdated: '<script>alert(1)</script>', metrics: { ...report.metrics, recentTrend: [{date: '12345<img src=x>', calls: 1, activeUsers: 1}] } });
+    assert.ok(!html.includes('<img src=x>'));
+  });
+
+  it('does not create identity keys beyond daily cardinality caps', async () => {
+    class WriteTrackingKV extends MemoryKV {
+      writes: string[] = [];
+      override async put(key: string, value: string, options?: {expirationTtl?: number}) { this.writes.push(key); await super.put(key, value, options); }
+    }
+    const kv = new WriteTrackingKV();
+    const today = new Date().toISOString().slice(0, 10);
+    await kv.put(`analytics:day:${today}`, JSON.stringify({date: today, calls: 5000, tools: {}, countries: {}, users: Array.from({length: 5000}, (_,i) => i.toString(16).padStart(16, '0')), sessions: Array.from({length: 5000}, (_,i) => i.toString(16).padStart(16, '0'))}));
+    await trackAnalytics(kv, {tool: 'get_prayer_status', subject: 'overflow', session: 'overflow'});
+    const report = await getAnalyticsReport(kv);
+    assert.equal(report.metrics.totalActiveUsers, 5000);
+    assert.equal(report.metrics.totalSessions, 0);
+    assert.ok(kv.writes.every(key => !key.startsWith('analytics:user:') && !key.startsWith('analytics:session:')));
+  });
+
+  it('counts anonymous legitimate calls and exposes nonblocking write failure', async () => {
+    class FailingKV extends MemoryKV {
+      fail = true;
+      override async put(key: string, value: string, options?: {expirationTtl?: number}) {
+        if (this.fail) throw new Error('unavailable');
+        await super.put(key, value, options);
+      }
+    }
+    const kv = new FailingKV();
+    assert.equal(await trackAnalytics(kv, {tool: 'get_prayer_status'}), 'failed');
+    kv.fail = false;
+    assert.equal(await trackAnalytics(kv, {tool: 'get_prayer_status'}), 'recorded');
+    const report = await getAnalyticsReport(kv);
+    assert.equal(report.metrics.totalCalls, 1);
+    assert.equal(report.metrics.totalActiveUsers, 0);
+    assert.equal(report.countAccuracy, 'approximate');
   });
 });

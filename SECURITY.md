@@ -49,3 +49,11 @@ When a private report is submitted:
 The public deployment supports anonymous prayer calculations. A `userId` selects a caller-supplied preference namespace; it does not authenticate an account. Hosts that expose saved preferences must authorize the caller, use opaque per-user identifiers, and prevent callers from choosing another user's namespace. Set the Worker secret `AUTH_TOKEN` to require a bearer token on `/api/*` and `/mcp`; this protects the service as a whole and does not create per-user authorization. Do not expose a shared service token in browser code.
 
 POST request bodies are limited to 64 KiB. Fixed coordinates are rounded before storage. Status reads and preference updates are serialized per user within a Worker isolate; Cloudflare KV provides no global atomic read/write transaction, so cross-region deduplication and concurrent preference updates remain best effort.
+
+### Verified location and calculation disclosures (v1.1.0)
+
+Prayer tools accept a supported `city`, coordinates with `timezone`, or complete stored fixed settings. Missing location returns `location_required`; connector/IP geolocation and automatic Makkah fallback are not used. Explicit per-call inputs override fixed preferences. Host headers must represent the end user.
+
+`highLatitudeAdjustment` discloses twilight substitutions and polar clamping; `effectiveLatitude` is present only for the +/-48-degree substitute and never echoes the original coordinate. `calculationDetails` reports location basis and regional, user, and method offsets. Invalid offsets that reverse prayer windows return `invalid_calculation`. Preferences expose `fixedCoordinatesConfigured` and `fixedCityConfigured` while redacting coordinates.
+
+Analytics is pseudonymous and approximate: daily buckets 60 days, subject hashes 90 days, sessions 7 days, aggregate counters without expiry. Counts are not global atomic delivery metrics. Both dashboard aliases honor configured service authentication. See the privacy policy for the full retention and trust boundaries.

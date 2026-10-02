@@ -5,9 +5,12 @@ import {
   PrayerTimes,
   Madhab,
   HighLatitudeRule,
+  Rounding,
 } from 'adhan';
 import type {
   AuthorityNotice,
+  HighLatitudeAdjustment,
+  CalculationDetails,
   CalculationMethodName,
   HighLatitudeRuleName,
   MadhabName,
@@ -19,6 +22,14 @@ import type {
   UserPreferences,
 } from './types.ts';
 import { inferCountryFromTimezone } from '../location/resolver.ts';
+
+export class InvalidCalculationError extends Error {
+  readonly code = 'invalid_calculation';
+  constructor(message = 'The requested inputs produce an invalid or non-chronological prayer timetable. Check the location, date, and minute adjustments.') {
+    super(message);
+    this.name = 'InvalidCalculationError';
+  }
+}
 
 export function isValidCalendarDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -119,6 +130,7 @@ export interface CalculateOptions {
   authorityDescription?: string;
   selectionReason?: string;
   authorityNotice?: AuthorityNotice;
+  calculationDetails?: CalculationDetails;
 }
 
 export function calculateDailySchedule(options: CalculateOptions): PrayerSchedule {
@@ -134,9 +146,13 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
     authorityDescription,
     selectionReason,
     authorityNotice,
+    calculationDetails,
   } = options;
 
   // Extract calendar day in the target timezone
+  if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
+    throw new InvalidCalculationError();
+  }
   const localDateStr = typeof date === 'string' ? date : getLocalDateString(date, timezone);
   if (!isValidCalendarDate(localDateStr)) throw new RangeError(`Invalid calendar date: ${localDateStr}`);
   const [year, month, day] = localDateStr.split('-').map(Number);
@@ -158,12 +174,15 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
   if (minuteAdjustments.maghrib) params.adjustments.maghrib = minuteAdjustments.maghrib;
   if (minuteAdjustments.isha) params.adjustments.isha = minuteAdjustments.isha;
 
+  let effectiveLatitude = latitude;
   const computePrayerTimes = (): PrayerTimes => {
+    effectiveLatitude = latitude;
     const times = new PrayerTimes(coordinates, calcDate, params);
     // High-latitude polar fallback: if astronomical dawn or sunset cannot be computed (polar day/night)
     // clamp latitude to 48.0 degrees as mandated by contemporary Islamic Fiqh academies
-    if (!times.fajr || isNaN(times.fajr.getTime()) || !times.maghrib || isNaN(times.maghrib.getTime())) {
+    if ([times.fajr, times.sunrise, times.dhuhr, times.asr, times.maghrib, times.isha].some(time => !time || !Number.isFinite(time.getTime()))) {
       const clampedLat = latitude > 0 ? Math.min(latitude, 48.0) : Math.max(latitude, -48.0);
+      effectiveLatitude = clampedLat;
       return new PrayerTimes(new Coordinates(clampedLat, longitude), calcDate, params);
     }
     return times;
@@ -175,6 +194,62 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
     calcDate.setDate(calcDate.getDate() + (transitLocalDate > localDateStr ? -1 : 1));
     prayerTimes = computePrayerTimes();
   }
+
+  if (getLocalDateString(prayerTimes.dhuhr, timezone) !== localDateStr) {
+    throw new InvalidCalculationError('The requested calendar day does not exist in this location/timezone. Select an existing local date.');
+  }
+
+  const orderedTimes = [prayerTimes.fajr, prayerTimes.sunrise, prayerTimes.dhuhr, prayerTimes.asr, prayerTimes.maghrib, prayerTimes.isha].map(time => time.getTime());
+  if (orderedTimes.some((time, index) => !Number.isFinite(time) || (index > 0 && time <= orderedTimes[index - 1]))) {
+    throw new InvalidCalculationError();
+  }
+
+  const latitudeClamped = effectiveLatitude !== latitude;
+  // Compare unrounded public Adhan calculations against a whole-night bound.
+  // That bound preserves every valid angle-based time, exposing twilight substitutions.
+  const probeParameters = () => {
+    const probe = getMethodParameters(method);
+    probe.madhab = params.madhab;
+    probe.highLatitudeRule = params.highLatitudeRule;
+    probe.adjustments = { ...params.adjustments };
+    probe.rounding = Rounding.None;
+    return probe;
+  };
+  const effectiveCoordinates = new Coordinates(effectiveLatitude, longitude);
+  const policyProbe = new PrayerTimes(effectiveCoordinates, calcDate, probeParameters());
+  const referenceParameters = probeParameters();
+  referenceParameters.nightPortions = () => ({ fajr: 1, isha: 1 });
+  if (method === 'MoonsightingCommittee') referenceParameters.method = 'Other';
+  const referenceProbe = new PrayerTimes(effectiveCoordinates, calcDate, referenceParameters);
+  const adjustedPrayers: PrayerName[] = latitudeClamped
+    ? ['Fajr','Sunrise','Dhuhr','Asr','Maghrib','Isha']
+    : [];
+  if (!latitudeClamped) {
+    if (policyProbe.fajr.getTime() !== referenceProbe.fajr.getTime()) adjustedPrayers.push('Fajr');
+    if (policyProbe.isha.getTime() !== referenceProbe.isha.getTime()) adjustedPrayers.push('Isha');
+  }
+  const explanation = latitudeClamped
+    ? `Polar astronomical events were unavailable. Times are approximations using a substitute latitude of ${effectiveLatitude} degrees and the ${highLatitudeRule} twilight rule; sunrise and sunset are substitutes, not observed local events.`
+    : adjustedPrayers.length
+      ? `Twilight adjustments were applied to ${adjustedPrayers.join(', ')} using ${method === 'MoonsightingCommittee' ? 'Moonsighting Committee seasonal/night-fraction rules' : highLatitudeRule}. Verify local authority guidance.`
+      : 'No geographic clamping or twilight substitution changed this timetable.';
+  const highLatitudeAdjustment: HighLatitudeAdjustment = {
+    applied: adjustedPrayers.length > 0, rule: highLatitudeRule,
+    ...(method === 'MoonsightingCommittee' ? { methodSpecificTwilightRule: 'MoonsightingCommittee' as const } : {}),
+    astronomicalLatitudeClamped: latitudeClamped,
+    ...(latitudeClamped ? { effectiveLatitude: effectiveLatitude > 0 ? 48 as const : -48 as const } : {}),
+    adjustedPrayers, explanation,
+  };
+  const details: CalculationDetails = {
+    ...calculationDetails,
+    methodMinuteAdjustments: { ...params.methodAdjustments },
+    appliedMinuteAdjustments: Object.fromEntries(['fajr','sunrise','dhuhr','asr','maghrib','isha'].map((prayer) => [prayer, (params.adjustments[prayer as keyof MinuteAdjustments] || 0) + (params.methodAdjustments[prayer as keyof MinuteAdjustments] || 0)])),
+    calendarAlignmentAdjusted: transitLocalDate !== localDateStr,
+  };
+  const disclosedAuthorityNotice = authorityNotice ? {
+    ...authorityNotice, highLatitudeAdjustment, calculationDetails: details,
+    requiredDisplayInstruction: authorityNotice.requiredDisplayInstruction + (highLatitudeAdjustment.applied ? ` Also disclose: ${explanation}` : ''),
+  } : undefined;
 
   const timesUtc: PrayerTimesUtc = {
     fajr: prayerTimes.fajr.toISOString(),
@@ -206,7 +281,9 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
     minuteAdjustments,
     authorityDescription,
     selectionReason,
-    authorityNotice,
+    authorityNotice: disclosedAuthorityNotice,
+    highLatitudeAdjustment,
+    calculationDetails: details,
     timesUtc,
     timesLocal,
   };
@@ -230,6 +307,7 @@ export interface CalculationDefaults {
 }
 
 export function isPalestineLocation(loc: LocationSignals): boolean {
+  if (loc.country) return ['PS', 'IL'].includes(loc.country.toUpperCase());
   if (loc.country === 'PS' || loc.country === 'IL') return true;
   if (
     loc.timezone === 'Asia/Gaza' ||
@@ -288,7 +366,7 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
   }
 
   const country = location.country?.toUpperCase();
-  const tz = location.timezone || '';
+  const tz = country ? '' : location.timezone || '';
 
   // 2. Saudi Arabia (Umm al-Qura)
   if (country === 'SA' || tz === 'Asia/Riyadh') {
@@ -462,6 +540,7 @@ export interface ResolvedCalculationParams {
   authorityDescription: string;
   selectionReason: string;
   authorityNotice: AuthorityNotice;
+  calculationDetails: CalculationDetails;
 }
 
 export function resolveCalculationParameters(
@@ -503,6 +582,16 @@ export function resolveCalculationParameters(
   };
 
   return {
+    calculationDetails: {
+      locationBasis: location.basis || (location.source === 'cf_geo' ? 'network_geolocation' : location.source === 'fallback_default' ? 'default_location' : undefined),
+      locationIsApproximate: location.isApproximated,
+      fallbackLocationUsed: location.source === 'fallback_default',
+      methodSource: overrideMethod ? 'explicit_override' : userPrefs?.calculationMethod ? 'stored_preference' : 'geographic_default',
+      madhabSource: overrideMadhab ? 'explicit_override' : userPrefs?.madhab ? 'stored_preference' : 'geographic_default',
+      highLatitudeRuleSource: userPrefs?.highLatitudeRule ? 'stored_preference' : 'geographic_default',
+      regionalMinuteAdjustments: { ...defaults.minuteAdjustments },
+      customMinuteAdjustments: { ...(userPrefs?.minuteAdjustments || {}) },
+    },
     method,
     madhab,
     highLatitudeRule,

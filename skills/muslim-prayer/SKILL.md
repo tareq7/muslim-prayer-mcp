@@ -1,103 +1,227 @@
 ---
-name: muslim-prayer-mcp
-description: Teaches LLMs how to query Muslim prayer times, check current prayer due status, countdown to next prayer, and enforce mandatory calculation authority and selection justification disclosure.
+name: muslim-prayer
+description: Query prayer times and status using verified user location; explain calculation authority and applied approximations.
 ---
 
 # Muslim Prayer Reminder MCP
 
-This skill instructs LLMs (Claude, GPT, Cursor, Copilot, Gemini, Devin, etc.) on interacting with the Muslim Prayer Reminder MCP server (`muslim-prayer-mcp`), executing prayer-time tools, interpreting results, and formatting prayer outputs.
+Generated from src/mcp/schemas.ts by scripts/generate-skill.mjs. Regenerate with npm run docs:generate; verify with npm run docs:check.
 
-## Server Endpoints
-- **Streamable HTTP (Remote Worker)**: `https://muslim-prayer-mcp.najetareqz.workers.dev/mcp`
-- **Local Stdio (NPX)**: `npx -y muslim-prayer-mcp`
+## Location and error handling
 
----
+Use an explicit supported city, a latitude/longitude pair with an IANA timezone, or a stored complete fixed location. Explicit per-call location overrides stored settings. Trusted host headers may supply end-user coordinates/timezone or a supported city. Never infer the user location from connector/server IP or Cloudflare network geolocation. A timezone alone cannot locate the user.
 
-## ⚠️ MANDATORY DIRECTIVE: Authority and Selection Reason Disclosure
+If a prayer tool returns isError:true and structuredContent.code is location_required, ask for a supported city or coordinates/timezone. Do not substitute Makkah or guess a location. If code is invalid_calculation, ask the user to correct minute adjustments that reverse prayer windows.
 
-Every time you present prayer times, next prayer countdowns, or prayer status to a user, you **MUST EXPLICITLY STATE**:
-1. **The calculation authority and method used** (e.g., Palestinian Ministry of Awqaf, Umm al-Qura University Makkah, Egyptian General Authority of Survey, Diyanet İşleri Başkanlığı, etc.).
-2. **Why that authority was selected** (e.g., automatically selected based on Gaza/Palestine coordinates with regional Awqaf safety offsets, matched user timezone Asia/Riyadh, user explicitly configured method, etc.).
+Public coordinates are rounded before calculation/storage and never echoed. Preferences expose fixedCoordinatesConfigured/fixedCityConfigured indicators. Read-only prayer queries do not return user identifiers.
 
-**Zero Exception Rule**: Never omit this disclosure. The `authorityNotice` object returned in all tool payloads contains the exact strings to use.
+Always disclose authorityNotice.authorityDescription and authorityNotice.selectionReason. When highLatitudeAdjustment.applied is true, also disclose its explanation: clamped sunrise/sunset are substitutes, not observed local events. calculationDetails explains location basis, overrides, regional/custom/method offsets, and calendar alignment. Use the actual returned values; never invent timings or transformations.
 
----
+MCP endpoint: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
+Local runner: npx -y muslim-prayer-mcp
+Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso.
 
-## Tool Reference
+## Tool contracts
 
-Calculation tools accept optional `userId`, `latitude`, `longitude`, `timezone`, `calculationMethod`, and `madhab`. Supply coordinates as a pair. Omit `userId` for anonymous calculation without saved preferences or deduplication. Read the advertised input schema before calling a tool.
+Omitted preference fields preserve existing settings. New preferences inherit geographic/service defaults. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. KV deduplication is best effort across regions.
 
-### 1. `get_prayer_status`
-Returns `reminderDue`, optional `prayer`, `reminderText`, `startedAtUtc`, and `expiresAtUtc`, plus `localDate`, `nextPrayer`, `nextPrayerAtUtc`, `timezone`, `calculationMethod`, `madhab`, and `authorityNotice`. An identified user can receive one reminder per prayer window; this tool writes a temporary deduplication marker. `persistent` mode bypasses deduplication, and `enabled: false` suppresses reminders.
+### get_prayer_status
 
-### 2. `get_today_prayer_times`
-Also accepts optional `date` as a real calendar date in `YYYY-MM-DD` format. Returns `localDate`, `timezone`, `calculationMethod`, `madhab`, `timesUtc` (lowercase prayer keys), `timesLocal` (`Fajr`, `Sunrise`, `Dhuhr`, `Asr`, `Maghrib`, `Isha`), and `authorityNotice`.
+Input
 
-### 3. `get_next_prayer`
-Returns `currentLocalDate`, `nextPrayer`, `nextPrayerAtUtc`, `nextPrayerLocalTime`, `remainingMinutes`, `timezone`, `calculationMethod`, `madhab`, and `authorityNotice`.
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `city` | string | optional | Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used. |
+| `userId` | string | optional | Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied. |
+| `latitude` | number | optional | Optional explicit latitude override |
+| `longitude` | number | optional | Optional explicit longitude override |
+| `timezone` | string | optional | Optional IANA timezone override (e.g. Asia/Riyadh) |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
+| `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
-### 4. `configure_prayer_preferences`
-Requires `userId`. Optional settings are `locationMode` (`auto_travel` or `fixed`), `fixedCity` (a supported predefined city), `fixedCoordinates` (`{ latitude, longitude }`), `timezone`, `calculationMethod`, `madhab` (`Shafi` or `Hanafi`), `highLatitudeRule`, `reminderMode` (`prayer_window`, `exact_window`, or `persistent`), `exactWindowMinutes` (5–120), `locale` (`en` or `ar`), `minuteAdjustments`, and `enabled`.
+Output
 
-Omitted settings preserve existing preferences. New preferences retain geographic calculation defaults unless the user explicitly chooses a method or madhab. Switching to a city replaces old fixed coordinates; switching to coordinates replaces the old city. Coordinates are rounded before storage and excluded from tool output. Returns `success` and public `preferences`.
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `nextPrayerCalculation` | object | optional | Adjustment disclosure for the actual schedule of the next event, including tomorrow |
+| `reminderDue` | boolean | required | Whether a prayer is currently due for reminder |
+| `prayer` | string | optional | The name of the currently due prayer if applicable |
+| `localDate` | string | required | Current local date in YYYY-MM-DD |
+| `startedAtUtc` | string | optional | UTC start time of the active prayer window |
+| `expiresAtUtc` | string | optional | UTC expiration time of the active prayer window |
+| `nextPrayer` | string | required | The name of the next upcoming prayer |
+| `nextPrayerAtUtc` | string | required | UTC timestamp of the next upcoming prayer |
+| `timezone` | string | required | Resolved IANA timezone |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | required | Active calculation authority |
+| `madhab` | `Shafi`, `Hanafi` | required | Active Asr jurisprudence |
+| `minuteAdjustments` | object | optional | Applied minute adjustments |
+| `authorityDescription` | string | optional | Description of the calculation authority |
+| `selectionReason` | string | optional | Reason for authority selection |
+| `highLatitudeAdjustment` | object | optional |  |
+| `calculationDetails` | object | optional |  |
+| `authorityNotice` | object | optional | Mandatory theological transparency notice |
+| `reminderText` | string | optional | Localized reminder message |
 
-### 5. `get_prayer_preferences`
-Requires `userId`. Returns public saved settings or a message when unset. User identifiers and fixed coordinates are excluded from output.
+### get_today_prayer_times
 
----
+Input
 
-## Automatic Geographic Authority Resolution Matrix
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `city` | string | optional | Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used. |
+| `userId` | string | optional | Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied. |
+| `date` | string | optional | Date in YYYY-MM-DD format (defaults to today) |
+| `latitude` | number | optional | Optional explicit latitude override |
+| `longitude` | number | optional | Optional explicit longitude override |
+| `timezone` | string | optional | Optional IANA timezone override |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
+| `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
-When the user has not explicitly configured a preferred method, the system automatically resolves the calculation authority based on location coordinates and timezone:
+Output
 
-| Region / Location | Resolved Authority | Jurisdictional Reason / Solar Offsets | Madhab |
-| :--- | :--- | :--- | :--- |
-| **Palestine** (Gaza, West Bank, Jerusalem) | Palestinian Ministry of Awqaf (Egyptian Survey Authority + Awqaf Offsets) | Official Palestinian Awqaf standard: Egyptian Survey (`19.5°`/`17.5°`) with `{ maghrib: +3 min, dhuhr: -1 min }` safety offsets matching local mosque calendars. | Shafi |
-| **Saudi Arabia** | Umm al-Qura University, Makkah | Official Saudi government standard: Fajr `18.5°`, Isha `90 min` after Maghrib. | Shafi |
-| **United Arab Emirates** | General Authority of Islamic Affairs & Endowments (Awqaf UAE) | Official UAE standard (`Dubai` method): Fajr `18.2°`, Isha `18.2°`. | Shafi |
-| **Qatar** | Ministry of Endowments and Islamic Affairs (Awqaf Qatar) | Official Qatari standard: Fajr `18.0°`, Isha `90 min` after Maghrib. | Shafi |
-| **Kuwait** | Ministry of Awqaf and Islamic Affairs (Kuwait) | Official Kuwaiti standard: Fajr `18.0°`, Isha `17.5°`. | Shafi |
-| **Egypt** | Egyptian General Authority of Survey | Official Egyptian standard: Fajr `19.5°`, Isha `17.5°`. | Shafi |
-| **Turkey & Balkans** | Diyanet İşleri Başkanlığı (Turkey) | Official Turkish Presidency of Religious Affairs standard: Fajr `18.0°`, Isha `17.0°`, Hanafi Asr. | Hanafi |
-| **South Asia** (PK, IN, BD, AF) | University of Islamic Sciences, Karachi | Standard South Asian Hanafi method: Fajr `18.0°`, Isha `18.0°`, Hanafi Asr shadow ratio 2x. | Hanafi |
-| **North America** (US, CA) | Islamic Society of North America (ISNA) | Continental North American standard: Fajr `15.0°`, Isha `15.0°`. | Shafi |
-| **Southeast Asia** (SG, MY, ID, BN) | MUIS / JAKIM / MABIMS | Standard Southeast Asian regional authority: Fajr `20.0°`, Isha `18.0°`. | Shafi |
-| **Global / Other** | Muslim World League (MWL) | International consensus baseline: Fajr `18.0°`, Isha `17.0°`. | Shafi |
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `localDate` | string | required | Local schedule date YYYY-MM-DD |
+| `timezone` | string | required | Resolved IANA timezone |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | required | Active calculation authority |
+| `madhab` | `Shafi`, `Hanafi` | required | Active Asr jurisprudence |
+| `minuteAdjustments` | object | optional |  |
+| `authorityDescription` | string | optional |  |
+| `selectionReason` | string | optional |  |
+| `highLatitudeAdjustment` | object | optional |  |
+| `calculationDetails` | object | optional |  |
+| `authorityNotice` | object | optional |  |
+| `timesUtc` | object | required |  |
+| `timesLocal` | object | required |  |
 
----
+### get_next_prayer
 
-## Required Response Formatting
+Input
 
-When generating user-facing responses containing prayer times or alerts, format the output cleanly:
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `city` | string | optional | Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used. |
+| `userId` | string | optional | Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied. |
+| `latitude` | number | optional | Optional explicit latitude override |
+| `longitude` | number | optional | Optional explicit longitude override |
+| `timezone` | string | optional | Optional IANA timezone override |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
+| `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
-### Example 1: Timetable Query
-```markdown
-### Today's Prayer Times for Gaza (Friday, Sep 4, 2026)
+Output
 
-| Prayer | Time |
-| :--- | :--- |
-| **Fajr** | 04:49 AM |
-| **Sunrise** | 06:20 AM |
-| **Dhuhr** | 12:41 PM |
-| **Asr** | 04:15 PM |
-| **Maghrib** | 07:05 PM |
-| **Isha** | 08:23 PM |
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `currentLocalDate` | string | required | Current local date YYYY-MM-DD |
+| `timezone` | string | required | Resolved IANA timezone |
+| `nextPrayer` | string | required | Name of the upcoming prayer |
+| `nextPrayerAtUtc` | string | required | UTC timestamp of the upcoming prayer |
+| `nextPrayerLocalTime` | string | required | Formatted local time HH:mm |
+| `remainingMinutes` | integer | required | Minutes remaining until prayer start |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | required | Active calculation authority |
+| `madhab` | `Shafi`, `Hanafi` | required | Active Asr jurisprudence |
+| `authorityDescription` | string | optional |  |
+| `selectionReason` | string | optional |  |
+| `highLatitudeAdjustment` | object | optional |  |
+| `calculationDetails` | object | optional |  |
+| `authorityNotice` | object | optional |  |
+| `minuteAdjustments` | object | optional |  |
 
-> **Calculation Authority**: Palestinian Ministry of Awqaf (Egyptian Survey Authority + Awqaf Offsets)
-> **Authority Selection Reason**: Automatically selected based on the supplied Palestine location with official Awqaf solar safety adjustments (+3m Maghrib, -1m Dhuhr).
-```
+### configure_prayer_preferences
 
-### Example 2: Next Prayer / Status Query
-```markdown
-🕌 **Next Prayer**: **Maghrib** in **42 minutes** (07:05 PM).
+Input
 
-> **Calculation Method**: Palestinian Ministry of Awqaf (Egyptian Survey Authority + Awqaf Offsets)
-> **Selection Reason**: Automatically calibrated for Palestine/Gaza location.
-```
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `userId` | string | required | Unique user identifier |
+| `locationMode` | `auto_travel`, `fixed` | optional | Location strategy: auto_travel or fixed |
+| `fixedCity` | string | optional | Predefined city name for fixed location (e.g. Riyadh, London) |
+| `fixedCoordinates` | object | optional | Fixed geographical coordinates |
+| `fixedCoordinates.latitude` | number | required |  |
+| `fixedCoordinates.longitude` | number | required |  |
+| `timezone` | string | optional | IANA timezone identifier (e.g. Asia/Riyadh, Europe/London) |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Islamic prayer calculation authority |
+| `madhab` | `Shafi`, `Hanafi` | optional | Jurisprudential Asr shadow calculation: Shafi or Hanafi |
+| `highLatitudeRule` | `MiddleOfTheNight`, `SeventhOfTheNight`, `TwilightAngle` | optional | High latitude twilight adjustment rule |
+| `reminderMode` | `prayer_window`, `exact_window`, `persistent` | optional | Reminder display policy: prayer_window, exact_window, persistent |
+| `exactWindowMinutes` | integer | optional | Duration in minutes for exact_window mode |
+| `locale` | `en`, `ar` | optional | Language for reminder text: en or ar |
+| `minuteAdjustments` | object | optional | Custom per-prayer minute offsets (-60 to +60) |
+| `enabled` | boolean | optional | Whether prayer reminders are enabled |
 
----
+Output
 
-## Error Handling & Fallbacks
-- If coordinates are unavailable, the MCP automatically uses saved fixed preferences, host headers (`X-User-Coordinates`, `X-User-Timezone`), or Cloudflare edge geolocation. Explicit tool coordinates take priority.
-- If completely unresolved, it safely defaults to Makkah (`21.42, 39.83`, `Asia/Riyadh`, `UmmAlQura`) and notes the fallback in `authorityNotice.selectionReason`.
-- Polar/high-latitude locations (>48°) automatically engage nearest-latitude fiqh clamping to prevent invalid twilight calculations.
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `success` | boolean | required | Whether configuration succeeded |
+| `preferences` | object | required |  |
+
+### get_prayer_preferences
+
+Input
+
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `userId` | string | required | Unique user identifier |
+
+Output
+
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `fixedCoordinatesConfigured` | boolean | required |  |
+| `fixedCityConfigured` | boolean | required |  |
+| `locationMode` | `auto_travel`, `fixed` | optional |  |
+| `fixedCity` | string | optional |  |
+| `timezone` | string | optional |  |
+| `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional |  |
+| `madhab` | `Shafi`, `Hanafi` | optional |  |
+| `highLatitudeRule` | `MiddleOfTheNight`, `SeventhOfTheNight`, `TwilightAngle` | optional |  |
+| `reminderMode` | `prayer_window`, `exact_window`, `persistent` | optional |  |
+| `exactWindowMinutes` | number | optional |  |
+| `locale` | `en`, `ar` | optional |  |
+| `minuteAdjustments` | object | optional |  |
+| `enabled` | boolean | optional |  |
+| `updatedAtUtc` | string | optional |  |
+| `message` | string | optional |  |
+
+The `preferences` configuration result uses the same fields as `get_prayer_preferences`. Nested disclosure objects are defined below once for all prayer tools.
+
+## highLatitudeAdjustment
+
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `applied` | boolean | required |  |
+| `rule` | `MiddleOfTheNight`, `SeventhOfTheNight`, `TwilightAngle` | required |  |
+| `methodSpecificTwilightRule` | `MoonsightingCommittee` | optional |  |
+| `astronomicalLatitudeClamped` | boolean | required |  |
+| `effectiveLatitude` | `48` or `-48` | optional | Substitute latitude only; never the user coordinate |
+| `adjustedPrayers` | array of `Fajr`, `Sunrise`, `Dhuhr`, `Asr`, `Maghrib`, `Isha` | required |  |
+| `explanation` | string | required |  |
+
+## calculationDetails
+
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `locationBasis` | `explicit_coordinates`, `explicit_city`, `stored_fixed_coordinates`, `stored_fixed_city`, `host_coordinates`, `host_city`, `network_geolocation`, `default_location` | optional |  |
+| `locationIsApproximate` | boolean | optional |  |
+| `fallbackLocationUsed` | boolean | optional |  |
+| `methodSource` | `explicit_override`, `stored_preference`, `geographic_default` | optional |  |
+| `madhabSource` | `explicit_override`, `stored_preference`, `geographic_default` | optional |  |
+| `highLatitudeRuleSource` | `stored_preference`, `geographic_default` | optional |  |
+| `regionalMinuteAdjustments` | object | optional |  |
+| `customMinuteAdjustments` | object | optional |  |
+| `methodMinuteAdjustments` | object | optional |  |
+| `appliedMinuteAdjustments` | object | optional |  |
+| `calendarAlignmentAdjusted` | boolean | optional |  |
+
+## authorityNotice
+
+| Field | Type / allowed values | Presence | Description |
+| --- | --- | --- | --- |
+| `method` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | required | The calculation authority method |
+| `madhab` | `Shafi`, `Hanafi` | required | The Asr jurisprudence school |
+| `authorityDescription` | string | required | Full descriptive name of the calculation authority |
+| `selectionReason` | string | required | Rationale for selecting this authority |
+| `requiredDisplayInstruction` | string | required | Mandatory theological notice for AI presentation |
+| `highLatitudeAdjustment` | object | optional |  |
+| `calculationDetails` | object | optional |  |

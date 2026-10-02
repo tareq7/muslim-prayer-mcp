@@ -100,7 +100,7 @@ describe('Review regressions', () => {
 
   it('REST calculation responses exclude coordinates and internal keys', async () => {
     const env = { PRAYER_KV: new MemoryKV() };
-    for (const path of ['/api/status', '/api/timetable']) {
+    for (const path of ['/api/status?city=Makkah', '/api/timetable?city=Makkah']) {
       const response = await worker.fetch(new Request('http://localhost' + path), env);
       const body = await response.json() as any;
       assert.equal(body.coordinates, undefined);
@@ -121,9 +121,9 @@ describe('Review regressions', () => {
     t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-03T12:00:00Z') });
     const env = { PRAYER_KV: new MemoryKV() };
     await save(env, { userId: 'disabled-user', enabled: false, reminderMode: 'persistent' });
-    const response = await worker.fetch(new Request('http://localhost/api/status?userId=disabled-user'), env);
+    const response = await worker.fetch(new Request('http://localhost/api/status?city=Makkah&userId=disabled-user'), env);
     assert.equal((await response.json() as any).reminderDue, false);
-    const result = await rpc(env, 'get_prayer_status', { userId: 'disabled-user' });
+    const result = await rpc(env, 'get_prayer_status', { city: 'Makkah', userId: 'disabled-user' });
     assert.equal(result.structuredContent.reminderDue, false);
   });
 
@@ -132,15 +132,15 @@ describe('Review regressions', () => {
     const env = { PRAYER_KV: new MemoryKV(), DEFAULT_REMINDER_MODE: 'persistent', DEFAULT_LOCALE: 'ar' };
     await save(env, { userId: 'env-user', madhab: 'Hanafi' });
     for (let i = 0; i < 2; i++) {
-      const rest = await worker.fetch(new Request('http://localhost/api/status?userId=env-user'), env);
+      const rest = await worker.fetch(new Request('http://localhost/api/status?city=Makkah&userId=env-user'), env);
       const status = await rest.json() as any;
       assert.equal(status.reminderDue, true);
       assert.match(status.reminderText, /حان وقت/);
-      const result = await rpc(env, 'get_prayer_status', { userId: 'env-user' });
+      const result = await rpc(env, 'get_prayer_status', { city: 'Makkah', userId: 'env-user' });
       assert.equal(result.structuredContent.reminderDue, true);
       assert.match(result.structuredContent.reminderText, /حان وقت/);
     }
-    assert.equal((await worker.fetch(new Request('http://localhost/api/status'), { DEFAULT_EXACT_WINDOW_MINUTES: 'invalid' })).status, 500);
+    assert.equal((await worker.fetch(new Request('http://localhost/api/status?city=Makkah'), { DEFAULT_EXACT_WINDOW_MINUTES: 'invalid' })).status, 500);
   });
 
   it('does not share anonymous deduplication state or persist it', async (t) => {
@@ -148,7 +148,7 @@ describe('Review regressions', () => {
     const kv = new MemoryKV();
     const put = t.mock.method(kv, 'put');
     for (let i = 0; i < 2; i++) {
-      assert.equal((await rpc({ PRAYER_KV: kv }, 'get_prayer_status', {})).structuredContent.reminderDue, true);
+      assert.equal((await rpc({ PRAYER_KV: kv }, 'get_prayer_status', { city: 'Makkah' })).structuredContent.reminderDue, true);
     }
     assert.equal(put.mock.callCount(), 0);
   });
@@ -156,15 +156,15 @@ describe('Review regressions', () => {
   it('retains user deduplication until the prayer window ends', async (t) => {
     t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-03T19:00:00Z') });
     const env = { PRAYER_KV: new MemoryKV() };
-    assert.equal((await rpc(env, 'get_prayer_status', { userId: 'night-user' })).structuredContent.reminderDue, true);
+    assert.equal((await rpc(env, 'get_prayer_status', { city: 'Makkah', userId: 'night-user' })).structuredContent.reminderDue, true);
     t.mock.timers.tick(3 * 60 * 60 * 1000);
-    assert.equal((await rpc(env, 'get_prayer_status', { userId: 'night-user' })).structuredContent.reminderDue, false);
+    assert.equal((await rpc(env, 'get_prayer_status', { city: 'Makkah', userId: 'night-user' })).structuredContent.reminderDue, false);
   });
 
   it('serializes concurrent reminders and preference patches within a KV instance', async (t) => {
     t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-09-03T12:00:00Z') });
     const env = { PRAYER_KV: new MemoryKV() };
-    const reminders = await Promise.all([rpc(env, 'get_prayer_status', { userId: 'concurrent' }), rpc(env, 'get_prayer_status', { userId: 'concurrent' })]);
+    const reminders = await Promise.all([rpc(env, 'get_prayer_status', { city: 'Makkah', userId: 'concurrent' }), rpc(env, 'get_prayer_status', { city: 'Makkah', userId: 'concurrent' })]);
     assert.equal(reminders.filter((result) => result.structuredContent.reminderDue).length, 1);
     const updates = await Promise.all([save(env, { userId: 'patches', locale: 'ar' }), save(env, { userId: 'patches', madhab: 'Hanafi' })]);
     assert.ok(updates.every((response) => response.status === 200));
@@ -206,12 +206,12 @@ describe('Review regressions', () => {
   it('enforces configured bearer auth before accessing storage', async (t) => {
     const kv = new MemoryKV();
     const get = t.mock.method(kv, 'get');
-    for (const path of ['/api/status', '/api/timetable', '/mcp']) {
+    for (const path of ['/api/status?city=Makkah', '/api/timetable?city=Makkah', '/mcp']) {
       const response = await worker.fetch(new Request('http://localhost' + path), { PRAYER_KV: kv, AUTH_TOKEN: 'test-token' });
       assert.equal(response.status, 401);
     }
     assert.equal(get.mock.callCount(), 0);
-    const response = await worker.fetch(new Request('http://localhost/api/timetable', { headers: { Authorization: 'Bearer test-token' } }), { PRAYER_KV: kv, AUTH_TOKEN: 'test-token' });
+    const response = await worker.fetch(new Request('http://localhost/api/timetable?city=Makkah', { headers: { Authorization: 'Bearer test-token' } }), { PRAYER_KV: kv, AUTH_TOKEN: 'test-token' });
     assert.equal(response.status, 200);
   });
 

@@ -1,9 +1,9 @@
 import { createPrayerMcpServer } from './mcp/server.ts';
 import { PrayerStorage, type KVNamespaceLike } from './storage/kv-store.ts';
-import { RestCalculationInputSchema, RestPreferencesInputSchema, UserPreferencesObjectSchema, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
-import { resolveLocation, type ResolveLocationParams } from './location/resolver.ts';
+import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferences, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
+import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from './location/resolver.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
-import { calculateDailySchedule, resolveCalculationParameters } from './engine/calculator.ts';
+import { calculateDailySchedule, resolveCalculationParameters, InvalidCalculationError } from './engine/calculator.ts';
 import { trackAnalytics, getAnalyticsReport, renderAnalyticsHtml } from './analytics/tracker.ts';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { CalculationMethodName, MadhabName } from './engine/types.ts';
@@ -75,6 +75,7 @@ function parseCalculationQuery(url: URL) {
   return RestCalculationInputSchema.safeParse({
     userId: url.searchParams.get('userId') ?? undefined,
     date: url.searchParams.get('date') ?? undefined,
+    city: url.searchParams.get('city') ?? undefined,
     latitude: coordinate('lat'), longitude: coordinate('lng'),
     timezone: url.searchParams.get('timezone') ?? undefined,
   });
@@ -111,7 +112,7 @@ export default {
       return jsonResponse({
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
-        version: '1.0.1',
+        version: '1.1.0',
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
@@ -131,7 +132,7 @@ export default {
       return jsonResponse({
         serverInfo: {
           name: 'muslim-prayer-reminder',
-          version: '1.0.1',
+          version: '1.1.0',
           publisher: 'Smart Creations',
         },
         description: 'Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.',
@@ -157,11 +158,11 @@ export default {
     if (url.pathname === '/privacy') {
       return jsonResponse({
         app: 'Muslim Prayer Reminder',
-        version: '1.0.1',
+        version: '1.1.0',
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         fullPolicyUrl: 'https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/',
-        privacyStandard: 'Privacy by default, zero tracking, strict data minimization',
+        privacyStandard: 'Data minimization with pseudonymous operational analytics',
         dataCategories: {
           inputsProcessedEphemerally: [
             'City name or approximate latitude/longitude (rounded to 2 decimal places / ~1.1km)',
@@ -174,6 +175,8 @@ export default {
             'Prayer due status boolean and countdown in minutes',
             'Localized prayer alert notifications (Arabic and English)',
             'Calculation authority name and theological selection justification',
+            'High-latitude, polar-clamping, location-basis and offset disclosures without original coordinates',
+            'Fixed-location configuration indicators and aggregate approximate analytics reports',
           ],
           explicitlyExcludedFromOutputs: [
             'Zero coordinate leakage: latitude and longitude are NEVER returned in tool outputs',
@@ -184,7 +187,7 @@ export default {
             'Timetable and next-prayer queries write no data; identified status queries can write temporary deduplication markers',
             'Explicit MCP or REST preference updates store user identifiers, calculation and reminder settings, fixed city, rounded fixed coordinates, and timezone until deleted',
             'Deduplication markers expire at the prayer window end, with a maximum TTL of 24 hours',
-            'Anonymous operational analytics: hashed subject identifiers (SHA-256) and tool invocation counts are tracked ephemerally for active user metrics (DAU/WAU/MAU) with 60-day auto-expiry',
+            'Pseudonymous operational analytics: 60-day daily buckets, 90-day subject hashes, 7-day session hashes, and aggregate counters without expiry; raw subject/session strings are not stored',
           ],
           thirdPartySharing: 'None. Calculations execute locally in-isolate at the edge without external API calls or tracking SDKs.',
         },
@@ -233,7 +236,7 @@ export default {
       });
     }
 
-    if ((url.pathname.startsWith('/api/') || url.pathname === '/mcp') && env.AUTH_TOKEN &&
+    if ((url.pathname.startsWith('/api/') || url.pathname === '/mcp' || url.pathname === '/analytics') && env.AUTH_TOKEN &&
         request.headers.get('Authorization') !== `Bearer ${env.AUTH_TOKEN}`) {
       const response = jsonResponse({ error: 'Unauthorized' }, 401);
       response.headers.set('WWW-Authenticate', 'Bearer');
@@ -252,13 +255,14 @@ export default {
       if (url.pathname === '/api/status' && request.method === 'GET') {
         const input = parseCalculationQuery(url);
         if (!input.success) return jsonResponse({ error: 'Invalid calculation parameters' }, 400);
-        const { userId, latitude, longitude, timezone } = input.data;
+        const { userId, latitude, longitude, timezone, city } = input.data;
 
         return await storage.withUserLock(userId, async () => {
           const userPrefs = userId ? await storage.getUserPreferences(userId) : null;
           const dedupeUserId = userId || 'anon';
 
-          const location = resolveLocation({
+          const location = resolveUserLocation({
+            explicitCity: city,
             explicitLat: latitude,
             explicitLng: longitude,
             explicitTimezone: timezone,
@@ -283,6 +287,7 @@ export default {
             authorityDescription: params.authorityDescription,
             selectionReason: params.selectionReason,
             authorityNotice: params.authorityNotice,
+            calculationDetails: params.calculationDetails,
             enabled: userPrefs?.enabled,
             reminderMode,
             exactWindowMinutes,
@@ -305,10 +310,11 @@ export default {
       if (url.pathname === '/api/timetable' && request.method === 'GET') {
         const input = parseCalculationQuery(url);
         if (!input.success) return jsonResponse({ error: 'Invalid calculation parameters' }, 400);
-        const { userId, date, latitude, longitude, timezone } = input.data;
+        const { userId, date, latitude, longitude, timezone, city } = input.data;
         const userPrefs = userId ? await storage.getUserPreferences(userId) : null;
 
-        const location = resolveLocation({
+        const location = resolveUserLocation({
+          explicitCity: city,
           explicitLat: latitude,
           explicitLng: longitude,
           explicitTimezone: timezone,
@@ -332,6 +338,7 @@ export default {
           authorityDescription: params.authorityDescription,
           selectionReason: params.selectionReason,
           authorityNotice: params.authorityNotice,
+          calculationDetails: params.calculationDetails,
         });
 
         const { coordinates, ...publicSchedule } = schedule;
@@ -355,7 +362,7 @@ export default {
           return jsonResponse({ success: true, message: 'Preferences reset' });
         }
         const updated = await storage.updateUserPreferences(input);
-        return jsonResponse({ success: true, preferences: UserPreferencesObjectSchema.parse(updated) });
+        return jsonResponse({ success: true, preferences: publicPreferences(updated) });
       }
 
       // REST Preferences Delete Endpoint: /api/preferences (DELETE)
@@ -378,6 +385,8 @@ export default {
             status: 200,
             headers: {
               'Content-Type': 'text/html; charset=utf-8',
+              'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'",
+              'X-Content-Type-Options': 'nosniff',
               'Cache-Control': 'no-store, no-cache, must-revalidate',
               ...CORS_HEADERS,
             },
@@ -389,47 +398,28 @@ export default {
       // MCP Protocol Handler: /mcp
       if (url.pathname === '/mcp') {
         if (request.method === 'POST') {
-          try {
-            const clone = request.clone();
-            const trackPromise = (async () => {
-              try {
-                const body = (await clone.json());
-                if (body && body.method === 'tools/call' && body.params) {
-                  const tool = body.params.name || 'unknown';
-                  const meta = body.params._meta || {};
-                  const subject =
-                    meta['openai/subject'] ||
-                    request.headers.get('x-openai-subject') ||
-                    request.headers.get('openai-subject') ||
-                    undefined;
-                  const session =
-                    meta['openai/session'] ||
-                    request.headers.get('x-openai-session') ||
-                    request.headers.get('openai-session') ||
-                    undefined;
-                  const country =
-                    requestCf?.country ||
-                    request.headers.get('cf-ipcountry') ||
-                    undefined;
-                  const isLocalTest = url.hostname === 'localhost' && !subject && !session;
-                  if (!isLocalTest) {
-                    await trackAnalytics(storage.getKV(), {
-                      tool,
-                      subject,
-                      session,
-                      country,
-                    });
-                  }
-                }
-              } catch {}
-            })();
-            const executionCtx = ctx as { waitUntil?: (p: Promise<unknown>) => void } | undefined;
-            if (typeof executionCtx?.waitUntil === 'function') {
-              executionCtx.waitUntil(trackPromise);
-            } else {
-              trackPromise.catch(() => {});
-            }
-          } catch {}
+          const clone = request.clone();
+          const trackPromise = (async () => {
+            let body: unknown;
+            try { body = await clone.json(); }
+            catch (error) { return error instanceof SyntaxError ? 'rejected' : 'failed'; }
+            const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
+            if (!isRecord(body) || body.method !== 'tools/call' || !isRecord(body.params) || typeof body.params.name !== 'string') return 'rejected';
+            const meta = isRecord(body.params._meta) ? body.params._meta : {};
+            const subject = meta['openai/subject'] ?? request.headers.get('x-openai-subject') ?? request.headers.get('openai-subject') ?? undefined;
+            const session = meta['openai/session'] ?? request.headers.get('x-openai-session') ?? request.headers.get('openai-session') ?? undefined;
+            if ((subject !== undefined && typeof subject !== 'string') || (session !== undefined && typeof session !== 'string')) return 'rejected';
+            const country = requestCf?.country || request.headers.get('cf-ipcountry') || undefined;
+            if (url.hostname === 'localhost' && !subject && !session) return 'rejected';
+            return trackAnalytics(storage.getKV(), { tool: body.params.name, subject, session, country });
+          })();
+          const observed = trackPromise.then(status => {
+            if (status === 'failed') console.warn('Operational analytics storage is unavailable');
+          }, () => { console.warn('Operational analytics task failed'); });
+          const executionCtx = ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+          if (typeof executionCtx?.waitUntil === 'function') executionCtx.waitUntil(observed);
+          // The handled promise preserves fail-open behavior outside a Worker context.
+          else void observed;
         }
         const mcpServer = createPrayerMcpServer(storage, { headers: request.headers, cf: requestCf, ...getReminderDefaults(env) });
 
@@ -447,8 +437,9 @@ export default {
         }
       }
 
-      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.0.1' }, 404);
-    } catch {
+      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.0' }, 404);
+    } catch (error) {
+      if (error instanceof LocationRequiredError || error instanceof InvalidCalculationError) return jsonResponse({ code: error.code, error: error.message }, 400);
       return jsonResponse({ error: 'Internal server error' }, 500);
     }
   },

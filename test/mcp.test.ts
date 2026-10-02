@@ -164,6 +164,7 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
         arguments: {
           latitude: 31.50,
           longitude: 34.46,
+          timezone: 'Asia/Gaza',
           date: '2026-09-04',
         },
       },

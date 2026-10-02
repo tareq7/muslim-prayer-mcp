@@ -65,6 +65,7 @@ export interface ResolvedLocation {
   country?: string;
   source: 'explicit_request' | 'user_fixed_preference' | 'host_header' | 'cached_kv' | 'cf_geo' | 'fallback_default';
   isApproximated: boolean;
+  basis?: CalculationDetails['locationBasis'];
 }
 
 export interface PrayerTimesUtc {
@@ -76,12 +77,38 @@ export interface PrayerTimesUtc {
   isha: string;
 }
 
+export interface HighLatitudeAdjustment {
+  applied: boolean;
+  rule: HighLatitudeRuleName;
+  methodSpecificTwilightRule?: 'MoonsightingCommittee';
+  astronomicalLatitudeClamped: boolean;
+  effectiveLatitude?: 48 | -48;
+  adjustedPrayers: PrayerName[];
+  explanation: string;
+}
+
+export interface CalculationDetails {
+  locationBasis?: 'explicit_coordinates' | 'explicit_city' | 'stored_fixed_coordinates' | 'stored_fixed_city' | 'host_coordinates' | 'host_city' | 'network_geolocation' | 'default_location';
+  locationIsApproximate?: boolean;
+  fallbackLocationUsed?: boolean;
+  methodSource?: 'explicit_override' | 'stored_preference' | 'geographic_default';
+  madhabSource?: 'explicit_override' | 'stored_preference' | 'geographic_default';
+  highLatitudeRuleSource?: 'stored_preference' | 'geographic_default';
+  regionalMinuteAdjustments?: MinuteAdjustments;
+  customMinuteAdjustments?: MinuteAdjustments;
+  methodMinuteAdjustments?: MinuteAdjustments;
+  appliedMinuteAdjustments?: MinuteAdjustments;
+  calendarAlignmentAdjusted?: boolean;
+}
+
 export interface AuthorityNotice {
   method: CalculationMethodName;
   madhab: MadhabName;
   authorityDescription: string;
   selectionReason: string;
   requiredDisplayInstruction: string;
+  highLatitudeAdjustment?: HighLatitudeAdjustment;
+  calculationDetails?: CalculationDetails;
 }
 
 export interface PrayerSchedule {
@@ -97,6 +124,8 @@ export interface PrayerSchedule {
   authorityDescription?: string;
   selectionReason?: string;
   authorityNotice?: AuthorityNotice;
+  highLatitudeAdjustment?: HighLatitudeAdjustment;
+  calculationDetails?: CalculationDetails;
   timesUtc: PrayerTimesUtc;
   timesLocal: Record<PrayerName, string>; // formatted local HH:mm
 }
@@ -116,7 +145,15 @@ export interface PrayerStatusResult {
   authorityDescription?: string;
   selectionReason?: string;
   authorityNotice?: AuthorityNotice;
+  highLatitudeAdjustment?: HighLatitudeAdjustment;
+  calculationDetails?: CalculationDetails;
   reminderText?: string;
   dedupeKey?: string;
   locationSource: ResolvedLocation['source'];
+  nextPrayerCalculation?: {
+    localDate: string;
+    highLatitudeAdjustment?: HighLatitudeAdjustment;
+    calculationDetails?: CalculationDetails;
+    authorityNotice?: AuthorityNotice;
+  };
 }

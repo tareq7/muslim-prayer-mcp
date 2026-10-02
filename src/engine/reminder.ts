@@ -1,5 +1,6 @@
 import type {
   AuthorityNotice,
+  CalculationDetails,
   CalculationMethodName,
   HighLatitudeRuleName,
   Locale,
@@ -39,6 +40,7 @@ export interface EvaluateStatusOptions {
   authorityDescription?: string;
   selectionReason?: string;
   authorityNotice?: AuthorityNotice;
+  calculationDetails?: CalculationDetails;
   reminderMode?: ReminderMode;
   exactWindowMinutes?: number;
   locale?: Locale;
@@ -58,6 +60,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     authorityDescription,
     selectionReason,
     authorityNotice,
+    calculationDetails,
     reminderMode = 'prayer_window',
     exactWindowMinutes = 20,
     locale = 'en',
@@ -81,6 +84,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     authorityDescription,
     selectionReason,
     authorityNotice,
+    calculationDetails,
   });
 
   const nowMs = now.getTime();
@@ -97,6 +101,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
   let nextPrayerName: PrayerName = 'Fajr';
   let nextPrayerMs: number = fajrMs;
   let activeLocalDate: string = localDateStr;
+  let activeSchedule: PrayerSchedule = todaySchedule;
+  let nextSchedule: PrayerSchedule = todaySchedule;
 
   if (nowMs < fajrMs) {
     // Early morning before Fajr: active prayer is Isha from yesterday
@@ -113,6 +119,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
       authorityDescription,
       selectionReason,
       authorityNotice,
+    calculationDetails,
     });
     activePrayer = 'Isha';
     activeStartMs = new Date(ySchedule.timesUtc.isha).getTime();
@@ -120,6 +127,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     nextPrayerName = 'Fajr';
     nextPrayerMs = fajrMs;
     activeLocalDate = ySchedule.localDate;
+    activeSchedule = ySchedule;
   } else if (nowMs >= fajrMs && nowMs < sunriseMs) {
     // Fajr window (ends at Sunrise)
     activePrayer = 'Fajr';
@@ -168,15 +176,21 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
       authorityDescription,
       selectionReason,
       authorityNotice,
+    calculationDetails,
     });
     activePrayer = 'Isha';
     activeStartMs = ishaMs;
     activeExpireMs = new Date(tSchedule.timesUtc.fajr).getTime();
     nextPrayerName = 'Fajr';
     nextPrayerMs = activeExpireMs;
+    nextSchedule = tSchedule;
   }
 
   // Base payload
+  const disclosedSchedule = activePrayer ? activeSchedule : nextSchedule;
+  const combinedNotice = disclosedSchedule.authorityNotice && nextSchedule.highLatitudeAdjustment?.applied && nextSchedule.localDate !== disclosedSchedule.localDate
+    ? { ...disclosedSchedule.authorityNotice, requiredDisplayInstruction: disclosedSchedule.authorityNotice.requiredDisplayInstruction + ` Also disclose next-prayer adjustments for ${nextSchedule.localDate}: ${nextSchedule.highLatitudeAdjustment.explanation}` }
+    : disclosedSchedule.authorityNotice;
   const result: PrayerStatusResult = {
     reminderDue: false,
     localDate: localDateStr,
@@ -188,7 +202,15 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     minuteAdjustments,
     authorityDescription,
     selectionReason,
-    authorityNotice,
+    authorityNotice: combinedNotice,
+    highLatitudeAdjustment: disclosedSchedule.highLatitudeAdjustment,
+    calculationDetails: disclosedSchedule.calculationDetails,
+    nextPrayerCalculation: {
+      localDate: nextSchedule.localDate,
+      highLatitudeAdjustment: nextSchedule.highLatitudeAdjustment,
+      calculationDetails: nextSchedule.calculationDetails,
+      authorityNotice: nextSchedule.authorityNotice,
+    },
     locationSource: location.source,
   };
 

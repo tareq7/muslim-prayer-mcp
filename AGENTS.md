@@ -11,7 +11,7 @@ This document provides machine-readable architecture rules, validation commands,
 | **Install Dependencies** | \
 pm install\ | Clean node_modules without audit warnings |
 | **Run Complete Test Suite** | \
-pm test\ | 44 tests pass across 5 suites in <600ms |
+pm test\ | all tests pass across 5 suites in <600ms |
 | **Test Single File** | \
 ode --experimental-strip-types --test test/calculator.test.ts\ | Single test suite execution |
 | **Local Stdio Run** | \
@@ -44,13 +44,13 @@ px wrangler deploy\ | Deploys worker to Cloudflare network |
 \\\
 ├── src/
 │   ├── engine/          # Astronomical calculation, due windows, and reminder engine
-│   ├── location/        # Layered resolver (explicit, KV, headers, CF GeoIP, Makkah)
+│   ├── location/        # Layered resolver (explicit, KV, headers, verified end-user inputs)
 │   ├── mcp/             # MCP server definitions, JSON-RPC handlers, and Zod schemas
 │   ├── middleware/      # Deterministic host completion injection middleware
 │   ├── storage/         # Cloudflare KV preference and deduplication store
 │   ├── index.ts         # Cloudflare Worker entry point (Streamable HTTP + REST)
 │   └── stdio.ts         # Local Stdio CLI entry point
-├── test/                # Unit, integration, and E2E test suites (44 tests)
+├── test/                # Unit, integration, and E2E test suites (all tests)
 ├── assets/              # Branding, logos, icons, and hero banners
 ├── docs/                # GitHub Pages documentation portal and demo video
 └── .github/             # Workflows, issue/PR templates, and governance files
@@ -61,6 +61,8 @@ px wrangler deploy\ | Deploys worker to Cloudflare network |
 ## 4. Verification Checklist Before Yielding
 
 - [ ] Ran \
-pm test\ and verified 44/44 tests pass.
+pm test\ and verified the complete suite pass.
 - [ ] Confirmed no git diff in untracked sensitive files.
 - [ ] Preserved all existing comments and theological citations.
+
+Public prayer queries require a supported city or complete end-user coordinates/timezone. Do not infer prayer location from server/connector IP or silently default to Makkah. Run `npm run docs:check` after schema changes; regenerate with `npm run docs:generate`.

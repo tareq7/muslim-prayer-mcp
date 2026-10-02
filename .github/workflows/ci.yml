@@ -40,3 +40,6 @@ jobs:
 
       - name: Audit Dependencies
         run: npm audit
+
+      - name: Verify Generated Skill Contracts
+        run: npm run docs:check

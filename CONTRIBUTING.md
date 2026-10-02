@@ -22,7 +22,9 @@ Thank you for your interest in improving this project!
 
 ## Pull Request Guidelines
 
-* All pull requests must pass `npm test`, `npm run typecheck`, `npm run build`, and `npm audit`.
+* All pull requests must pass `npm test`, `npm run typecheck`, `npm run build`, `npm audit`, and `npm run docs:check`.
 * Run `npm run build` before using `node bin/cli.js` locally. Published npm packages include compiled JavaScript; Docker runs the source directly.
 * Keep changes scoped and minimal.
 * Add unit tests for new calculation parameters, fiqh adjustments, or transport features.
+
+When public schemas change, run `npm run docs:generate` and include both generated skill files.

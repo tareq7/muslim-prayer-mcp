@@ -9,9 +9,9 @@ permalink: /privacy-policy/
 
 # Privacy Policy
 
-Last updated: 2026-10-01
+Last updated: 2026-10-02
 
-**Muslim Prayer Reminder** is an open-source MCP server and application designed with a strict **privacy-by-default, zero-tracking, data-minimization** architecture.
+**Muslim Prayer Reminder** is an open-source MCP server and application designed with a **data-minimization** architecture with pseudonymous operational analytics.
 
 This policy clearly details every category of data processed, stored, or returned by this application across all endpoints and tools.
 
@@ -21,7 +21,7 @@ This policy clearly details every category of data processed, stored, or returne
 
 ### A. Input Data Processed Ephemerally
 To compute astronomical prayer times and determine whether an obligatory prayer is currently due, the application accepts the following optional parameters:
-* **Location & Coordinates**: City name or latitude/longitude coordinates. If coordinates are provided (or inferred from edge network headers), they are immediately rounded to 2 decimal places (`~1.1 km` city-level resolution). High-precision input coordinates are not persisted or logged. An explicitly configured fixed location is stored at this reduced precision.
+* **Location & Coordinates**: City name or latitude/longitude coordinates. If end-user coordinates are provided explicitly or by host-forwarded headers, they are immediately rounded to 2 decimal places (`~1.1 km` city-level resolution). High-precision input coordinates are not persisted or logged. An explicitly configured fixed location is stored at this reduced precision.
 * **Timezone**: An IANA timezone string (e.g., `Asia/Riyadh`, `America/New_York`) to calculate local wall-clock prayer times.
 * **Calculation Preferences**: Optional calculation method (e.g., Umm al-Qura, Egyptian Authority, MWL, ISNA), madhab (Shafi/Hanafi), or time offsets.
 
@@ -31,6 +31,7 @@ To compute astronomical prayer times and determine whether an obligatory prayer 
 The tools (`get_prayer_status`, `get_today_prayer_times`, `get_next_prayer`) return strictly prayer calculation results:
 * **Prayer Names & Timetables**: Standard Islamic prayer names (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) and corresponding calculated times in ISO-8601 UTC and localized 24-hour time strings.
 * **Prayer Status & Countdown**: Active prayer status boolean, time elapsed or remaining in minutes, and human-readable reminder strings in Arabic or English.
+* **Calculation Metadata**: High-latitude twilight rules, polar latitude clamping, location basis, and regional/custom/method offsets are disclosed without original coordinates.
 * **Theological Metadata**: Official calculation authority name (e.g., "Umm al-Qura University, Makkah") and theological selection justification explaining why that calculation standard applies to the region.
 
 ### C. Zero Debug Telemetry & No Sensitive Echoing
@@ -43,7 +44,7 @@ The tools (`get_prayer_status`, `get_today_prayer_times`, `get_next_prayer`) ret
 ## 2. Persistent Storage & Retention
 
 * **Read-Only Inquiries**: Timetable and next-prayer queries write no data. An identified `get_prayer_status` call can write a temporary deduplication marker. Anonymous status calls write no markers.
-* **Explicit User Preferences**: When a user explicitly invokes the `configure_prayer_preferences` tool, the supplied user identifier, calculation and reminder settings, and any explicit fixed city, rounded coordinates, and timezone are stored in Cloudflare KV under that identifier until changed or deleted. REST preference updates store the same categories. Local stdio preferences remain in memory for the process lifetime.
+* **Explicit User Preferences**: When a user explicitly invokes the `configure_prayer_preferences` tool, the supplied user identifier, calculation and reminder settings, and any explicit fixed city, rounded coordinates, and timezone are stored in Cloudflare KV under that identifier until changed or deleted. Fixed-location configuration indicators are returned instead of coordinates. REST preference updates store the same categories. Local stdio preferences remain in memory for the process lifetime.
 * **Deduplication Flags**: Temporary deduplication markers expire at the end of their prayer window, with a maximum TTL of 24 hours. In-memory expired entries are reclaimed on access and during later writes. KV deduplication is best effort across regions; it is not an atomic global delivery guarantee.
 
 ---
@@ -79,3 +80,13 @@ Users retain full control over their preferences:
 * **Contact & Support**: [GitHub Issues](https://github.com/tareq7/muslim-prayer-mcp/issues)
 
 
+
+## Operational analytics and location trust
+
+Prayer queries require a supported city or end-user coordinates and timezone. Connector/server IP and Cloudflare edge geolocation never supply prayer location; missing inputs return `location_required`.
+
+MCP tool invocations record a registered tool name and validated country label. When host-provided subject/session identifiers exist, SHA-256-derived truncated hashes are stored; these are pseudonymous identifiers, not a guarantee of anonymity. Raw subject/session strings are not persisted or returned.
+
+Daily buckets expire after 60 days; subject records expire 90 days after the last observed call; session records expire 7 days after creation. Aggregate counters have no expiry and contain no raw subject/session identifiers. Per-day subject/session sets are capped at 5,000 each. Counts are approximate because Cloudflare KV offers no global transaction; updates serialize within a shared KV instance. Expiring subject records may cause a returning subject to be counted again.
+
+The analytics dashboard and JSON report return aggregate metrics. Both are protected when the service `AUTH_TOKEN` is configured. With no service token they are public. Calculations and analytics use application storage at Cloudflare; no external prayer, tracking, or analytics API is called.

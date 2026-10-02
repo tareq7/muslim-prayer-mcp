@@ -1,4 +1,5 @@
 import type { KVNamespaceLike } from '../storage/kv-store.ts';
+import { REGISTERED_TOOL_NAMES } from '../mcp/tool-names.ts';
 
 export interface AnalyticsEvent {
   tool: string;
@@ -28,6 +29,7 @@ export interface AnalyticsSummary {
 
 export interface AnalyticsReport {
   status: 'active';
+  countAccuracy: 'approximate';
   metrics: {
     totalActiveUsers: number;
     dau: number;
@@ -54,130 +56,143 @@ export async function hashToken(token: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
 }
 
-export async function trackAnalytics(kv: KVNamespaceLike, event: AnalyticsEvent): Promise<void> {
+const MAX_IDENTITIES_PER_DAY = 5000;
+const MAX_IDENTITY_BYTES = 2048;
+const MAX_RECORD_CHARACTERS = 524288;
+const toolNames = new Set<string>(REGISTERED_TOOL_NAMES);
+const counterLabels = [...REGISTERED_TOOL_NAMES, 'Unknown'];
+for (let a = 65; a <= 90; a++) {
+  for (let b = 65; b <= 90; b++) counterLabels.push(String.fromCharCode(a, b));
+}
+const queues = new WeakMap<KVNamespaceLike, Promise<unknown>>();
 
-  try {
-    const now = new Date();
-    const today = now.toISOString().slice(0, 10);
-    const nowIso = now.toISOString();
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown> : {};
+}
 
-    const userHash = event.subject ? await hashToken(event.subject) : undefined;
-    const sessionHash = event.session ? await hashToken(event.session) : undefined;
-    const toolName = event.tool || 'unknown';
-    const country = event.country && /^[A-Z]{2}$/.test(event.country) ? event.country : 'Unknown';
-
-    // 1. Update Daily Bucket (analytics:day:YYYY-MM-DD)
-    const dayKey = `analytics:day:${today}`;
-    const rawDay = await kv.get(dayKey);
-    let dayData: DayAnalytics;
-    if (rawDay) {
-      dayData = typeof rawDay === 'object' ? rawDay : JSON.parse(rawDay);
-    } else {
-      dayData = {
-        date: today,
-        calls: 0,
-        tools: {},
-        users: [],
-        sessions: [],
-        countries: {},
-      };
-    }
-
-    dayData.calls = (dayData.calls || 0) + 1;
-    dayData.tools[toolName] = (dayData.tools[toolName] || 0) + 1;
-    dayData.countries[country] = (dayData.countries[country] || 0) + 1;
-
-    if (userHash && !dayData.users.includes(userHash)) {
-      if (dayData.users.length < 5000) dayData.users.push(userHash);
-    }
-    if (sessionHash && !dayData.sessions.includes(sessionHash)) {
-      if (dayData.sessions.length < 5000) dayData.sessions.push(sessionHash);
-    }
-
-    // Save daily bucket with 60 days TTL
-    await kv.put(dayKey, JSON.stringify(dayData), { expirationTtl: 5184000 });
-
-    // 2. Global Summary (analytics:summary)
-    const summaryKey = 'analytics:summary';
-    const rawSummary = await kv.get(summaryKey);
-    let summary: AnalyticsSummary;
-    if (rawSummary) {
-      summary = typeof rawSummary === 'object' ? rawSummary : JSON.parse(rawSummary);
-    } else {
-      summary = {
-        totalCalls: 0,
-        totalUniqueUsers: 0,
-        totalUniqueSessions: 0,
-        tools: {},
-        countries: {},
-        firstRecordedAt: nowIso,
-        lastRecordedAt: nowIso,
-      };
-    }
-
-    summary.totalCalls = (summary.totalCalls || 0) + 1;
-    summary.tools[toolName] = (summary.tools[toolName] || 0) + 1;
-    summary.countries[country] = (summary.countries[country] || 0) + 1;
-    summary.lastRecordedAt = nowIso;
-
-    // Check if user is first-seen
-    if (userHash) {
-      const userKey = `analytics:user:${userHash}`;
-      const existingUser = await kv.get(userKey);
-      if (!existingUser) {
-        summary.totalUniqueUsers = (summary.totalUniqueUsers || 0) + 1;
-        await kv.put(
-          userKey,
-          JSON.stringify({ firstSeen: nowIso, lastSeen: nowIso, calls: 1 }),
-          { expirationTtl: 7776000 } // 90 days
-        );
-      } else {
-        const u = typeof existingUser === 'object' ? existingUser : JSON.parse(existingUser);
-        await kv.put(
-          userKey,
-          JSON.stringify({ ...u, lastSeen: nowIso, calls: (u.calls || 0) + 1 }),
-          { expirationTtl: 7776000 }
-        );
-      }
-    }
-
-    // Check if session is first-seen
-    if (sessionHash) {
-      const sessionKey = `analytics:session:${sessionHash}`;
-      const existingSession = await kv.get(sessionKey);
-      if (!existingSession) {
-        summary.totalUniqueSessions = (summary.totalUniqueSessions || 0) + 1;
-        await kv.put(
-          sessionKey,
-          JSON.stringify({ firstSeen: nowIso }),
-          { expirationTtl: 604800 } // 7 days
-        );
-      }
-    }
-
-    await kv.put(summaryKey, JSON.stringify(summary));
-  } catch {
-    // Non-blocking telemetry failure: swallow to never fail user requests
+function decode(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string' && value.length > MAX_RECORD_CHARACTERS) {
+    throw new Error('Analytics record exceeds bounded size');
   }
+  return record(typeof value === 'string' ? JSON.parse(value) : value);
+}
+
+function counter(value: unknown): number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+}
+
+function increment(value: unknown): number {
+  return Math.min(Number.MAX_SAFE_INTEGER, counter(value) + 1);
+}
+
+function countryLabel(value: unknown): value is string {
+  return typeof value === 'string' && (/^[A-Z]{2}$/.test(value) || value === 'Unknown');
+}
+
+function counters(value: unknown, valid: (key: string) => boolean): Record<string, number> {
+  const source = record(value);
+  const result: Record<string, number> = {};
+  // Country labels have at most 677 possible values; tool names are allowlisted.
+  for (const key of counterLabels) {
+    if (Object.hasOwn(source, key) && valid(key) && counter(source[key]) > 0) result[key] = counter(source[key]);
+  }
+  return result;
+}
+
+function hashes(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const result = new Set<string>();
+  for (const item of value.slice(0, MAX_IDENTITIES_PER_DAY)) {
+    if (typeof item === 'string' && /^[a-f0-9]{16}$/.test(item)) result.add(item);
+  }
+  return [...result];
+}
+
+function timestamp(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value)) ? value : fallback;
+}
+
+function normalizeDay(value: Record<string, unknown>, date: string): DayAnalytics {
+  return { date, calls: counter(value.calls), tools: counters(value.tools, key => toolNames.has(key)),
+    countries: counters(value.countries, countryLabel), users: hashes(value.users), sessions: hashes(value.sessions) };
+}
+
+function normalizeSummary(value: Record<string, unknown>, now: string): AnalyticsSummary {
+  return { totalCalls: counter(value.totalCalls), totalUniqueUsers: counter(value.totalUniqueUsers),
+    totalUniqueSessions: counter(value.totalUniqueSessions), tools: counters(value.tools, key => toolNames.has(key)),
+    countries: counters(value.countries, countryLabel), firstRecordedAt: timestamp(value.firstRecordedAt, now),
+    lastRecordedAt: timestamp(value.lastRecordedAt, now) };
+}
+
+function validIdentity(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && value.length <= MAX_IDENTITY_BYTES && new TextEncoder().encode(value).length <= MAX_IDENTITY_BYTES);
+}
+
+export type AnalyticsTrackStatus = 'recorded' | 'rejected' | 'failed';
+
+export async function trackAnalytics(kv: KVNamespaceLike, event: AnalyticsEvent): Promise<AnalyticsTrackStatus> {
+  if (!event || typeof event.tool !== 'string' || !toolNames.has(event.tool) ||
+      !validIdentity(event.subject) || !validIdentity(event.session)) return 'rejected';
+
+  // Snapshot mutable caller input before any asynchronous work.
+  const { tool, subject, session } = event;
+  const country = countryLabel(event.country) ? event.country : 'Unknown';
+  const previous = queues.get(kv) ?? Promise.resolve();
+  const pending = previous.then(async (): Promise<AnalyticsTrackStatus> => {
+    try {
+      const nowIso = new Date().toISOString();
+      const today = nowIso.slice(0, 10);
+      const userHash = subject ? await hashToken(subject) : undefined;
+      const sessionHash = session ? await hashToken(session) : undefined;
+      const dayKey = `analytics:day:${today}`;
+      const day = normalizeDay(decode(await kv.get(dayKey)), today);
+      const summary = normalizeSummary(decode(await kv.get('analytics:summary')), nowIso);
+      day.calls = increment(day.calls);
+      day.tools[tool] = increment(day.tools[tool]);
+      day.countries[country] = increment(day.countries[country]);
+      summary.totalCalls = increment(summary.totalCalls);
+      summary.tools[tool] = increment(summary.tools[tool]);
+      summary.countries[country] = increment(summary.countries[country]);
+      summary.lastRecordedAt = nowIso;
+
+      // Admit new identities only while the daily budget has space. Existing
+      // admitted identities remain refreshable without creating extra keys.
+      if (userHash && (day.users.includes(userHash) || day.users.length < MAX_IDENTITIES_PER_DAY)) {
+        if (!day.users.includes(userHash)) day.users.push(userHash);
+        const key = `analytics:user:${userHash}`;
+        const existing = await kv.get(key);
+        const user = decode(existing);
+        if (!existing) summary.totalUniqueUsers = increment(summary.totalUniqueUsers);
+        await kv.put(key, JSON.stringify({ firstSeen: timestamp(user.firstSeen, nowIso), lastSeen: nowIso, calls: increment(user.calls) }), { expirationTtl: 7776000 });
+      }
+      if (sessionHash && (day.sessions.includes(sessionHash) || day.sessions.length < MAX_IDENTITIES_PER_DAY)) {
+        if (!day.sessions.includes(sessionHash)) day.sessions.push(sessionHash);
+        const key = `analytics:session:${sessionHash}`;
+        if (!await kv.get(key)) {
+          summary.totalUniqueSessions = increment(summary.totalUniqueSessions);
+          await kv.put(key, JSON.stringify({ firstSeen: nowIso }), { expirationTtl: 604800 });
+        }
+      }
+      // KV has no cross-isolate transaction: these remain approximate globally.
+      await kv.put(dayKey, JSON.stringify(day), { expirationTtl: 5184000 });
+      await kv.put('analytics:summary', JSON.stringify(summary));
+      return 'recorded';
+    } catch {
+      // The host can observe this status without exposing identifiers or errors.
+      return 'failed';
+    }
+  });
+  queues.set(kv, pending);
+  try { return await pending; }
+  finally { if (queues.get(kv) === pending) queues.delete(kv); }
 }
 
 export async function getAnalyticsReport(kv: KVNamespaceLike): Promise<AnalyticsReport> {
-  const summaryKey = 'analytics:summary';
-  const rawSummary = await kv.get(summaryKey);
-  const summary: AnalyticsSummary = rawSummary
-    ? (typeof rawSummary === 'object' ? rawSummary : JSON.parse(rawSummary))
-    : {
-        totalCalls: 0,
-        totalUniqueUsers: 0,
-        totalUniqueSessions: 0,
-        tools: {},
-        countries: {},
-        firstRecordedAt: new Date().toISOString(),
-        lastRecordedAt: new Date().toISOString(),
-      };
+  const rawSummary = await kv.get('analytics:summary');
+  const summary = normalizeSummary(decode(rawSummary), new Date().toISOString());
 
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
 
   // Fetch last 30 daily buckets for DAU, WAU, MAU
   const dayKeys: string[] = [];
@@ -190,7 +205,7 @@ export async function getAnalyticsReport(kv: KVNamespaceLike): Promise<Analytics
     dayKeys.map(async (dateStr) => {
       const raw = await kv.get(`analytics:day:${dateStr}`);
       if (!raw) return null;
-      return typeof raw === 'object' ? (raw as DayAnalytics) : (JSON.parse(raw) as DayAnalytics);
+      return normalizeDay(decode(raw), dateStr);
     })
   );
 
@@ -232,6 +247,7 @@ export async function getAnalyticsReport(kv: KVNamespaceLike): Promise<Analytics
 
   return {
     status: 'active',
+    countAccuracy: 'approximate',
     metrics: {
       totalActiveUsers: totalUsers,
       dau,
@@ -248,17 +264,29 @@ export async function getAnalyticsReport(kv: KVNamespaceLike): Promise<Analytics
   };
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
+}
+
 export function renderAnalyticsHtml(report: AnalyticsReport): string {
-  const m = report.metrics;
+  const source = report.metrics;
+  const m = { ...source, totalActiveUsers: counter(source.totalActiveUsers), dau: counter(source.dau),
+    wau: counter(source.wau), mau: counter(source.mau), totalCalls: counter(source.totalCalls),
+    totalSessions: counter(source.totalSessions), callsPerUser: typeof source.callsPerUser === 'number' && Number.isFinite(source.callsPerUser) && source.callsPerUser >= 0 ? source.callsPerUser : 0,
+    toolUsage: counters(source.toolUsage, key => toolNames.has(key)), countryDistribution: counters(source.countryDistribution, countryLabel),
+    recentTrend: (Array.isArray(source.recentTrend) ? source.recentTrend.slice(0, 7) : []).map(value => {
+      const t = record(value);
+      return { date: typeof t.date === 'string' ? t.date.slice(0, 32) : '', calls: counter(t.calls) };
+    }) };
   const toolRows = Object.entries(m.toolUsage)
     .sort((a, b) => b[1] - a[1])
-    .map(([tool, count]) => `<tr><td><code>${tool}</code></td><td><strong>${count.toLocaleString()}</strong></td></tr>`)
+    .map(([tool, count]) => `<tr><td><code>${escapeHtml(tool)}</code></td><td><strong>${count.toLocaleString()}</strong></td></tr>`)
     .join('') || '<tr><td colspan="2" class="empty">No tool invocations recorded yet</td></tr>';
 
   const countryRows = Object.entries(m.countryDistribution)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
-    .map(([code, count]) => `<tr><td><span class="flag">${code}</span></td><td>${count.toLocaleString()}</td></tr>`)
+    .map(([code, count]) => `<tr><td><span class="flag">${escapeHtml(code)}</span></td><td>${count.toLocaleString()}</td></tr>`)
     .join('') || '<tr><td colspan="2" class="empty">No country data recorded yet</td></tr>';
 
   const trendBars = m.recentTrend
@@ -270,7 +298,7 @@ export function renderAnalyticsHtml(report: AnalyticsReport): string {
           <div class="bar-container">
             <div class="bar" style="height: ${pct}%;"></div>
           </div>
-          <div class="trend-label">${t.date.slice(5)}</div>
+          <div class="trend-label">${escapeHtml(t.date.slice(5))}</div>
           <div class="trend-sub">${t.calls} calls</div>
         </div>
       `;
@@ -472,7 +500,7 @@ export function renderAnalyticsHtml(report: AnalyticsReport): string {
     <header>
       <div class="title-group">
         <h1>🕌 Muslim Prayer Reminder <span class="badge">Live Edge Analytics</span></h1>
-        <div class="meta-sub">Measured anonymously via Cloudflare Workers & OpenAI Subject tokens</div>
+        <div class="meta-sub">Approximate counts via Cloudflare KV; concurrent regions may undercount</div>
       </div>
       <div>
         <a href="/api/analytics" style="color: #10b981; font-size: 0.85rem; text-decoration: none; border: 1px solid #1f2937; padding: 0.4rem 0.8rem; border-radius: 6px;">JSON Endpoint &rarr;</a>
@@ -483,7 +511,7 @@ export function renderAnalyticsHtml(report: AnalyticsReport): string {
       <div class="card">
         <div class="card-title">Total Active Users</div>
         <div class="card-val">${m.totalActiveUsers.toLocaleString()}</div>
-        <div class="card-foot">All-time unique subjects</div>
+        <div class="card-foot">First-seen subjects; may recount after 90 days</div>
       </div>
       <div class="card">
         <div class="card-title">Daily Active (DAU)</div>
@@ -508,7 +536,7 @@ export function renderAnalyticsHtml(report: AnalyticsReport): string {
       <div class="card">
         <div class="card-title">Active Sessions</div>
         <div class="card-val">${m.totalSessions.toLocaleString()}</div>
-        <div class="card-foot">Conversational threads</div>
+        <div class="card-foot">First-seen sessions; may recount after 7 days</div>
       </div>
     </div>
 
@@ -546,7 +574,7 @@ export function renderAnalyticsHtml(report: AnalyticsReport): string {
     </div>
 
     <footer>
-      Powered by Cloudflare Workers &bull; Anonymized SHA-256 telemetry &bull; <a href="https://github.com/tareq7/muslim-prayer-mcp" target="_blank">Smart Creations &bull; Tareq Naji</a>
+      Powered by Cloudflare Workers &bull; Hashed SHA-256 telemetry &bull; <a href="https://github.com/tareq7/muslim-prayer-mcp" target="_blank">Smart Creations &bull; Tareq Naji</a>
     </footer>
   </div>
 </body>
