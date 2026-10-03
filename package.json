@@ -1,0 +1,76 @@
+{
+  "name": "muslim-prayer-mcp",
+  "mcpName": "io.github.tareq7/muslim-prayer-mcp",
+  "version": "1.1.2",
+  "description": "Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.",
+  "license": "MIT",
+  "author": "Tareq Naji / Smart Creations <najetareqz@gmail.com>",
+  "publisher": "Smart Creations",
+  "homepage": "https://tareq7.github.io/muslim-prayer-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tareq7/muslim-prayer-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tareq7/muslim-prayer-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "prayer-times",
+    "adhan",
+    "islamic",
+    "salat",
+    "cloudflare-workers",
+    "claude-desktop",
+    "cursor",
+    "ai-agents"
+  ],
+  "icon": "assets/icon.png",
+  "main": "dist/index.js",
+  "bin": {
+    "muslim-prayer-mcp": "bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "src",
+    "assets/icon.png",
+    "assets/logo.png",
+    "assets/official-logo-512.png",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE",
+    "tsconfig.build.json",
+    "skills",
+    "scripts/generate-skill.mjs"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
+    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts test/review.test.ts test/analytics.test.ts test/remaining.test.ts",
+    "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
+    "prepack": "npm run build",
+    "docs:generate": "node --experimental-strip-types scripts/generate-skill.mjs",
+    "docs:check": "node --experimental-strip-types scripts/generate-skill.mjs --check"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@photostructure/tz-lookup": "11.7.0",
+    "adhan": "^4.4.6",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260902.1",
+    "@types/node": "^26.4.1",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "overrides": {
+    "fast-uri": "^3.1.8",
+    "hono": "^4.13.12",
+    "ip-address": "^10.7.2"
+  }
+}

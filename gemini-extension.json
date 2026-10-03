@@ -1,0 +1,13 @@
+{
+  "name": "muslim-prayer-mcp",
+  "version": "1.1.2",
+  "description": "Astronomical Muslim prayer reminder and daily timetable calculator with automatic location-based calculation authority calibration and mandatory theological disclosure for Gemini CLI",
+  "author": "tareq7",
+  "homepage": "https://tareq7.github.io/muslim-prayer-mcp",
+  "repository": "https://github.com/tareq7/muslim-prayer-mcp",
+  "mcpServers": {
+    "muslim-prayer": {
+      "httpUrl": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp"
+    }
+  }
+}
