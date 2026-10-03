@@ -1,5 +1,3 @@
-export const FAVICON_SVG = String.raw`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0f766e"/><stop offset="1" stop-color="#064e3b"/></linearGradient><linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde68a"/><stop offset="1" stop-color="#d4a017"/></linearGradient><mask id="c"><rect width="64" height="64" fill="#fff"/><circle cx="38" cy="27" r="15" fill="#000"/></mask></defs><rect width="64" height="64" rx="15" fill="url(#g)"/><circle cx="30" cy="32" r="18" fill="url(#m)" mask="url(#c)"/><path d="M45 36l1.9 4.3 4.6.5-3.4 3.1 1 4.6-4.1-2.4-4.1 2.4 1-4.6-3.4-3.1 4.6-.5z" fill="#fde68a"/></svg>`;
-
 export const DASHBOARD_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -9,8 +7,8 @@ export const DASHBOARD_HTML = `<!doctype html>
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#06231f">
 <title>Analytics · Muslim Prayer Reminder</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
-<link rel="alternate icon" href="/favicon.ico">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon.png">
+<link rel="shortcut icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -275,7 +273,7 @@ export const DASHBOARD_JS = String.raw`
     destroyCharts();
     var d = state.data;
     var wrap = h('div', 'wrap');
-    var logo = document.createElement('img'); logo.src = '/favicon.svg'; logo.alt = ''; logo.width = 46; logo.height = 46;
+    var logo = document.createElement('img'); logo.src = '/apple-touch-icon.png'; logo.alt = ''; logo.width = 46; logo.height = 46;
     var sub = d && d.generatedAt ? 'Updated ' + ago(d.generatedAt) + ' · times in your timezone (UTC' + (d.tz >= 0 ? '+' : '-') + Math.abs(d.tz / 60) + ')' : 'Loading';
     wrap.appendChild(h('header', 'top', null, [h('div', 'brand', null, [logo, h('div', null, null, [h('h1', null, 'Muslim Prayer Reminder · Analytics'), h('p', null, sub)])]), controls()]));
 

@@ -4,7 +4,8 @@ import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferenc
 import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from './location/resolver.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
 import { calculateDailySchedule, resolveCalculationParameters, InvalidCalculationError } from './engine/calculator.ts';
-import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS, FAVICON_SVG } from './analytics/dashboard.ts';
+import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS } from './analytics/dashboard.ts';
+import { LOGO_48, LOGO_180 } from './analytics/logo.ts';
 import { collectEvents, recordViaStub, type AnalyticsNamespace } from './analytics/collector.ts';
 import { parseReportQuery } from './analytics/store.ts';
 import { readLegacySummary } from './analytics/legacy.ts';
@@ -140,14 +141,8 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    if (url.pathname === '/favicon.svg') return new Response(FAVICON_SVG, { headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' } });
-
-    if (url.pathname === '/favicon.ico' || url.pathname === '/apple-touch-icon.png') {
-      return Response.redirect(
-        'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
-        302
-      );
-    }
+    const icon = { '/favicon.png': LOGO_48, '/favicon.ico': LOGO_48, '/apple-touch-icon.png': LOGO_180 }[url.pathname];
+    if (icon) return new Response(icon, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' } });
 
     if (request.method === 'GET' || request.method === 'HEAD') {
       if (url.pathname === '/analytics/app.js') return analyticsAsset(DASHBOARD_JS, 'text/javascript; charset=utf-8');

@@ -236,11 +236,13 @@ describe('Analytics dashboard routes', () => {
     assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
     assert.ok(!csp.includes('unsafe-inline'));
     const html = await res.text();
-    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.svg') && html.includes('integrity="sha384-'));
-    const icon = await get('/favicon.svg', {});
-    assert.equal(icon.headers.get('content-type'), 'image/svg+xml; charset=utf-8');
-    assert.ok((await icon.text()).startsWith('<svg'));
-    assert.equal((await get('/apple-touch-icon.png', {})).status, 302);
+    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('integrity="sha384-'));
+    for (const path of ['/favicon.png', '/favicon.ico', '/apple-touch-icon.png']) {
+      const icon = await get(path, {});
+      assert.equal(icon.status, 200);
+      assert.equal(icon.headers.get('content-type'), 'image/png');
+      assert.deepEqual([...new Uint8Array(await icon.arrayBuffer()).slice(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+    }
   });
 
   it('serves app assets and keeps the client free of inline HTML injection', async () => {
