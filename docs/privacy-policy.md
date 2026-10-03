@@ -85,8 +85,12 @@ Users retain full control over their preferences:
 
 Prayer queries require a supported city or end-user coordinates and timezone. Connector/server IP and Cloudflare edge geolocation never supply prayer location; missing inputs return `location_required`.
 
-MCP tool invocations record a registered tool name and validated country label. When host-provided subject/session identifiers exist, SHA-256-derived truncated hashes are stored; these are pseudonymous identifiers, not a guarantee of anonymity. Raw subject/session strings are not persisted or returned.
+Each MCP tool call, `initialize` and `tools/list` request is logged as one row in a Cloudflare Durable Object (SQLite). A row holds: timestamp, registered tool name, success or error code, server time, client type (for example ChatGPT, Claude, Cursor), the language part of the host locale, the country the host reports for the end user (when provided), the end user's local hour and weekday (derived from the host-reported timezone), the calculation authority used, and a flag showing whether the request came from one of OpenAI's published IP ranges.
 
-Daily buckets expire after 60 days; subject records expire 90 days after the last observed call; session records expire 7 days after creation. Aggregate counters have no expiry and contain no raw subject/session identifiers. Per-day subject/session sets are capped at 5,000 each. Counts are approximate because Cloudflare KV offers no global transaction; updates serialize within a shared KV instance. Expiring subject records may cause a returning subject to be counted again.
+When the host sends anonymous subject and session identifiers, only a salted SHA-256 hash truncated to 64 bits is stored. These are pseudonymous identifiers, not a guarantee of anonymity. Raw identifiers, IP addresses, coordinates, city names and prayer results are never stored or returned. Dashboard user IDs show only the first 8 characters of a hash.
 
-The analytics dashboard and JSON report return aggregate metrics. Both are protected when the service `AUTH_TOKEN` is configured. With no service token they are public. Calculations and analytics use application storage at Cloudflare; no external prayer, tracking, or analytics API is called.
+Event rows are deleted after 180 days. Per-user summary rows (first seen, last seen, call count) are deleted 400 days after the last call. Calls without a subject ID count as calls but not as users. Installs that never call a tool are not visible.
+
+To mark traffic as coming from OpenAI, the Worker downloads OpenAI's public IP list (`https://openai.com/chatgpt-connectors.json`) at most once a day. That request carries no user data.
+
+The analytics dashboard (`/analytics`) and JSON report (`/api/analytics`) return aggregate figures and are protected by the `ANALYTICS_TOKEN` secret, or by `AUTH_TOKEN` when no analytics token is set. With neither configured they are public. The dashboard loads Chart.js from jsDelivr and fonts from Google Fonts; no analytics data is sent to either.

@@ -71,6 +71,15 @@ Add to your Claude Desktop or Cursor MCP configuration:
 
 ---
 
+## Analytics dashboard
+
+`/analytics` is a private dashboard backed by a SQLite Durable Object (`AnalyticsDO`). It tracks active users (DAU, WAU, MAU), new vs returning users, retention, weekly cohorts, tool usage and health, errors, client mix, countries, languages, usage by local hour, and the calculation authority used.
+
+- **Protect it:** set a Worker secret named `ANALYTICS_TOKEN` (Cloudflare dashboard, Worker, Settings, Variables and Secrets). Open `/analytics` and enter any username with the token as the password. `/api/analytics` also accepts `Authorization: Bearer <token>`.
+- **Data model:** one row per call, keyed by a salted hash of OpenAI's `_meta["openai/subject"]`. Calls are written atomically, so counts do not drift under concurrent traffic.
+- **Verified segment:** limits every chart to requests from OpenAI's published egress IPs, which filters out your own test calls. Refresh the bundled list with `node scripts/update-openai-egress.mjs`.
+- **Limits:** installs that never call a tool, and users whose host sends no subject ID, cannot be counted.
+
 ## 📺 Live Video Demonstration
 
 Watch the Muslim Prayer Reminder MCP in action inside ChatGPT, Claude, and Cursor:

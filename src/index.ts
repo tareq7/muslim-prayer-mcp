@@ -4,7 +4,12 @@ import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferenc
 import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from './location/resolver.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
 import { calculateDailySchedule, resolveCalculationParameters, InvalidCalculationError } from './engine/calculator.ts';
-import { trackAnalytics, getAnalyticsReport, renderAnalyticsHtml } from './analytics/tracker.ts';
+import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS, FAVICON_SVG } from './analytics/dashboard.ts';
+import { collectEvents, recordViaStub, type AnalyticsNamespace } from './analytics/collector.ts';
+import { parseReportQuery } from './analytics/store.ts';
+import { readLegacySummary } from './analytics/legacy.ts';
+
+export { AnalyticsDO } from './analytics/durable-object.ts';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import type { CalculationMethodName, MadhabName } from './engine/types.ts';
 
@@ -14,6 +19,8 @@ export interface Env {
   PRAYER_KV?: KVNamespaceLike;
   OPENAI_VERIFICATION_TOKEN?: string;
   AUTH_TOKEN?: string;
+  ANALYTICS_TOKEN?: string;
+  ANALYTICS?: AnalyticsNamespace;
   DEFAULT_CALCULATION_METHOD?: CalculationMethodName;
   DEFAULT_MADHAB?: MadhabName;
   DEFAULT_REMINDER_MODE?: string;
@@ -26,6 +33,40 @@ const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Coordinates, X-User-Timezone, X-User-City, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
 };
+
+const ANALYTICS_HEADERS: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Robots-Tag': 'noindex, nofollow',
+  'Referrer-Policy': 'no-referrer',
+  'Cache-Control': 'no-store',
+};
+const ANALYTICS_CSP = "default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+
+async function digest(value: string): Promise<Uint8Array> {
+  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
+}
+
+async function analyticsAuthorized(request: Request, token: string | undefined): Promise<boolean> {
+  if (!token) return true;
+  const header = request.headers.get('Authorization') ?? '';
+  let candidate: string | null = null;
+  if (header.startsWith('Bearer ')) candidate = header.slice(7);
+  else if (header.startsWith('Basic ')) {
+    try {
+      const decoded = new TextDecoder().decode(Uint8Array.from(atob(header.slice(6)), c => c.charCodeAt(0)));
+      candidate = decoded.slice(decoded.indexOf(':') + 1);
+    } catch { candidate = null; }
+  }
+  if (candidate === null) return false;
+  const [a, b] = await Promise.all([digest(candidate), digest(token)]);
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
+  return diff === 0;
+}
+
+function analyticsAsset(body: string, type: string, csp = false): Response {
+  return new Response(body, { headers: { 'Content-Type': type, ...ANALYTICS_HEADERS, ...(csp ? { 'Content-Security-Policy': ANALYTICS_CSP } : {}), 'Cache-Control': csp ? 'no-store' : 'public, max-age=300' } });
+}
 
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data, null, 2), {
@@ -99,12 +140,38 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
-    // Favicon redirect to official icon
-    if (url.pathname === '/favicon.ico') {
+    if (url.pathname === '/favicon.svg') return new Response(FAVICON_SVG, { headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff' } });
+
+    if (url.pathname === '/favicon.ico' || url.pathname === '/apple-touch-icon.png') {
       return Response.redirect(
         'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
         302
       );
+    }
+
+    if (request.method === 'GET' || request.method === 'HEAD') {
+      if (url.pathname === '/analytics/app.js') return analyticsAsset(DASHBOARD_JS, 'text/javascript; charset=utf-8');
+      if (url.pathname === '/analytics/app.css') return analyticsAsset(DASHBOARD_CSS, 'text/css; charset=utf-8');
+      if (url.pathname === '/analytics' || url.pathname === '/analytics/' || url.pathname === '/api/analytics') {
+        const token = env.ANALYTICS_TOKEN ?? env.AUTH_TOKEN;
+        if (!(await analyticsAuthorized(request, token))) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json', 'WWW-Authenticate': 'Basic realm="Analytics", charset="UTF-8"', ...ANALYTICS_HEADERS } });
+        }
+        if (url.pathname !== '/api/analytics') return analyticsAsset(DASHBOARD_HTML, 'text/html; charset=utf-8', true);
+        const access = { protected: !!token };
+        const legacy = await readLegacySummary(env.PRAYER_KV);
+        const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json; charset=utf-8', ...ANALYTICS_HEADERS } });
+        if (!env.ANALYTICS) return json({ enabled: false, access, legacy });
+        try {
+          const q = parseReportQuery(url.searchParams);
+          const stub = env.ANALYTICS.get(env.ANALYTICS.idFromName('global'));
+          const res = await stub.fetch(`https://analytics/report?range=${q.range}&tz=${q.tz}&segment=${q.segment}`);
+          if (!res.ok) throw new Error('report failed');
+          return json({ enabled: true, access, legacy, ...(await res.json() as object) });
+        } catch {
+          return new Response(JSON.stringify({ error: 'Analytics store unavailable' }), { status: 503, headers: { 'Content-Type': 'application/json', ...ANALYTICS_HEADERS } });
+        }
+      }
     }
 
     // Health check endpoint
@@ -176,7 +243,7 @@ export default {
             'Localized prayer alert notifications (Arabic and English)',
             'Calculation authority name and theological selection justification',
             'High-latitude, polar-clamping, location-basis and offset disclosures without original coordinates',
-            'Fixed-location configuration indicators and aggregate approximate analytics reports',
+            'Fixed-location configuration indicators',
           ],
           explicitlyExcludedFromOutputs: [
             'Zero coordinate leakage: latitude and longitude are NEVER returned in tool outputs',
@@ -187,9 +254,9 @@ export default {
             'Timetable and next-prayer queries write no data; identified status queries can write temporary deduplication markers',
             'Explicit MCP or REST preference updates store user identifiers, calculation and reminder settings, fixed city, rounded fixed coordinates, and timezone until deleted',
             'Deduplication markers expire at the prayer window end, with a maximum TTL of 24 hours',
-            'Pseudonymous operational analytics: 60-day daily buckets, 90-day subject hashes, 7-day session hashes, and aggregate counters without expiry; raw subject/session strings are not stored',
+            'Pseudonymous operational analytics in a Durable Object: one row per tool call with a salted SHA-256 hash of the anonymous ChatGPT subject and session IDs (truncated to 64 bits), tool name, outcome, approximate country and language, local hour, client type and a verified-OpenAI flag. IP addresses and raw identifiers are never stored. Events are kept 180 days and per-user rows 400 days',
           ],
-          thirdPartySharing: 'None. Calculations execute locally in-isolate at the edge without external API calls or tracking SDKs.',
+          thirdPartySharing: 'None. Calculations execute locally in-isolate. The Worker downloads OpenAI public IP ranges once a day and sends no user data in that request.',
         },
         contact: 'https://github.com/tareq7/muslim-prayer-mcp',
       });
@@ -236,7 +303,7 @@ export default {
       });
     }
 
-    if ((url.pathname.startsWith('/api/') || url.pathname === '/mcp' || url.pathname === '/analytics') && env.AUTH_TOKEN &&
+    if ((url.pathname.startsWith('/api/') || url.pathname === '/mcp') && env.AUTH_TOKEN &&
         request.headers.get('Authorization') !== `Bearer ${env.AUTH_TOKEN}`) {
       const response = jsonResponse({ error: 'Unauthorized' }, 401);
       response.headers.set('WWW-Authenticate', 'Bearer');
@@ -244,10 +311,13 @@ export default {
     }
 
     const storage = new PrayerStorage(env.PRAYER_KV);
+    const startedAt = Date.now();
+    let mcpBodyText = '';
     try {
       if (request.method === 'POST' && (url.pathname === '/api/preferences' || url.pathname === '/mcp')) {
         const body = await readBoundedBody(request);
         if (body === null) return jsonResponse({ error: 'Request body exceeds 64 KiB' }, 413);
+        mcpBodyText = body;
         request = new Request(request, { body });
       }
 
@@ -376,51 +446,8 @@ export default {
       }
 
 
-      // Edge Analytics Endpoints: /api/analytics and /analytics
-      if ((url.pathname === '/api/analytics' || url.pathname === '/analytics') && request.method === 'GET') {
-        const accept = request.headers.get('accept') || '';
-        const report = await getAnalyticsReport(storage.getKV());
-        if (url.pathname === '/analytics' && accept.includes('text/html')) {
-          return new Response(renderAnalyticsHtml(report), {
-            status: 200,
-            headers: {
-              'Content-Type': 'text/html; charset=utf-8',
-              'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'",
-              'X-Content-Type-Options': 'nosniff',
-              'Cache-Control': 'no-store, no-cache, must-revalidate',
-              ...CORS_HEADERS,
-            },
-          });
-        }
-        return jsonResponse(report);
-      }
-
       // MCP Protocol Handler: /mcp
       if (url.pathname === '/mcp') {
-        if (request.method === 'POST') {
-          const clone = request.clone();
-          const trackPromise = (async () => {
-            let body: unknown;
-            try { body = await clone.json(); }
-            catch (error) { return error instanceof SyntaxError ? 'rejected' : 'failed'; }
-            const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
-            if (!isRecord(body) || body.method !== 'tools/call' || !isRecord(body.params) || typeof body.params.name !== 'string') return 'rejected';
-            const meta = isRecord(body.params._meta) ? body.params._meta : {};
-            const subject = meta['openai/subject'] ?? request.headers.get('x-openai-subject') ?? request.headers.get('openai-subject') ?? undefined;
-            const session = meta['openai/session'] ?? request.headers.get('x-openai-session') ?? request.headers.get('openai-session') ?? undefined;
-            if ((subject !== undefined && typeof subject !== 'string') || (session !== undefined && typeof session !== 'string')) return 'rejected';
-            const country = requestCf?.country || request.headers.get('cf-ipcountry') || undefined;
-            if (url.hostname === 'localhost' && !subject && !session) return 'rejected';
-            return trackAnalytics(storage.getKV(), { tool: body.params.name, subject, session, country });
-          })();
-          const observed = trackPromise.then(status => {
-            if (status === 'failed') console.warn('Operational analytics storage is unavailable');
-          }, () => { console.warn('Operational analytics task failed'); });
-          const executionCtx = ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
-          if (typeof executionCtx?.waitUntil === 'function') executionCtx.waitUntil(observed);
-          // The handled promise preserves fail-open behavior outside a Worker context.
-          else void observed;
-        }
         const mcpServer = createPrayerMcpServer(storage, { headers: request.headers, cf: requestCf, ...getReminderDefaults(env) });
 
         const transport = new WebStandardStreamableHTTPServerTransport({
@@ -431,6 +458,14 @@ export default {
         try {
           const response = await transport.handleRequest(request);
           for (const [name, value] of Object.entries(CORS_HEADERS)) response.headers.set(name, value);
+          if (request.method === 'POST' && env.ANALYTICS) {
+            const analytics = env.ANALYTICS;
+            const task = collectEvents({ requestText: mcpBodyText, request, response, startedAt })
+              .then(events => events.length ? recordViaStub(analytics, events) : undefined)
+              .then(() => undefined, () => console.warn('Analytics recording failed'));
+            const executionCtx = ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
+            if (typeof executionCtx?.waitUntil === 'function') executionCtx.waitUntil(task);
+          }
           return response;
         } finally {
           await mcpServer.close();

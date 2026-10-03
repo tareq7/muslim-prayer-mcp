@@ -16,4 +16,10 @@ OPENAI_VERIFICATION_TOKEN = "MLVjA8AU-omfsOI7YwHNqDPsXpG6XRZundaSs1D04lI"
 binding = "PRAYER_KV"
 id = "d3d574ea73194f94b6b7dde2c89fda57"
 
+[[durable_objects.bindings]]
+name = "ANALYTICS"
+class_name = "AnalyticsDO"
 
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AnalyticsDO"]
