@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import type { UserPreferences } from '../engine/types.ts';
-import { isValidIanaTimezone, MAJOR_CITIES } from '../location/resolver.ts';
+import { isValidIanaTimezone, MAJOR_CITIES, CITY_ALIASES, getKnownCity } from '../location/resolver.ts';
 import { isValidCalendarDate } from '../engine/calculator.ts';
 
-export const UserIdSchema = z.string().min(1).refine((value) => new TextEncoder().encode(value).length <= 256, 'userId must be at most 256 UTF-8 bytes');
+export const UserIdSchema = z.string().min(1).max(256).refine((value) => value.trim().length > 0, 'userId must not be whitespace-only').refine((value) => new TextEncoder().encode(value).length <= 256, 'userId must be at most 256 UTF-8 bytes').describe('Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved.');
 export const TimezoneSchema = z.string().refine(isValidIanaTimezone, 'Invalid IANA timezone');
-export const CalendarDateSchema = z.string().refine(isValidCalendarDate, 'Invalid calendar date; expected YYYY-MM-DD');
-export const KnownCitySchema = z.string().refine((value) => Object.hasOwn(MAJOR_CITIES, value.toLowerCase().replace(/[^a-z]/g, '')), 'Unsupported predefined city; use fixedCoordinates and timezone');
+export const CalendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isValidCalendarDate, 'Invalid calendar date; expected YYYY-MM-DD');
+export const KnownCitySchema = z.string().refine((value) => !!getKnownCity(value), 'Unsupported predefined city; supply coordinates and timezone').describe(`Supported cities: ${Object.keys(MAJOR_CITIES).join(', ')}. Aliases: ${Object.keys(CITY_ALIASES).join(', ')}. Case, spaces and punctuation are ignored.`);
 const hasCoordinatePair = (input: { latitude?: number; longitude?: number }) =>
   (input.latitude === undefined) === (input.longitude === undefined);
 
@@ -55,41 +55,42 @@ export const MinuteAdjustmentsSchema = z.object({
 });
 
 export const GetPrayerStatusInputSchema = z.object({
-  city: KnownCitySchema.optional().describe('Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used.'),
-  userId: UserIdSchema.optional().describe('Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied.'),
+  city: KnownCitySchema.optional(),
+  userId: UserIdSchema.optional(),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
-  timezone: TimezoneSchema.optional().describe('Optional IANA timezone override (e.g. Asia/Riyadh)'),
+  timezone: TimezoneSchema.optional().describe('IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone.'),
   calculationMethod: CalculationMethodEnum.optional().describe('Optional calculation authority override (auto-resolved from location by default)'),
   madhab: MadhabEnum.optional().describe('Optional Asr shadow jurisprudence override (Shafi or Hanafi)'),
 }).refine(hasCoordinatePair, 'latitude and longitude must be supplied together');
 
 export const GetTodayPrayerTimesInputSchema = z.object({
-  city: KnownCitySchema.optional().describe('Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used.'),
-  userId: UserIdSchema.optional().describe('Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied.'),
+  city: KnownCitySchema.optional(),
+  userId: UserIdSchema.optional(),
   date: CalendarDateSchema.optional().describe('Date in YYYY-MM-DD format (defaults to today)'),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
-  timezone: TimezoneSchema.optional().describe('Optional IANA timezone override'),
+  timezone: TimezoneSchema.optional().describe('IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone.'),
   calculationMethod: CalculationMethodEnum.optional().describe('Optional calculation authority override (auto-resolved from location by default)'),
   madhab: MadhabEnum.optional().describe('Optional Asr shadow jurisprudence override (Shafi or Hanafi)'),
 }).refine(hasCoordinatePair, 'latitude and longitude must be supplied together');
 
 export const GetNextPrayerInputSchema = z.object({
-  city: KnownCitySchema.optional().describe('Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used.'),
-  userId: UserIdSchema.optional().describe('Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied.'),
+  city: KnownCitySchema.optional(),
+  userId: UserIdSchema.optional(),
   latitude: z.number().min(-90).max(90).optional().describe('Optional explicit latitude override'),
   longitude: z.number().min(-180).max(180).optional().describe('Optional explicit longitude override'),
-  timezone: TimezoneSchema.optional().describe('Optional IANA timezone override'),
+  timezone: TimezoneSchema.optional().describe('IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone.'),
   calculationMethod: CalculationMethodEnum.optional().describe('Optional calculation authority override (auto-resolved from location by default)'),
   madhab: MadhabEnum.optional().describe('Optional Asr shadow jurisprudence override (Shafi or Hanafi)'),
 }).refine(hasCoordinatePair, 'latitude and longitude must be supplied together');
 
 
 export const ConfigurePrayerPreferencesInputSchema = z.object({
-  userId: UserIdSchema.describe('Unique user identifier'),
+  clearFixedLocation: z.boolean().optional().describe('Remove stored fixedCity, fixedCoordinates and timezone. Switches to auto_travel unless locationMode is supplied. Cannot combine with a new fixed location/timezone.'),
+  userId: UserIdSchema,
   locationMode: LocationModeEnum.optional().describe('Location strategy: auto_travel or fixed'),
-  fixedCity: KnownCitySchema.optional().describe('Predefined city name for fixed location (e.g. Riyadh, London)'),
+  fixedCity: KnownCitySchema.optional(),
   fixedCoordinates: z.object({
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
@@ -106,7 +107,7 @@ export const ConfigurePrayerPreferencesInputSchema = z.object({
 });
 
 export const GetPrayerPreferencesInputSchema = z.object({
-  userId: UserIdSchema.describe('Unique user identifier'),
+  userId: UserIdSchema,
 });
 
 export const HighLatitudeAdjustmentSchema = z.object({
@@ -118,6 +119,7 @@ export const HighLatitudeAdjustmentSchema = z.object({
   explanation: z.string(),
 });
 export const CalculationDetailsSchema = z.object({
+  timezoneSource: z.enum(['explicit_override','stored_preference','city_default','host_header']).optional().describe('Source of the display timezone; caller-selected overrides are not geographically validated.'),
   locationBasis: z.enum(['explicit_coordinates','explicit_city','stored_fixed_coordinates','stored_fixed_city','host_coordinates','host_city','network_geolocation','default_location']).optional(),
   locationIsApproximate: z.boolean().optional(), fallbackLocationUsed: z.boolean().optional(),
   methodSource: z.enum(['explicit_override','stored_preference','geographic_default']).optional(),
@@ -150,6 +152,8 @@ export const PrayerStatusOutputSchema = z.object({
   localDate: z.string().describe('Current local date in YYYY-MM-DD'),
   startedAtUtc: z.string().optional().describe('UTC start time of the active prayer window'),
   expiresAtUtc: z.string().optional().describe('UTC expiration time of the active prayer window'),
+  prayerWindowExpiresAtUtc: z.string().optional().describe('End of the active prayer period; same boundary as legacy expiresAtUtc'),
+  reminderWindowExpiresAtUtc: z.string().optional().describe('Reminder eligibility end; exact_window is capped by the prayer period boundary. Fields appear when a reminder is emitted.'),
   nextPrayer: z.string().describe('The name of the next upcoming prayer'),
   nextPrayerAtUtc: z.string().describe('UTC timestamp of the next upcoming prayer'),
   timezone: z.string().describe('Resolved IANA timezone'),
@@ -242,7 +246,7 @@ export const ConfigurePrayerPreferencesOutputSchema = z.object({
 export const GetPrayerPreferencesOutputSchema = UserPreferencesObjectSchema;
 
 
-export const StoredUserPreferencesSchema = ConfigurePrayerPreferencesInputSchema.extend({
+export const StoredUserPreferencesSchema = ConfigurePrayerPreferencesInputSchema.omit({ clearFixedLocation: true }).extend({
   locationMode: LocationModeEnum,
   updatedAtUtc: z.string().optional(),
 });

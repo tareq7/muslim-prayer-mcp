@@ -246,6 +246,10 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
   result.prayer = activePrayer;
   result.startedAtUtc = new Date(activeStartMs).toISOString();
   result.expiresAtUtc = new Date(activeExpireMs).toISOString();
+  result.prayerWindowExpiresAtUtc = result.expiresAtUtc;
+  result.reminderWindowExpiresAtUtc = new Date(reminderMode === 'exact_window'
+    ? Math.min(activeExpireMs, activeStartMs + exactWindowMinutes * 60000)
+    : activeExpireMs).toISOString();
   result.reminderText = formatReminderText(activePrayer, locale);
   result.dedupeKey = dedupeKey;
 

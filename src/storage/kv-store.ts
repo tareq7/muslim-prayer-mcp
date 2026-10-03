@@ -56,6 +56,10 @@ export class MemoryKV implements KVNamespaceLike {
 const defaultMemoryKV = new MemoryKV();
 const userQueues = new WeakMap<KVNamespaceLike, Map<string, Promise<void>>>();
 
+export class InvalidPreferencesError extends Error {
+  readonly code = 'invalid_preferences';
+}
+
 export class PrayerStorage {
   private kv: KVNamespaceLike;
 
@@ -122,17 +126,36 @@ export class PrayerStorage {
 
   async saveUserPreferences(prefs: UserPreferences): Promise<void> {
     const validated = StoredUserPreferencesSchema.parse(prefs);
+    if (validated.locationMode === 'fixed' && (validated.fixedCoordinates ? !validated.timezone : !validated.fixedCity)) {
+      throw new InvalidPreferencesError('Fixed mode requires a supported fixedCity or fixedCoordinates with timezone. No preferences were saved.');
+    }
     await this.backend(() => this.kv.put(`pref:${prefs.userId}`, JSON.stringify(this.sanitizePreferences(validated))));
   }
 
-  async updateUserPreferences(input: Partial<UserPreferences> & { userId: string }): Promise<UserPreferences> {
+  async updateUserPreferences(input: Partial<UserPreferences> & { userId: string; clearFixedLocation?: boolean }): Promise<UserPreferences> {
     return this.withUserLock(input.userId, async () => {
       const existing = await this.getUserPreferences(input.userId) || {
         userId: input.userId,
         locationMode: 'auto_travel' as const,
         enabled: true,
       };
-      const supplied = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+      if (input.clearFixedLocation && (input.fixedCity !== undefined || input.fixedCoordinates !== undefined || input.timezone !== undefined)) {
+        throw new InvalidPreferencesError('clearFixedLocation cannot be combined with a new fixed location or timezone.');
+      }
+      if (input.fixedCity !== undefined && input.fixedCoordinates !== undefined) {
+        throw new InvalidPreferencesError('Supply fixedCity or fixedCoordinates, not both.');
+      }
+      if (input.fixedCoordinates !== undefined && input.timezone === undefined) {
+        throw new InvalidPreferencesError('New fixedCoordinates require timezone in the same configuration request.');
+      }
+      const { clearFixedLocation, ...settings } = input;
+      const supplied = Object.fromEntries(Object.entries(settings).filter(([, value]) => value !== undefined));
+      if (clearFixedLocation) {
+        delete existing.fixedCity;
+        delete existing.fixedCoordinates;
+        delete existing.timezone;
+        existing.locationMode = input.locationMode ?? 'auto_travel';
+      }
       if (input.fixedCity !== undefined && input.fixedCoordinates === undefined) {
         delete supplied.fixedCoordinates;
         existing.fixedCoordinates = undefined;

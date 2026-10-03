@@ -21,6 +21,7 @@ export const MAJOR_CITIES: Record<string, KnownCityCoordinates> = {
   rafah: { latitude: 31.2969, longitude: 34.2435, timezone: 'Asia/Gaza', country: 'PS' },
   khanyunis: { latitude: 31.3462, longitude: 34.3063, timezone: 'Asia/Gaza', country: 'PS' },
   dubai: { latitude: 25.2048, longitude: 55.2708, timezone: 'Asia/Dubai', country: 'AE' },
+  abudhabi: { latitude: 24.4539, longitude: 54.3773, timezone: 'Asia/Dubai', country: 'AE' },
   kuwait: { latitude: 29.3759, longitude: 47.9774, timezone: 'Asia/Kuwait', country: 'KW' },
   doha: { latitude: 25.2854, longitude: 51.5310, timezone: 'Asia/Qatar', country: 'QA' },
   amman: { latitude: 31.9454, longitude: 35.9284, timezone: 'Asia/Amman', country: 'JO' },
@@ -37,6 +38,13 @@ export const MAJOR_CITIES: Record<string, KnownCityCoordinates> = {
   sydney: { latitude: -33.8688, longitude: 151.2093, timezone: 'Australia/Sydney', country: 'AU' },
   tromso: { latitude: 69.6492, longitude: 18.9553, timezone: 'Europe/Oslo', country: 'NO' },
 };
+
+export const CITY_ALIASES: Record<string, string> = { gazacity: 'gaza', nyc: 'newyork', kuwaitcity: 'kuwait' };
+export function getKnownCity(city: string): KnownCityCoordinates | undefined {
+  const key = city.toLowerCase().replace(/[^a-z]/g, '');
+  const canonical = Object.hasOwn(CITY_ALIASES, key) ? CITY_ALIASES[key] : key;
+  return Object.hasOwn(MAJOR_CITIES, canonical) ? MAJOR_CITIES[canonical] : undefined;
+}
 
 export interface ResolveLocationParams {
   explicitLat?: number;
@@ -190,8 +198,7 @@ export function resolveLocation(params: ResolveLocationParams): ResolvedLocation
       });
     }
     if (userPrefs.fixedCity) {
-      const normalizedCity = userPrefs.fixedCity.toLowerCase().replace(/[^a-z]/g, '');
-      const matched = Object.hasOwn(MAJOR_CITIES, normalizedCity) ? MAJOR_CITIES[normalizedCity] : undefined;
+      const matched = getKnownCity(userPrefs.fixedCity);
       if (matched) {
         return enrichLocation({
           latitude: sanitizeCoordinate(matched.latitude),
@@ -271,8 +278,7 @@ export class LocationRequiredError extends Error {
 export function resolveUserLocation(params: ResolveLocationParams & { explicitCity?: string }): ResolvedLocation {
   const { explicitCity, explicitLat, explicitLng, explicitTimezone, userPrefs, headers } = params;
   const knownCity = (value?: string | null) => {
-    const key = value?.toLowerCase().replace(/[^a-z]/g, '') || '';
-    return Object.hasOwn(MAJOR_CITIES, key) ? MAJOR_CITIES[key] : undefined;
+    return value ? getKnownCity(value) : undefined;
   };
   const cityLocation = (city: string, basis: ResolvedLocation['basis']): ResolvedLocation => {
     const found = knownCity(city);
@@ -280,14 +286,15 @@ export function resolveUserLocation(params: ResolveLocationParams & { explicitCi
     return {
       latitude: sanitizeCoordinate(found.latitude), longitude: sanitizeCoordinate(found.longitude),
       timezone: validTimezone(explicitTimezone) || found.timezone, country: found.country, city,
+      timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'city_default',
       source: basis === 'stored_fixed_city' ? 'user_fixed_preference' : basis === 'host_city' ? 'host_header' : 'explicit_request',
       isApproximated: true, basis,
     };
   };
   if (explicitLat !== undefined || explicitLng !== undefined) {
-    const timezone = validTimezone(explicitTimezone, headers?.get('X-User-Timezone') ?? undefined, userPrefs?.timezone);
+    const timezone = validTimezone(explicitTimezone);
     if (!validCoordinatePair(explicitLat, explicitLng) || !timezone) throw new LocationRequiredError();
-    return { ...resolveLocation({ explicitLat, explicitLng, explicitTimezone: timezone }), basis: 'explicit_coordinates' };
+    return { ...resolveLocation({ explicitLat, explicitLng, explicitTimezone: timezone }), basis: 'explicit_coordinates', timezoneSource: 'explicit_override' };
   }
   if (explicitCity) return cityLocation(explicitCity, 'explicit_city');
   if (userPrefs?.locationMode === 'fixed') {
@@ -296,7 +303,7 @@ export function resolveUserLocation(params: ResolveLocationParams & { explicitCi
       if (!timezone || !validCoordinatePair(userPrefs.fixedCoordinates.latitude, userPrefs.fixedCoordinates.longitude)) throw new LocationRequiredError();
       const location = resolveLocation({ userPrefs: { ...userPrefs, fixedCity: undefined, timezone: userPrefs.timezone || timezone }, explicitTimezone: timezone });
       // A display-timezone override must not change the stored geographic authority.
-      return { ...location, basis: 'stored_fixed_coordinates' };
+      return { ...location, basis: 'stored_fixed_coordinates', timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'stored_preference' };
     }
     if (userPrefs.fixedCity) return cityLocation(userPrefs.fixedCity, 'stored_fixed_city');
     throw new LocationRequiredError();
@@ -306,9 +313,9 @@ export function resolveUserLocation(params: ResolveLocationParams & { explicitCi
     const pair = headerCoordinates.split(',');
     const latitude = parseCoordinate(pair[0]);
     const longitude = parseCoordinate(pair[1]);
-    const timezone = validTimezone(explicitTimezone, headers?.get('X-User-Timezone') ?? undefined, userPrefs?.timezone);
+    const timezone = validTimezone(explicitTimezone, headers?.get('X-User-Timezone') ?? undefined);
     if (pair.length !== 2 || !validCoordinatePair(latitude, longitude) || !timezone) throw new LocationRequiredError();
-    return { ...resolveLocation({ explicitLat: latitude, explicitLng: longitude, explicitTimezone: timezone }), source: 'host_header', basis: 'host_coordinates' };
+    return { ...resolveLocation({ explicitLat: latitude, explicitLng: longitude, explicitTimezone: timezone }), source: 'host_header', basis: 'host_coordinates', timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'host_header' };
   }
   const headerCity = headers?.get('X-User-City');
   if (headerCity) return cityLocation(headerCity, 'host_city');

@@ -14,6 +14,74 @@ async function rpc(name: string, args: Record<string, unknown>, kv = new MemoryK
 }
 
 describe('Remaining issue regressions', () => {
+  it('rejects explicit coordinates without a same-request timezone instead of inheriting Dubai', async () => {
+    const kv = new MemoryKV();
+    await rpc('configure_prayer_preferences', { userId: 'traveler-dubai', locationMode: 'fixed', fixedCity: 'Dubai', timezone: 'Asia/Dubai', calculationMethod: 'Dubai' }, kv);
+    for (const tool of ['get_today_prayer_times', 'get_next_prayer', 'get_prayer_status']) {
+      const result = await rpc(tool, { userId: 'traveler-dubai', latitude: 40.71, longitude: -74.01 }, kv, { 'X-User-Timezone': 'Asia/Dubai' });
+      assert.equal(result.isError, true);
+      assert.equal(result.structuredContent.code, 'location_required');
+    }
+    const valid = await rpc('get_today_prayer_times', { userId: 'traveler-dubai', latitude: 40.71, longitude: -74.01, timezone: 'America/New_York', date: '2026-10-02' }, kv);
+    assert.equal(valid.structuredContent.timezone, 'America/New_York');
+    assert.equal(valid.structuredContent.calculationDetails.timezoneSource, 'explicit_override');
+    assert.equal(valid.structuredContent.calculationDetails.methodSource, 'stored_preference');
+    const rest = await worker.fetch(new Request('https://review.invalid/api/timetable?userId=traveler-dubai&lat=40.71&lng=-74.01'), { PRAYER_KV: kv });
+    assert.equal(rest.status, 400);
+  });
+  it('validates merged fixed preferences before writing and offers explicit location clearing', async () => {
+    const kv = new MemoryKV();
+    for (const args of [{ locationMode: 'fixed' }, { locationMode: 'fixed', fixedCoordinates: { latitude: 24.71, longitude: 46.68 } }]) {
+      const result = await rpc('configure_prayer_preferences', { userId: 'incomplete', ...args }, kv);
+      assert.equal(result.isError, true);
+      assert.equal(await kv.get('pref:incomplete'), null);
+    }
+    await rpc('configure_prayer_preferences', { userId: 'clear', locationMode: 'fixed', fixedCity: 'Riyadh', timezone: 'Asia/Riyadh', locale: 'ar' }, kv);
+    const partial = await rpc('configure_prayer_preferences', { userId: 'clear', reminderMode: 'persistent' }, kv);
+    assert.notEqual(partial.isError, true);
+    const invalid = await rpc('configure_prayer_preferences', { userId: 'clear', fixedCoordinates: { latitude: 40.71, longitude: -74.01 } }, kv);
+    assert.equal(invalid.isError, true);
+    assert.equal((await new PrayerStorage(kv).getUserPreferences('clear'))?.fixedCity, 'Riyadh');
+    const cleared = await rpc('configure_prayer_preferences', { userId: 'clear', clearFixedLocation: true }, kv);
+    assert.equal(cleared.structuredContent.preferences.locationMode, 'auto_travel');
+    assert.equal(cleared.structuredContent.preferences.fixedCityConfigured, false);
+    assert.equal(cleared.structuredContent.preferences.fixedCoordinatesConfigured, false);
+    assert.equal(cleared.structuredContent.preferences.timezone, undefined);
+    assert.equal(cleared.structuredContent.preferences.locale, 'ar');
+    const fixedAgain = await rpc('configure_prayer_preferences', { userId: 'clear', locationMode: 'fixed' }, kv);
+    assert.equal(fixedAgain.isError, true);
+    const response = await worker.fetch(new Request('https://review.invalid/api/preferences', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'rest-incomplete', locationMode: 'fixed' }) }), { PRAYER_KV: kv });
+    assert.equal(response.status, 400);
+    assert.equal(await kv.get('pref:rest-incomplete'), null);
+  });
+  it('rejects direct fixed-coordinate saves lacking timezone even when a city is present', async () => {
+    const kv = new MemoryKV();
+    await assert.rejects(new PrayerStorage(kv).saveUserPreferences({
+      userId: 'ambiguous-fixed', locationMode: 'fixed', fixedCity: 'Riyadh',
+      fixedCoordinates: { latitude: 40.71, longitude: -74.01 },
+    }), /timezone/);
+    assert.equal(await kv.get('pref:ambiguous-fixed'), null);
+  });
+  it('supports common city aliases and rejects whitespace-only identifiers', async () => {
+    for (const city of ['Gaza City', 'NYC', 'Abu Dhabi', 'Kuwait City']) {
+      assert.notEqual((await rpc('get_today_prayer_times', { city, date: '2026-10-02' })).isError, true, city);
+    }
+    const kv = new MemoryKV();
+    assert.equal((await rpc('configure_prayer_preferences', { userId: '   ', locale: 'en' }, kv)).isError, true);
+    assert.equal(await kv.get('pref:   '), null);
+  });
+  it('distinguishes exact reminder expiry from the prayer period boundary', async (t) => {
+    const kv = new MemoryKV();
+    const schedule = (await rpc('get_today_prayer_times', { city: 'Riyadh', date: '2026-10-02' })).structuredContent;
+    const start = Date.parse(schedule.timesUtc.dhuhr);
+    await rpc('configure_prayer_preferences', { userId: 'expiry', locationMode: 'fixed', fixedCity: 'Riyadh', reminderMode: 'exact_window', exactWindowMinutes: 5 }, kv);
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(start + 1000) });
+    const result = (await rpc('get_prayer_status', { userId: 'expiry' }, kv)).structuredContent;
+    assert.equal(result.reminderDue, true);
+    assert.equal(result.prayerWindowExpiresAtUtc, schedule.timesUtc.asr);
+    assert.equal(result.expiresAtUtc, result.prayerWindowExpiresAtUtc);
+    assert.equal(result.reminderWindowExpiresAtUtc, new Date(start + 5 * 60000).toISOString());
+  });
   it('requires end-user location for all MCP prayer tools despite connector geolocation', async () => {
     for (const name of ['get_prayer_status', 'get_today_prayer_times', 'get_next_prayer']) {
       for (const cf of [undefined, { latitude: 55.68, longitude: 12.57, timezone: 'Europe/Copenhagen', country: 'DK' }]) {

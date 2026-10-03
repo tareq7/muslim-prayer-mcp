@@ -68,16 +68,16 @@ To ensure theological transparency and eliminate sectarian or jurisdictional amb
 
 | Region / Location | Resolved Authority | Jurisdictional Details & Solar Safety Offsets | Madhab |
 | :--- | :--- | :--- | :--- |
-| **Palestine** (Gaza, West Bank, Jerusalem) | Palestinian Ministry of Awqaf (Egyptian Survey + Awqaf Offsets) | Egyptian General Authority of Survey (`19.5°`/`17.5°`) with `{ maghrib: +3 min, dhuhr: -1 min }` safety offsets matching official Palestinian printed calendars. | Shafi |
-| **Saudi Arabia** | Umm al-Qura University, Makkah | Official Saudi government standard: Fajr `18.5°`, Isha `90 min` post-Maghrib. | Shafi |
-| **United Arab Emirates** | General Authority of Islamic Affairs & Endowments (Awqaf UAE) | Official UAE standard (`Dubai` method): Fajr `18.2°`, Isha `18.2°`. | Shafi |
-| **Qatar** | Ministry of Endowments and Islamic Affairs (Awqaf Qatar) | Official Qatari standard: Fajr `18.0°`, Isha `90 min` post-Maghrib. | Shafi |
-| **Kuwait** | Ministry of Awqaf and Islamic Affairs (Kuwait) | Official Kuwaiti standard: Fajr `18.0°`, Isha `17.5°`. | Shafi |
-| **Egypt** | Egyptian General Authority of Survey | Official Egyptian standard: Fajr `19.5°`, Isha `17.5°`. | Shafi |
-| **Turkey & Balkans** | Diyanet İşleri Başkanlığı (Turkey) | Official Turkish Presidency of Religious Affairs standard: Fajr `18.0°`, Isha `17.0°`, Hanafi Asr. | Hanafi |
+| **Palestine** (Gaza, West Bank, Jerusalem) | Configured Palestinian regional profile (Egyptian method + service offsets) | Egyptian General Authority of Survey (`19.5°`/`17.5°`) with `{ maghrib: +3 min, dhuhr: -1 min }` service offsets; exact ministry adoption is unverified. | Shafi |
+| **Saudi Arabia** | Umm al-Qura University, Makkah | Adhan Umm al-Qura method: Fajr `18.5°`, Isha `90 min` post-Maghrib. | Shafi |
+| **United Arab Emirates** | Configured Adhan Dubai method | Configured Dubai method (`Dubai` method): Fajr `18.2°`, Isha `18.2°`. | Shafi |
+| **Qatar** | Configured Adhan Qatar method | Configured Qatar method: Fajr `18.0°`, Isha `90 min` post-Maghrib. | Shafi |
+| **Kuwait** | Configured Adhan Kuwait method | Configured Kuwait method: Fajr `18.0°`, Isha `17.5°`. | Shafi |
+| **Egypt** | Egyptian General Authority of Survey | Egyptian Survey method: Fajr `19.5°`, Isha `17.5°`. | Shafi |
+| **Turkey & Balkans** | Diyanet İşleri Başkanlığı (Turkey) | Adhan Diyanet approximation (less accurate outside Turkey): Fajr `18.0°`, Isha `17.0°`, Hanafi Asr. | Hanafi |
 | **South Asia** (PK, IN, BD, AF) | University of Islamic Sciences, Karachi | Standard South Asian Hanafi method: Fajr `18.0°`, Isha `18.0°`, Hanafi Asr shadow ratio 2x. | Hanafi |
 | **North America** (US, CA) | Islamic Society of North America (ISNA) | Continental North American standard: Fajr `15.0°`, Isha `15.0°`. | Shafi |
-| **Southeast Asia** (SG, MY, ID, BN) | MUIS / JAKIM / MABIMS | Regional Southeast Asian standard: Fajr `20.0°`, Isha `18.0°`. | Shafi |
+| **Southeast Asia** (SG, MY, ID, BN) | Configured Singapore method | Regional Southeast Asian standard: Fajr `20.0°`, Isha `18.0°`. | Shafi |
 | **Global / Other** | Muslim World League (MWL) | International standard baseline: Fajr `18.0°`, Isha `17.0°`. | Shafi |
 
 ---
@@ -104,8 +104,8 @@ The agent calls `get_today_prayer_times({ latitude: 31.50, longitude: 34.46, tim
 | **Maghrib** | 07:05 PM |
 | **Isha** | 08:23 PM |
 
-> **Calculation Authority**: Palestinian Ministry of Awqaf (Egyptian Survey Authority + Awqaf Offsets)
-> **Authority Selection Reason**: Automatically selected based on detected Palestine coordinates (31.50, 34.46) with official Awqaf solar safety adjustments (+3m Maghrib, -1m Dhuhr).
+> **Calculation Authority**: Configured Palestinian regional profile (Egyptian method + service offsets)
+> **Authority Selection Reason**: Selected by the service regional heuristic, with configured +3m Maghrib and -1m Dhuhr offsets; exact ministry adoption is unverified.
 ```
 
 ---
@@ -123,3 +123,15 @@ Prayer tools accept a supported `city`, coordinates with `timezone`, or complete
 `highLatitudeAdjustment` discloses twilight substitutions and polar clamping; `effectiveLatitude` is present only for the +/-48-degree substitute and never echoes the original coordinate. `calculationDetails` reports location basis and regional, user, and method offsets. Invalid offsets that reverse prayer windows return `invalid_calculation`. Preferences expose `fixedCoordinatesConfigured` and `fixedCityConfigured` while redacting coordinates.
 
 Analytics is pseudonymous and approximate: daily buckets 60 days, subject hashes 90 days, sessions 7 days, aggregate counters without expiry. Counts are not global atomic delivery metrics. Both dashboard aliases honor configured service authentication. See the privacy policy for the full retention and trust boundaries.
+
+### Preference and display-time contracts
+
+Explicit coordinates require `timezone` in the same request. Stored fixed-location timezones are never inherited for new explicit coordinates. `calculationDetails.timezoneSource` identifies explicit, city, stored, or host input; explicit display timezones are not geographically validated.
+
+Fixed mode requires a supported city or coordinates with timezone. New fixed coordinates require timezone in the same configuration request. Failed configuration updates save nothing. Switching to `auto_travel` preserves fixed location for reuse; `clearFixedLocation:true` removes city, coordinates and timezone and defaults to auto-travel, preserving unrelated preferences. Clear cannot accompany replacement location/timezone or incomplete fixed mode.
+
+For identified users, `prayer_window` and `exact_window` emit once per prayer/date/mode; `persistent` emits throughout the prayer period. Locale changes and toggling reminders do not reset deduplication. Anonymous calls do not persist deduplication. `expiresAtUtc` retains its prayer-period meaning; `prayerWindowExpiresAtUtc` names the same boundary, and `reminderWindowExpiresAtUtc` describes eligibility, capped by the prayer boundary in exact mode. These fields appear when a reminder is emitted. Cross-region KV updates and deduplication remain best effort.
+
+The Palestinian regional profile is a configured service heuristic using the Egyptian method with Dhuhr -1 and Maghrib +3 minute offsets. Its broad coordinate/timezone/country rules do not establish jurisdiction. Exact adoption of these parameters by the Palestinian ministry has not been verified from a primary source. Users can override method and offsets. Other regional choices are service defaults, not nationwide mandates. Method descriptions follow [Adhan documentation](https://github.com/batoulapps/adhan-js/blob/develop/METHODS.md).
+
+The supported city vocabulary and aliases are advertised in each location input schema and generated skill. The service registers five tools only. Duplicate suffixed tools or old schemas in a connector require refreshing its registration; they are not separate server operations.

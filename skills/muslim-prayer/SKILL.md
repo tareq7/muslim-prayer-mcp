@@ -9,21 +9,21 @@ Generated from src/mcp/schemas.ts by scripts/generate-skill.mjs. Regenerate with
 
 ## Location and error handling
 
-Use an explicit supported city, a latitude/longitude pair with an IANA timezone, or a stored complete fixed location. Explicit per-call location overrides stored settings. Trusted host headers may supply end-user coordinates/timezone or a supported city. Never infer the user location from connector/server IP or Cloudflare network geolocation. A timezone alone cannot locate the user.
+Use an explicit supported city, a latitude/longitude pair with an IANA timezone, or a stored complete fixed location. Explicit per-call location overrides stored settings. Explicit coordinates require timezone in the same request; a stored timezone or a standalone timezone header is never paired with new explicit coordinates. An explicit timezone is a display choice and is not geographically validated. Trusted host headers may supply end-user coordinates/timezone or a supported city. Never infer the user location from connector/server IP or Cloudflare network geolocation. A timezone alone cannot locate the user.
 
-If a prayer tool returns isError:true and structuredContent.code is location_required, ask for a supported city or coordinates/timezone. Do not substitute Makkah or guess a location. If code is invalid_calculation, ask the user to correct minute adjustments that reverse prayer windows.
+If a prayer tool returns isError:true and structuredContent.code is location_required, ask for a supported city or coordinates/timezone. Do not substitute Makkah or guess a location. If code is invalid_calculation, ask the user to correct a nonexistent local date or minute adjustments that reverse prayer windows. For invalid_preferences, correct the configuration; failed transactions save nothing.
 
 Public coordinates are rounded before calculation/storage and never echoed. Preferences expose fixedCoordinatesConfigured/fixedCityConfigured indicators. Read-only prayer queries do not return user identifiers.
 
-Always disclose authorityNotice.authorityDescription and authorityNotice.selectionReason. When highLatitudeAdjustment.applied is true, also disclose its explanation: clamped sunrise/sunset are substitutes, not observed local events. calculationDetails explains location basis, overrides, regional/custom/method offsets, and calendar alignment. Use the actual returned values; never invent timings or transformations.
+Always disclose authorityNotice.authorityDescription and authorityNotice.selectionReason. When highLatitudeAdjustment.applied is true, also disclose its explanation: clamped sunrise/sunset are substitutes, not observed local events. calculationDetails explains timezone source, location basis, overrides, regional/custom/method offsets, and calendar alignment. Use the actual returned values; never invent timings or transformations.
 
 MCP endpoint: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
 Local runner: npx -y muslim-prayer-mcp
-Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso.
+Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity.
 
 ## Tool contracts
 
-Omitted preference fields preserve existing settings. New preferences inherit geographic/service defaults. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. KV deduplication is best effort across regions.
+Omitted preference fields preserve existing settings. Fixed mode requires a supported fixedCity or fixedCoordinates plus timezone. New coordinates require timezone in the same configuration request. Switching to auto_travel preserves the saved fixed location for later reuse; clearFixedLocation:true removes the saved city, coordinates and timezone and defaults to auto_travel, preserving other preferences. Clear cannot be combined with a replacement location/timezone or incomplete fixed mode. New preferences inherit geographic/service defaults. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. For identified users, prayer_window and exact_window emit once per prayer/date/mode; changing locale or disabling/re-enabling does not reset the marker. Anonymous calls have no persistent deduplication. expiresAtUtc is the legacy prayer period end; prayerWindowExpiresAtUtc names that same boundary, while reminderWindowExpiresAtUtc is the exact eligibility end capped by the prayer period. Expiry fields appear when a reminder is emitted. KV deduplication and partial preference updates are best effort across regions.
 
 ### get_prayer_status
 
@@ -31,11 +31,11 @@ Input
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
-| `city` | string | optional | Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used. |
-| `userId` | string | optional | Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied. |
+| `city` | string | optional | Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored. |
+| `userId` | string | optional | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 | `latitude` | number | optional | Optional explicit latitude override |
 | `longitude` | number | optional | Optional explicit longitude override |
-| `timezone` | string | optional | Optional IANA timezone override (e.g. Asia/Riyadh) |
+| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone. |
 | `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
 | `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
@@ -49,6 +49,8 @@ Output
 | `localDate` | string | required | Current local date in YYYY-MM-DD |
 | `startedAtUtc` | string | optional | UTC start time of the active prayer window |
 | `expiresAtUtc` | string | optional | UTC expiration time of the active prayer window |
+| `prayerWindowExpiresAtUtc` | string | optional | End of the active prayer period; same boundary as legacy expiresAtUtc |
+| `reminderWindowExpiresAtUtc` | string | optional | Reminder eligibility end; exact_window is capped by the prayer period boundary. Fields appear when a reminder is emitted. |
 | `nextPrayer` | string | required | The name of the next upcoming prayer |
 | `nextPrayerAtUtc` | string | required | UTC timestamp of the next upcoming prayer |
 | `timezone` | string | required | Resolved IANA timezone |
@@ -68,12 +70,12 @@ Input
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
-| `city` | string | optional | Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used. |
-| `userId` | string | optional | Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied. |
+| `city` | string | optional | Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored. |
+| `userId` | string | optional | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 | `date` | string | optional | Date in YYYY-MM-DD format (defaults to today) |
 | `latitude` | number | optional | Optional explicit latitude override |
 | `longitude` | number | optional | Optional explicit longitude override |
-| `timezone` | string | optional | Optional IANA timezone override |
+| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone. |
 | `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
 | `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
@@ -100,11 +102,11 @@ Input
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
-| `city` | string | optional | Supported predefined city. Supply city or coordinates with an IANA timezone; connector/IP geolocation is never used. |
-| `userId` | string | optional | Optional unique user identifier to load stored preferences. If omitted, pure geographic auto-resolution is applied. |
+| `city` | string | optional | Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored. |
+| `userId` | string | optional | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 | `latitude` | number | optional | Optional explicit latitude override |
 | `longitude` | number | optional | Optional explicit longitude override |
-| `timezone` | string | optional | Optional IANA timezone override |
+| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone. |
 | `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
 | `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
@@ -133,9 +135,10 @@ Input
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
-| `userId` | string | required | Unique user identifier |
+| `clearFixedLocation` | boolean | optional | Remove stored fixedCity, fixedCoordinates and timezone. Switches to auto_travel unless locationMode is supplied. Cannot combine with a new fixed location/timezone. |
+| `userId` | string | required | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 | `locationMode` | `auto_travel`, `fixed` | optional | Location strategy: auto_travel or fixed |
-| `fixedCity` | string | optional | Predefined city name for fixed location (e.g. Riyadh, London) |
+| `fixedCity` | string | optional | Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored. |
 | `fixedCoordinates` | object | optional | Fixed geographical coordinates |
 | `fixedCoordinates.latitude` | number | required |  |
 | `fixedCoordinates.longitude` | number | required |  |
@@ -162,7 +165,7 @@ Input
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
-| `userId` | string | required | Unique user identifier |
+| `userId` | string | required | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 
 Output
 
@@ -202,6 +205,7 @@ The `preferences` configuration result uses the same fields as `get_prayer_prefe
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
+| `timezoneSource` | `explicit_override`, `stored_preference`, `city_default`, `host_header` | optional | Source of the display timezone; caller-selected overrides are not geographically validated. |
 | `locationBasis` | `explicit_coordinates`, `explicit_city`, `stored_fixed_coordinates`, `stored_fixed_city`, `host_coordinates`, `host_city`, `network_geolocation`, `default_location` | optional |  |
 | `locationIsApproximate` | boolean | optional |  |
 | `fallbackLocationUsed` | boolean | optional |  |

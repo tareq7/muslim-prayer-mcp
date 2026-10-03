@@ -1,5 +1,5 @@
 import { createPrayerMcpServer } from './mcp/server.ts';
-import { PrayerStorage, type KVNamespaceLike } from './storage/kv-store.ts';
+import { PrayerStorage, InvalidPreferencesError, type KVNamespaceLike } from './storage/kv-store.ts';
 import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferences, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
 import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from './location/resolver.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
@@ -112,7 +112,7 @@ export default {
       return jsonResponse({
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
-        version: '1.1.0',
+        version: '1.1.1',
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
@@ -132,7 +132,7 @@ export default {
       return jsonResponse({
         serverInfo: {
           name: 'muslim-prayer-reminder',
-          version: '1.1.0',
+          version: '1.1.1',
           publisher: 'Smart Creations',
         },
         description: 'Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.',
@@ -158,7 +158,7 @@ export default {
     if (url.pathname === '/privacy') {
       return jsonResponse({
         app: 'Muslim Prayer Reminder',
-        version: '1.1.0',
+        version: '1.1.1',
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         fullPolicyUrl: 'https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/',
@@ -437,9 +437,9 @@ export default {
         }
       }
 
-      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.0' }, 404);
+      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.1' }, 404);
     } catch (error) {
-      if (error instanceof LocationRequiredError || error instanceof InvalidCalculationError) return jsonResponse({ code: error.code, error: error.message }, 400);
+      if (error instanceof LocationRequiredError || error instanceof InvalidCalculationError || error instanceof InvalidPreferencesError) return jsonResponse({ code: error.code, error: error.message }, 400);
       return jsonResponse({ error: 'Internal server error' }, 500);
     }
   },

@@ -1,7 +1,7 @@
 {
   "name": "muslim-prayer-mcp",
   "mcpName": "io.github.tareq7/muslim-prayer-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.",
   "license": "MIT",
   "author": "Tareq Naji / Smart Creations <najetareqz@gmail.com>",

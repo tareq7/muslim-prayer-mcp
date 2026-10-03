@@ -179,7 +179,7 @@ export function calculateDailySchedule(options: CalculateOptions): PrayerSchedul
     effectiveLatitude = latitude;
     const times = new PrayerTimes(coordinates, calcDate, params);
     // High-latitude polar fallback: if astronomical dawn or sunset cannot be computed (polar day/night)
-    // clamp latitude to 48.0 degrees as mandated by contemporary Islamic Fiqh academies
+    // use this service's configured latitude substitute of 48.0 degrees
     if ([times.fajr, times.sunrise, times.dhuhr, times.asr, times.maghrib, times.isha].some(time => !time || !Number.isFinite(time.getTime()))) {
       const clampedLat = latitude > 0 ? Math.min(latitude, 48.0) : Math.max(latitude, -48.0);
       effectiveLatitude = clampedLat;
@@ -307,6 +307,7 @@ export interface CalculationDefaults {
 }
 
 export function isPalestineLocation(loc: LocationSignals): boolean {
+  // Legacy API name: matches a configured regional profile, not a jurisdiction boundary.
   if (loc.country) return ['PS', 'IL'].includes(loc.country.toUpperCase());
   if (loc.country === 'PS' || loc.country === 'IL') return true;
   if (
@@ -351,7 +352,8 @@ export function isPalestineLocation(loc: LocationSignals): boolean {
 }
 
 export function getDefaultCalculationParameters(location: LocationSignals): CalculationDefaults {
-  // 1. Palestine / Gaza / Jerusalem / West Bank (Awqaf Standard: Egyptian + offsets)
+  // 1. Configured Palestinian regional profile (Egyptian + service offsets).
+  // The ministry pages at https://www.pal-wakf.ps/en did not verify these exact parameters.
   if (isPalestineLocation(location)) {
     return {
       method: 'Egyptian',
@@ -359,9 +361,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: { maghrib: 3, dhuhr: -1 },
       authorityDescription:
-        'Palestinian Ministry of Awqaf & Religious Affairs (Egyptian Survey Authority + Awqaf Offsets)',
+        'Configured Palestinian regional profile (Egyptian method + service offsets)',
       selectionReason:
-        'Detected location in Palestine/Gaza/West Bank. The Palestinian Ministry of Awqaf & Religious Affairs officially calculates prayer times using the Egyptian General Authority of Survey standard (Fajr 19.5°, Isha 17.5°) combined with official local safety precautions (+3 minutes for Maghrib sunset verification, -1 minute for Dhuhr solar transit).',
+        'Selected by this service\'s regional heuristic: country metadata takes precedence (PS or IL); otherwise Gaza/Hebron/Jerusalem timezone, a listed regional city, or broad coordinate bounds select this profile. This is not precise jurisdiction detection. The configured profile uses Adhan\'s Egyptian method (Fajr 19.5°, Isha 17.5°), with service offsets of +3 minutes for Maghrib and -1 minute for Dhuhr. Adoption of these exact parameters by the Palestinian Ministry of Awqaf has not been independently verified.',
     };
   }
 
@@ -377,7 +379,7 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       minuteAdjustments: {},
       authorityDescription: 'Umm al-Qura University, Makkah (Kingdom of Saudi Arabia)',
       selectionReason:
-        'Detected location in Saudi Arabia. Umm al-Qura University is the official state-mandated prayer calculation authority for the Kingdom of Saudi Arabia.',
+        'Country/timezone mapping matched this service\'s configured Saudi Arabia profile, which uses Adhan\'s Umm al-Qura method.',
     };
   }
 
@@ -388,9 +390,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       madhab: 'Shafi',
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
-      authorityDescription: 'General Authority of Islamic Affairs and Endowments (Awqaf UAE)',
+      authorityDescription: 'Dubai method (Adhan; configured UAE profile)',
       selectionReason:
-        'Detected location in the United Arab Emirates. Calculated using the official Awqaf UAE standard.',
+        'Country/timezone mapping matched this service\'s configured UAE profile, which uses Adhan\'s Dubai method.',
     };
   }
 
@@ -401,9 +403,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       madhab: 'Shafi',
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
-      authorityDescription: 'Ministry of Awqaf and Islamic Affairs (State of Qatar)',
+      authorityDescription: 'Qatar method (Adhan)',
       selectionReason:
-        'Detected location in Qatar. Calculated using the official Qatar Ministry of Awqaf standard.',
+        'Country/timezone mapping matched this service\'s configured Qatar profile, which uses Adhan\'s Qatar method.',
     };
   }
 
@@ -414,9 +416,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       madhab: 'Shafi',
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
-      authorityDescription: 'Ministry of Awqaf and Islamic Affairs (State of Kuwait)',
+      authorityDescription: 'Kuwait method (Adhan)',
       selectionReason:
-        'Detected location in Kuwait. Calculated using the official Kuwait Ministry of Awqaf standard.',
+        'Country/timezone mapping matched this service\'s configured Kuwait profile, which uses Adhan\'s Kuwait method.',
     };
   }
 
@@ -429,7 +431,7 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       minuteAdjustments: {},
       authorityDescription: 'Egyptian General Authority of Survey',
       selectionReason:
-        'Detected location in Egypt. The Egyptian General Authority of Survey (الهيئة المصرية العامة للمساحة) is the official standard throughout Egypt.',
+        'Country/timezone mapping matched this service\'s configured Egypt profile, which uses Adhan\'s Egyptian General Authority of Survey method.',
     };
   }
 
@@ -443,9 +445,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       madhab: 'Hanafi',
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
-      authorityDescription: 'Diyanet İşleri Başkanlığı (Presidency of Religious Affairs, Turkey)',
+      authorityDescription: 'Turkey method (Adhan approximation of Diyanet)',
       selectionReason:
-        'Detected location in Turkey / Balkans / Central Asia. Calculated according to Diyanet İşleri Başkanlığı using the Hanafi school Asr calculation.',
+        'Country/timezone mapping matched this service\'s configured Turkey/Balkans/Central Asia profile, which uses Adhan\'s Turkey approximation of Diyanet with Hanafi Asr. Adhan documents this approximation as less accurate outside Turkey.',
     };
   }
 
@@ -463,9 +465,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       madhab: 'Hanafi',
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
-      authorityDescription: 'University of Islamic Sciences, Karachi (South Asia Hanafi Standard)',
+      authorityDescription: 'University of Islamic Sciences, Karachi (Adhan method; Hanafi Asr)',
       selectionReason:
-        'Detected location in South Asia (Pakistan / India / Bangladesh / Afghanistan). The University of Islamic Sciences, Karachi standard with Hanafi Asr calculation is the established authority across this region.',
+        'Country/timezone mapping matched this service\'s configured South Asia profile (Pakistan/India/Bangladesh/Afghanistan), which uses Adhan\'s Karachi method with Hanafi Asr.',
     };
   }
 
@@ -479,7 +481,7 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       minuteAdjustments: {},
       authorityDescription: 'Islamic Society of North America (ISNA)',
       selectionReason:
-        'Detected location in North America (USA / Canada). Calculated according to the Islamic Society of North America (ISNA) standard (15° twilight).',
+        'Country/timezone mapping matched this service\'s configured USA/Canada profile, which uses Adhan\'s NorthAmerica (ISNA) method with 15° Fajr and Isha angles.',
     };
   }
 
@@ -500,9 +502,9 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       madhab: 'Shafi',
       highLatitudeRule: 'MiddleOfTheNight',
       minuteAdjustments: {},
-      authorityDescription: 'MUIS / JAKIM / MABIMS (Southeast Asia Standard)',
+      authorityDescription: 'Singapore method (Adhan; configured Southeast Asia profile)',
       selectionReason:
-        'Detected location in Southeast Asia. Calculated according to the unified MABIMS / MUIS / JAKIM regional standard (Fajr 20°, Isha 18°).',
+        'Country/timezone mapping matched this service\'s configured Southeast Asia profile (Singapore/Malaysia/Indonesia/Brunei), which uses Adhan\'s Singapore method (Fajr 20°, Isha 18°).',
     };
   }
 
@@ -515,7 +517,7 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
       minuteAdjustments: {},
       authorityDescription: 'Institute of Geophysics, University of Tehran',
       selectionReason:
-        'Detected location in Iran. Calculated according to the Institute of Geophysics, University of Tehran.',
+        'Country/timezone mapping matched this service\'s configured Iran profile, which uses Adhan\'s Tehran method associated with the Institute of Geophysics, University of Tehran.',
     };
   }
 
@@ -527,7 +529,7 @@ export function getDefaultCalculationParameters(location: LocationSignals): Calc
     minuteAdjustments: {},
     authorityDescription: 'Muslim World League (MWL / رابطة العالم الإسلامي)',
     selectionReason:
-      'International location without a dedicated local statutory authority. Calculated according to the Muslim World League (MWL) global baseline standard (Fajr 18°, Isha 17°).',
+      'No configured regional mapping matched the supplied location signals. Using this service\'s fallback Adhan Muslim World League method (Fajr 18°, Isha 17°).',
   };
 }
 
@@ -583,6 +585,7 @@ export function resolveCalculationParameters(
 
   return {
     calculationDetails: {
+      timezoneSource: location.timezoneSource,
       locationBasis: location.basis || (location.source === 'cf_geo' ? 'network_geolocation' : location.source === 'fallback_default' ? 'default_location' : undefined),
       locationIsApproximate: location.isApproximated,
       fallbackLocationUsed: location.source === 'fallback_default',

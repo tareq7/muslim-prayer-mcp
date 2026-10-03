@@ -147,17 +147,17 @@ The server exposes 5 finely-tuned tools conforming to the latest Model Context P
 
 ## 📐 Astronomical & Theological Rigor
 
-Prayer calculations are not approximations—they represent exact solar depression angles calibrated to regional fatwa bodies:
+Prayer calculations use astronomical models and configured regional methods; high-latitude substitutes and geographic heuristics are disclosed:
 
 | Sovereign Authority | Jurisdiction | Fajr Angle | Isha Angle / Interval | Default Asr Madhab |
 | :--- | :--- | :--- | :--- | :--- |
 | **Umm al-Qura University** | Saudi Arabia | 18.5° | +90 min | Shafi / Standard |
-| **Egyptian General Survey** | Egypt, Palestine, Levant | 19.5° | 17.5° | Shafi *(Palestinian Awqaf offsets applied)* |
+| **Egyptian General Survey** | Egypt, Palestine, Levant | 19.5° | 17.5° | Shafi *(configured Palestinian service offsets applied)* |
 | **Diyanet İşleri Başkanlığı** | Turkey, Balkans, Central Asia | 18.0° | 17.0° | Hanafi (Double shadow ratio) |
 | **Univ. of Islamic Sciences, Karachi** | Pakistan, India, Bangladesh | 18.0° | 18.0° | Hanafi (Double shadow ratio) |
 | **ISNA** | United States, Canada | 15.0° | 15.0° | Shafi / Standard |
 | **Muslim World League (MWL)** | Europe, Global Fallback | 18.0° | 17.0° | Shafi / Standard |
-| **MABIMS / JAKIM / MUIS** | Malaysia, Singapore, Indonesia | 20.0° | 18.0° | Shafi / Standard |
+| **Configured Singapore method** | Malaysia, Singapore, Indonesia | 20.0° | 18.0° | Shafi / Standard |
 
 ### High-Latitude Polar Adjustments
 In latitudes above 48° North or South where twilight persists throughout the night in summer, the engine automatically engages fiqh-compliant clamping (**Middle of the Night** & **One-Seventh Rule**), preventing computational errors or impossible timetables.
@@ -442,3 +442,15 @@ Prayer tools accept a supported `city`, coordinates with `timezone`, or complete
 `highLatitudeAdjustment` discloses twilight substitutions and polar clamping; `effectiveLatitude` is present only for the +/-48-degree substitute and never echoes the original coordinate. `calculationDetails` reports location basis and regional, user, and method offsets. Invalid offsets that reverse prayer windows return `invalid_calculation`. Preferences expose `fixedCoordinatesConfigured` and `fixedCityConfigured` while redacting coordinates.
 
 Analytics is pseudonymous and approximate: daily buckets 60 days, subject hashes 90 days, sessions 7 days, aggregate counters without expiry. Counts are not global atomic delivery metrics. Both dashboard aliases honor configured service authentication. See the privacy policy for the full retention and trust boundaries.
+
+### Preference and display-time contracts
+
+Explicit coordinates require `timezone` in the same request. Stored fixed-location timezones are never inherited for new explicit coordinates. `calculationDetails.timezoneSource` identifies explicit, city, stored, or host input; explicit display timezones are not geographically validated.
+
+Fixed mode requires a supported city or coordinates with timezone. New fixed coordinates require timezone in the same configuration request. Failed configuration updates save nothing. Switching to `auto_travel` preserves fixed location for reuse; `clearFixedLocation:true` removes city, coordinates and timezone and defaults to auto-travel, preserving unrelated preferences. Clear cannot accompany replacement location/timezone or incomplete fixed mode.
+
+For identified users, `prayer_window` and `exact_window` emit once per prayer/date/mode; `persistent` emits throughout the prayer period. Locale changes and toggling reminders do not reset deduplication. Anonymous calls do not persist deduplication. `expiresAtUtc` retains its prayer-period meaning; `prayerWindowExpiresAtUtc` names the same boundary, and `reminderWindowExpiresAtUtc` describes eligibility, capped by the prayer boundary in exact mode. These fields appear when a reminder is emitted. Cross-region KV updates and deduplication remain best effort.
+
+The Palestinian regional profile is a configured service heuristic using the Egyptian method with Dhuhr -1 and Maghrib +3 minute offsets. Its broad coordinate/timezone/country rules do not establish jurisdiction. Exact adoption of these parameters by the Palestinian ministry has not been verified from a primary source. Users can override method and offsets. Other regional choices are service defaults, not nationwide mandates. Method descriptions follow [Adhan documentation](https://github.com/batoulapps/adhan-js/blob/develop/METHODS.md).
+
+The supported city vocabulary and aliases are advertised in each location input schema and generated skill. The service registers five tools only. Duplicate suffixed tools or old schemas in a connector require refreshing its registration; they are not separate server operations.

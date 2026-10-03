@@ -195,10 +195,10 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     assert.equal(schedule.timesLocal.Asr, '16:15');
     assert.equal(schedule.timesLocal.Maghrib, '19:05');
     assert.equal(schedule.timesLocal.Isha, '20:23');
-    assert.ok(schedule.authorityDescription.includes('Palestinian Ministry of Awqaf'));
+    assert.ok(schedule.authorityDescription.includes('Configured Palestinian regional profile'));
     assert.ok(schedule.authorityNotice);
     assert.equal(schedule.authorityNotice.method, 'Egyptian');
-    assert.ok(schedule.authorityNotice.selectionReason.includes('Palestine'));
+    assert.ok(schedule.authorityNotice.selectionReason.includes('regional heuristic'));
     assert.ok(schedule.authorityNotice.requiredDisplayInstruction.includes('MANDATORY'));
     // Data minimization: verify coordinates are NOT leaked in MCP tool output
     assert.equal(schedule.coordinates, undefined, 'coordinates must not be leaked in get_today_prayer_times output');

@@ -66,6 +66,7 @@ export interface ResolvedLocation {
   source: 'explicit_request' | 'user_fixed_preference' | 'host_header' | 'cached_kv' | 'cf_geo' | 'fallback_default';
   isApproximated: boolean;
   basis?: CalculationDetails['locationBasis'];
+  timezoneSource?: CalculationDetails['timezoneSource'];
 }
 
 export interface PrayerTimesUtc {
@@ -88,6 +89,7 @@ export interface HighLatitudeAdjustment {
 }
 
 export interface CalculationDetails {
+  timezoneSource?: 'explicit_override' | 'stored_preference' | 'city_default' | 'host_header';
   locationBasis?: 'explicit_coordinates' | 'explicit_city' | 'stored_fixed_coordinates' | 'stored_fixed_city' | 'host_coordinates' | 'host_city' | 'network_geolocation' | 'default_location';
   locationIsApproximate?: boolean;
   fallbackLocationUsed?: boolean;
@@ -136,6 +138,8 @@ export interface PrayerStatusResult {
   localDate: string;
   startedAtUtc?: string;
   expiresAtUtc?: string;
+  prayerWindowExpiresAtUtc?: string;
+  reminderWindowExpiresAtUtc?: string;
   nextPrayer: PrayerName;
   nextPrayerAtUtc: string;
   timezone: string;

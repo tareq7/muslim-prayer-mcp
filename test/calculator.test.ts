@@ -195,7 +195,7 @@ describe('Astronomical Prayer Calculation Suite', () => {
     assert.ok(sched.timesUtc.maghrib, 'Maghrib should resolve via high-latitude rule');
   });
 
-  it('automatically resolves Palestinian Awqaf standard (Egyptian + offsets) for Gaza', () => {
+  it('automatically resolves the configured Palestinian profile (Egyptian + offsets) for Gaza', () => {
     const gazaLocation = {
       latitude: 31.50,
       longitude: 34.46,
@@ -209,9 +209,9 @@ describe('Astronomical Prayer Calculation Suite', () => {
     assert.equal(resolved.madhab, 'Shafi');
     assert.deepEqual(resolved.minuteAdjustments, { maghrib: 3, dhuhr: -1 });
     assert.equal(resolved.isAutoResolved, true);
-    assert.ok(resolved.authorityDescription.includes('Palestinian Ministry of Awqaf'));
+    assert.ok(resolved.authorityDescription.includes('Configured Palestinian regional profile'));
 
-    // Verify 100% exact match against official Gaza printed calendar on 2026-09-04
+    // Preserve the existing Gaza calculation fixture for 2026-09-04.
     const gazaSchedule = calculateDailySchedule({
       latitude: gazaLocation.latitude,
       longitude: gazaLocation.longitude,
@@ -230,6 +230,46 @@ describe('Astronomical Prayer Calculation Suite', () => {
     assert.equal(gazaSchedule.timesLocal.Asr, '16:15');
     assert.equal(gazaSchedule.timesLocal.Maghrib, '19:05');
     assert.equal(gazaSchedule.timesLocal.Isha, '20:23');
+  });
+
+  it('discloses broad regional heuristics without asserting precise jurisdiction or official adoption', () => {
+    for (const location of [
+      { latitude: 31.50, longitude: 34.46, timezone: 'Asia/Gaza' },
+      { latitude: 32.09, longitude: 34.78, timezone: 'Asia/Jerusalem' },
+      { latitude: 32.79, longitude: 34.99, timezone: 'Asia/Jerusalem' },
+      { latitude: 33.50, longitude: 35.80, timezone: 'UTC' },
+      { latitude: 0, longitude: 0, timezone: 'UTC', country: 'PS' },
+    ]) {
+      const resolved = resolveCalculationParameters({ ...location, source: 'explicit_request', isApproximated: true });
+      assert.equal(resolved.method, 'Egyptian');
+      assert.deepEqual(resolved.minuteAdjustments, { maghrib: 3, dhuhr: -1 });
+      assert.match(resolved.selectionReason, /regional heuristic/i);
+      assert.match(resolved.selectionReason, /not precise jurisdiction detection/i);
+      assert.match(resolved.selectionReason, /not been independently verified/i);
+      assert.ok(resolved.authorityNotice.requiredDisplayInstruction.includes(resolved.selectionReason));
+    }
+    for (const location of [
+      { latitude: 31.95, longitude: 35.93 },
+      { latitude: 33.89, longitude: 35.50 },
+      { latitude: 31.8, longitude: 35.5, country: 'JO' },
+    ]) {
+      assert.equal(getDefaultCalculationParameters(location).method, 'MuslimWorldLeague');
+    }
+  });
+
+  it('describes configured regional methods without claiming national mandates', () => {
+    for (const country of ['SA', 'AE', 'QA', 'KW', 'EG', 'TR', 'PK', 'US', 'SG', 'IR', 'JO']) {
+      const defaults = getDefaultCalculationParameters({ country });
+      assert.match(defaults.selectionReason, /configured|mapping/i);
+      assert.doesNotMatch(`${defaults.authorityDescription} ${defaults.selectionReason}`, /official|state-mandated|statutory|unified MABIMS/i);
+    }
+    assert.match(getDefaultCalculationParameters({ country: 'TR' }).selectionReason, /approximation/i);
+    assert.match(getDefaultCalculationParameters({ country: 'AZ' }).selectionReason, /less accurate outside Turkey/i);
+  });
+
+  it('preserves timezone provenance in calculation details', () => {
+    const resolved = resolveCalculationParameters({ latitude: 24.71, longitude: 46.68, timezone: 'Asia/Riyadh', timezoneSource: 'explicit_override', source: 'explicit_request', isApproximated: true });
+    assert.equal(resolved.calculationDetails.timezoneSource, 'explicit_override');
   });
 
   it('automatically resolves regional authorities worldwide', () => {

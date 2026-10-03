@@ -21,14 +21,14 @@ import {
 } from '../engine/calculator.ts';
 import { evaluatePrayerStatus } from '../engine/reminder.ts';
 import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from '../location/resolver.ts';
-import { PrayerStorage } from '../storage/kv-store.ts';
+import { PrayerStorage, InvalidPreferencesError } from '../storage/kv-store.ts';
 import type { ReminderMode, Locale } from '../engine/types.ts';
 
 async function prayerResult(operation: () => Promise<CallToolResult>): Promise<CallToolResult> {
   try {
     return await operation();
   } catch (error) {
-    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError)) throw error;
+    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError) && !(error instanceof InvalidPreferencesError)) throw error;
     const details = { code: error.code, message: error.message };
     return { isError: true, structuredContent: details, content: [{ type: 'text', text: JSON.stringify(details) }] };
   }
@@ -40,7 +40,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
   const server = new McpServer(
     {
       name: 'muslim-prayer-reminder',
-      version: '1.1.0',
+      version: '1.1.1',
     },
     {
       instructions:
@@ -289,7 +289,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     {
       title: 'Configure User Prayer Preferences',
       description:
-        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and clears the stored timezone unless supplied; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Previous values are not retained for undo.',
+        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and clears the stored timezone unless supplied; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Fixed mode requires a supported fixedCity or fixedCoordinates with timezone; new coordinates require timezone in the same request. clearFixedLocation removes saved location and timezone and defaults to auto_travel. Previous values are not retained for undo.',
       inputSchema: ConfigurePrayerPreferencesInputSchema.shape,
       outputSchema: ConfigurePrayerPreferencesOutputSchema.shape,
       annotations: {
@@ -300,19 +300,21 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
       },
     },
     async (args) => {
-      const updated = await storage.updateUserPreferences(args);
-      const preferences = publicPreferences(updated);
+      return prayerResult(async () => {
+        const updated = await storage.updateUserPreferences(args);
+        const preferences = publicPreferences(updated);
 
-      const result = { success: true, preferences };
-      return {
-        structuredContent: result,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
+        const result = { success: true, preferences };
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      });
     }
   );
 
