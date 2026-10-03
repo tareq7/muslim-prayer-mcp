@@ -126,11 +126,7 @@ export const DASHBOARD_JS = String.raw`
     if (s < 86400) return Math.floor(s / 3600) + 'h ago';
     return Math.floor(s / 86400) + 'd ago';
   }
-  function flag(code) {
-    if (!/^[A-Z]{2}$/.test(code)) return '';
-    return String.fromCodePoint(127397 + code.charCodeAt(0), 127397 + code.charCodeAt(1)) + ' ';
-  }
-  function country(code) { var n = ''; try { n = regionNames ? regionNames.of(code) : ''; } catch (e) { n = ''; } return flag(code) + (n || code); }
+  function country(code) { var n = ''; try { n = regionNames ? regionNames.of(code) : ''; } catch (e) { n = ''; } return n && n !== code ? n : code; }
   function lang(code) { var n = ''; try { n = langNames ? langNames.of(code) : ''; } catch (e) { n = ''; } return n || code; }
   function toolName(t) { return String(t || '').replace(/^get_/, '').replace(/_/g, ' '); }
   function errName(c) { return String(c || 'unknown').replace(/_/g, ' '); }
@@ -279,7 +275,6 @@ export const DASHBOARD_JS = String.raw`
 
     if (!d) { var sg = h('div', 'grid kpis'); for (var s = 0; s < 8; s++) sg.appendChild(h('div', 'sk')); wrap.appendChild(sg); mount(wrap); return; }
     if (d.error) { wrap.appendChild(h('div', 'banner err', d.error)); mount(wrap); return; }
-    if (d.access && d.access.protected === false) wrap.appendChild(h('div', 'banner warn', 'This dashboard is public. Set the ANALYTICS_TOKEN secret on the Worker to require a password (any username).'));
     if (d.enabled === false) wrap.appendChild(h('div', 'banner err', 'The ANALYTICS Durable Object binding is missing, so nothing is being recorded. Redeploy with the binding from wrangler.toml.'));
     if (d.legacy) wrap.appendChild(h('div', 'banner info', 'Before this version (approximate, KV-based): ' + fmt(d.legacy.totalCalls) + ' calls and ' + fmt(d.legacy.totalUniqueUsers) + ' users' + (d.legacy.firstRecordedAt ? ' since ' + d.legacy.firstRecordedAt.slice(0, 10) : '') + '. These include test traffic and are not merged into the figures below.'));
     if (d.enabled === false) { mount(wrap); return; }
@@ -348,7 +343,7 @@ export const DASHBOARD_JS = String.raw`
       { h: 'When', f: function (r) { return ago(r.ts); } },
       { h: 'Event', f: function (r) { return r.kind === 'tool' ? toolName(r.tool) : r.kind; } },
       { h: 'Client', f: function (r) { return r.client || '–'; } },
-      { h: 'Where', f: function (r) { return r.country ? flag(r.country) + r.country : '–'; } },
+      { h: 'Where', f: function (r) { return r.country ? country(r.country) : '–'; } },
       { h: 'Result', f: function (r) { return h('span', 'pill ' + (r.status === 'ok' ? 'ok' : 'bad'), r.status === 'ok' ? 'ok' : errName(r.code)); } },
       { h: 'Src', f: function (r) { return r.verified ? h('span', 'pill gold', 'OpenAI') : h('span', 'pill', 'other'); } }
     ], d.recent)));
