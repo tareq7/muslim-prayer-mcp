@@ -10,7 +10,7 @@ const EVENT_RETENTION_DAYS = 180;
 const USER_RETENTION_DAYS = 400;
 
 export const CLIENTS = ['ChatGPT', 'Claude', 'Cursor', 'VS Code', 'Windsurf', 'Gemini', 'Other'] as const;
-export const ERROR_CODES = ['location_required', 'invalid_calculation', 'invalid_preferences', 'invalid_params', 'method_not_found', 'internal_error', 'transport_error', 'tool_error'] as const;
+export const ERROR_CODES = ['location_required', 'invalid_calculation', 'invalid_preferences', 'invalid_params', 'method_not_found', 'internal_error', 'not_acceptable', 'unsupported_media', 'http_error', 'transport_error', 'tool_error'] as const;
 export const METHOD_SOURCES = ['explicit_override', 'stored_preference', 'geographic_default'] as const;
 const KINDS = ['tool', 'initialize', 'list'] as const;
 const RANGES = [7, 30, 90, 180] as const;

@@ -60,7 +60,10 @@ function parseRequest(body: unknown): Pending[] {
 
 const RPC_ERRORS = new Map([[-32602, 'invalid_params'], [-32601, 'method_not_found'], [-32603, 'internal_error']]);
 
-function outcome(responseBody: unknown, id: unknown): { status: 'ok' | 'error'; errorCode: string | null; authority: string | null; methodSource: string | null } {
+const HTTP_ERRORS = new Map([[406, 'not_acceptable'], [415, 'unsupported_media']]);
+
+function outcome(responseBody: unknown, id: unknown, httpStatus: number): { status: 'ok' | 'error'; errorCode: string | null; authority: string | null; methodSource: string | null } {
+  if (httpStatus >= 400) return { status: 'error', errorCode: HTTP_ERRORS.get(httpStatus) ?? 'http_error', authority: null, methodSource: null };
   const items = Array.isArray(responseBody) ? responseBody : [responseBody];
   const res = items.find(r => isRec(r) && r.id === id);
   if (!isRec(res)) return { status: 'error', errorCode: 'transport_error', authority: null, methodSource: null };
@@ -111,7 +114,7 @@ export async function collectEvents({ requestText, request, response, startedAt 
     const country = locCountry ?? (client === 'ChatGPT' || client === 'Claude' ? null : cfCountry?.toUpperCase() ?? null);
     const locale = typeof m['openai/locale'] === 'string' ? m['openai/locale'].split(/[-_]/)[0]?.toLowerCase() ?? null : null;
     const local = localParts(loc.timezone, Date.now());
-    const result = p.kind === 'tool' ? outcome(responseBody, p.id) : outcome(responseBody, p.id);
+    const result = outcome(responseBody, p.id, response.status);
     const subject = typeof m['openai/subject'] === 'string' && m['openai/subject'].length <= 2048 ? m['openai/subject'] : null;
     const session = typeof m['openai/session'] === 'string' && m['openai/session'].length <= 2048 ? m['openai/session'] : null;
     events.push({

@@ -97,6 +97,18 @@ describe('Analytics collection through /mcp', () => {
     assert.equal(buildReport(t.sql, parseReportQuery(new URLSearchParams())).kpis.current.calls, 0);
   });
 
+  it('labels requests rejected for a missing Accept header as not_acceptable', async () => {
+    const t = makeEnv();
+    const res = await worker.fetch(new Request('https://t.invalid/mcp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    }), t.env, t.ctx);
+    assert.equal(res.status, 406);
+    await t.flush();
+    const r = t.db.prepare('SELECT kind, status, error_code FROM events').get() as any;
+    assert.deepEqual({ ...r }, { kind: 'list', status: 'error', error_code: 'not_acceptable' });
+  });
+
   it('skips unknown tools and fails open without the binding', async () => {
     const t = makeEnv();
     await call(t.env, t.ctx, 'rm_rf', {});
