@@ -1,0 +1,403 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import worker from '../src/index.ts';
+import { PrayerStorage } from '../src/storage/kv-store.ts';
+
+describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
+  it('GET /health returns healthy status and service metadata', async () => {
+    const req = new Request('http://localhost/health', { method: 'GET' });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const data = (await res.json()) as any;
+    assert.equal(data.status, 'healthy');
+    assert.equal(data.service, 'muslim-prayer-reminder-mcp');
+  });
+
+  it('GET /privacy returns comprehensive data category disclosures', async () => {
+    const req = new Request('http://localhost/privacy', { method: 'GET' });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const data = (await res.json()) as any;
+    assert.equal(data.app, 'Muslim Prayer Reminder');
+    assert.ok(data.dataCategories.inputsProcessedEphemerally);
+    assert.ok(data.dataCategories.outputsReturnedToHosts);
+    assert.ok(data.dataCategories.explicitlyExcludedFromOutputs);
+  });
+
+  it('GET /api/status returns valid prayer status payload', async () => {
+    const req = new Request('http://localhost/api/status?lat=24.71&lng=46.68&timezone=Asia/Riyadh', {
+      method: 'GET',
+    });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const data = (await res.json()) as any;
+    assert.equal(typeof data.reminderDue, 'boolean');
+    assert.ok(data.nextPrayer);
+    assert.ok(data.nextPrayerAtUtc);
+    assert.equal(data.timezone, 'Asia/Riyadh');
+    assert.equal(data.locationSource, undefined);
+  });
+
+  it('GET /api/timetable returns full 6 prayer times', async () => {
+    const req = new Request('http://localhost/api/timetable', {
+      method: 'GET',
+      headers: {
+        'X-User-Coordinates': '21.42, 39.83',
+        'X-User-Timezone': 'Asia/Riyadh',
+      },
+    });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const data = (await res.json()) as any;
+    assert.ok(data.timesUtc.fajr);
+    assert.ok(data.timesUtc.sunrise);
+    assert.ok(data.timesUtc.dhuhr);
+    assert.ok(data.timesUtc.asr);
+    assert.ok(data.timesUtc.maghrib);
+    assert.ok(data.timesUtc.isha);
+    assert.ok(data.timesLocal.Fajr);
+  });
+
+  it('POST /api/preferences stores and updates user preferences', async () => {
+    const updatePayload = {
+      userId: 'user_mcp_test',
+      locationMode: 'fixed',
+      fixedCity: 'Dubai',
+      calculationMethod: 'Dubai',
+      locale: 'ar',
+      reminderMode: 'exact_window',
+      exactWindowMinutes: 15,
+    };
+
+    const req = new Request('http://localhost/api/preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatePayload),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as any;
+    assert.equal(body.success, true);
+    assert.equal(body.preferences.fixedCity, 'Dubai');
+    assert.equal(body.preferences.locale, 'ar');
+  });
+
+  it('POST /mcp handles JSON-RPC tools/list', async () => {
+    const rpcPayload = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: {},
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcPayload),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.jsonrpc, '2.0');
+    assert.equal(rpcRes.id, 1);
+    assert.ok(Array.isArray(rpcRes.result.tools));
+
+    const toolNames = rpcRes.result.tools.map((t: any) => t.name);
+    assert.ok(toolNames.includes('get_prayer_status'));
+    assert.ok(toolNames.includes('get_today_prayer_times'));
+    assert.ok(toolNames.includes('get_next_prayer'));
+    assert.ok(toolNames.includes('configure_prayer_preferences'));
+    assert.ok(toolNames.includes('get_prayer_preferences'));
+    const configure = rpcRes.result.tools.find((tool: any) => tool.name === 'configure_prayer_preferences');
+    assert.equal(configure.annotations.readOnlyHint, false);
+    assert.equal(configure.annotations.destructiveHint, true);
+  });
+
+  it('POST /mcp handles JSON-RPC tools/call for get_prayer_status', async () => {
+    const rpcCall = {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: {
+        name: 'get_prayer_status',
+        arguments: {
+          latitude: 24.71,
+          longitude: 46.68,
+          timezone: 'Asia/Riyadh',
+        },
+      },
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcCall),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.id, 2);
+    assert.ok(rpcRes.result.content);
+    assert.equal(rpcRes.result.content[0].type, 'text');
+
+    const statusPayload = JSON.parse(rpcRes.result.content[0].text);
+    assert.equal(typeof statusPayload.reminderDue, 'boolean');
+    assert.ok(statusPayload.nextPrayer);
+    // Data minimization: verify internal debug keys are NOT returned to the LLM
+    assert.equal(statusPayload.dedupeKey, undefined, 'dedupeKey must not be returned in MCP tool output');
+    assert.equal(statusPayload.locationSource, undefined, 'locationSource must not be returned in MCP tool output');
+  });
+
+  it('POST /mcp auto-resolves Palestinian Awqaf calculation method and offsets for Gaza coordinates', async () => {
+    const rpcCall = {
+      jsonrpc: '2.0',
+      id: 3,
+      method: 'tools/call',
+      params: {
+        name: 'get_today_prayer_times',
+        arguments: {
+          latitude: 31.50,
+          longitude: 34.46,
+          timezone: 'Asia/Gaza',
+          date: '2026-09-04',
+        },
+      },
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcCall),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.id, 3);
+    const schedule = JSON.parse(rpcRes.result.content[0].text);
+
+    assert.equal(schedule.calculationMethod, 'Egyptian');
+    assert.equal(schedule.timesLocal.Fajr, '04:49');
+    assert.equal(schedule.timesLocal.Sunrise, '06:20');
+    assert.equal(schedule.timesLocal.Dhuhr, '12:41');
+    assert.equal(schedule.timesLocal.Asr, '16:15');
+    assert.equal(schedule.timesLocal.Maghrib, '19:05');
+    assert.equal(schedule.timesLocal.Isha, '20:23');
+    assert.ok(schedule.authorityDescription.includes('Configured Palestinian regional profile'));
+    assert.ok(schedule.authorityNotice);
+    assert.equal(schedule.authorityNotice.method, 'Egyptian');
+    assert.ok(schedule.authorityNotice.selectionReason.includes('regional heuristic'));
+    assert.ok(schedule.authorityNotice.requiredDisplayInstruction.includes('MANDATORY'));
+    // Data minimization: verify coordinates are NOT leaked in MCP tool output
+    assert.equal(schedule.coordinates, undefined, 'coordinates must not be leaked in get_today_prayer_times output');
+  });
+
+  it('POST /mcp handles get_next_prayer without returning internal telemetry', async () => {
+    const rpcCall = {
+      jsonrpc: '2.0',
+      id: 4,
+      method: 'tools/call',
+      params: {
+        name: 'get_next_prayer',
+        arguments: {
+          latitude: 24.71,
+          longitude: 46.68,
+          timezone: 'Asia/Riyadh',
+        },
+      },
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcCall),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.id, 4);
+    const nextPayload = JSON.parse(rpcRes.result.content[0].text);
+    assert.ok(nextPayload.nextPrayer);
+    assert.ok(typeof nextPayload.remainingMinutes === 'number');
+    assert.equal(nextPayload.locationSource, undefined, 'locationSource must not be returned in get_next_prayer output');
+  });
+
+  it('POST /mcp with Riyadh coordinates resolves to UmmAlQura and Shafi without user override', async () => {
+    const rpcCall = {
+      jsonrpc: '2.0',
+      id: 5,
+      method: 'tools/call',
+      params: {
+        name: 'get_today_prayer_times',
+        arguments: {
+          latitude: 24.7136,
+          longitude: 46.6753,
+          timezone: 'Asia/Riyadh',
+        },
+      },
+    };
+
+    const req = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(rpcCall),
+    });
+
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const rpcRes = (await res.json()) as any;
+    assert.equal(rpcRes.id, 5);
+    const schedule = JSON.parse(rpcRes.result.content[0].text);
+
+    assert.equal(schedule.calculationMethod, 'UmmAlQura');
+    assert.equal(schedule.madhab, 'Shafi');
+    assert.ok(schedule.authorityDescription.includes('Umm al-Qura University'));
+    assert.equal(schedule.authorityNotice.method, 'UmmAlQura');
+    assert.equal(schedule.authorityNotice.madhab, 'Shafi');
+    assert.ok(!schedule.authorityDescription.includes('Custom Override'));
+  });
+
+  it('POST /mcp enforces user preference isolation across different user IDs and anonymous queries', async () => {
+    // 1. Configure user_a with Egyptian + Hanafi
+    const configureCall = {
+      jsonrpc: '2.0',
+      id: 6,
+      method: 'tools/call',
+      params: {
+        name: 'configure_prayer_preferences',
+        arguments: {
+          userId: 'user_a',
+          calculationMethod: 'Egyptian',
+          madhab: 'Hanafi',
+        },
+      },
+    };
+
+    const reqConfig = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify(configureCall),
+    });
+    const resConfig = await worker.fetch(reqConfig, {});
+    assert.equal(resConfig.status, 200);
+
+    // 2. Query as user_a -> must return user_a's saved Egyptian + Hanafi
+    const reqUserA = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 7,
+        method: 'tools/call',
+        params: {
+          name: 'get_today_prayer_times',
+          arguments: {
+            userId: 'user_a',
+            latitude: 24.7136,
+            longitude: 46.6753,
+            timezone: 'Asia/Riyadh',
+          },
+        },
+      }),
+    });
+    const resUserA = await worker.fetch(reqUserA, {});
+    const rpcUserA = (await resUserA.json()) as any;
+    const scheduleUserA = JSON.parse(rpcUserA.result.content[0].text);
+    assert.equal(scheduleUserA.calculationMethod, 'Egyptian');
+    assert.equal(scheduleUserA.madhab, 'Hanafi');
+    assert.ok(scheduleUserA.authorityDescription.includes('Custom Override'));
+
+    // 3. Query as a brand-new user_b with Riyadh coordinates -> MUST NOT inherit user_a's settings
+    const reqUserB = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 8,
+        method: 'tools/call',
+        params: {
+          name: 'get_today_prayer_times',
+          arguments: {
+            userId: 'user_b_brand_new',
+            latitude: 24.7136,
+            longitude: 46.6753,
+            timezone: 'Asia/Riyadh',
+          },
+        },
+      }),
+    });
+    const resUserB = await worker.fetch(reqUserB, {});
+    const rpcUserB = (await resUserB.json()) as any;
+    const scheduleUserB = JSON.parse(rpcUserB.result.content[0].text);
+    assert.equal(scheduleUserB.calculationMethod, 'UmmAlQura');
+    assert.equal(scheduleUserB.madhab, 'Shafi');
+    assert.ok(scheduleUserB.authorityDescription.includes('Umm al-Qura University'));
+
+    // 4. Query anonymously without userId -> MUST NOT inherit any user's settings
+    const reqAnon = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 9,
+        method: 'tools/call',
+        params: {
+          name: 'get_today_prayer_times',
+          arguments: {
+            latitude: 24.7136,
+            longitude: 46.6753,
+            timezone: 'Asia/Riyadh',
+          },
+        },
+      }),
+    });
+    const resAnon = await worker.fetch(reqAnon, {});
+    const rpcAnon = (await resAnon.json()) as any;
+    const scheduleAnon = JSON.parse(rpcAnon.result.content[0].text);
+    assert.equal(scheduleAnon.calculationMethod, 'UmmAlQura');
+    assert.equal(scheduleAnon.madhab, 'Shafi');
+    assert.ok(scheduleAnon.authorityDescription.includes('Umm al-Qura University'));
+  });
+
+  it('GET /.well-known/mcp/server-card.json returns registry discovery card', async () => {
+    const req = new Request('http://localhost/.well-known/mcp/server-card.json', { method: 'GET' });
+    const res = await worker.fetch(req, {});
+    assert.equal(res.status, 200);
+    const card = (await res.json()) as any;
+    assert.equal(card.serverInfo.name, 'muslim-prayer-reminder');
+    assert.ok(Array.isArray(card.tools));
+    assert.equal(card.tools.length, 5);
+  });
+
+});
