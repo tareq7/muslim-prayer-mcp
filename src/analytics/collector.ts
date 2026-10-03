@@ -70,7 +70,14 @@ function outcome(responseBody: unknown, id: unknown, httpStatus: number): { stat
   if (isRec(res.error)) return { status: 'error', errorCode: RPC_ERRORS.get(Number(res.error.code)) ?? 'tool_error', authority: null, methodSource: null };
   const result = isRec(res.result) ? res.result : {};
   const sc = isRec(result.structuredContent) ? result.structuredContent : {};
-  if (result.isError === true) return { status: 'error', errorCode: typeof sc.code === 'string' ? sc.code : 'tool_error', authority: null, methodSource: null };
+  if (result.isError === true) {
+    const first = Array.isArray(result.content) && isRec(result.content[0]) ? result.content[0].text : '';
+    const text = typeof first === 'string' ? first : '';
+    const errorCode = typeof sc.code === 'string' ? sc.code
+      : /unsupported predefined city/i.test(text) ? 'unsupported_city'
+      : /input validation error/i.test(text) ? 'invalid_params' : 'tool_error';
+    return { status: 'error', errorCode, authority: null, methodSource: null };
+  }
   const details = isRec(sc.calculationDetails) ? sc.calculationDetails : {};
   return {
     status: 'ok', errorCode: null,

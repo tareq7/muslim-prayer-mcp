@@ -109,6 +109,15 @@ describe('Analytics collection through /mcp', () => {
     assert.deepEqual({ ...r }, { kind: 'list', status: 'error', error_code: 'not_acceptable' });
   });
 
+  it('names SDK validation failures instead of leaving them as tool_error', async () => {
+    const t = makeEnv();
+    await call(t.env, t.ctx, 'get_next_prayer', { city: 'Dhaka' });
+    await call(t.env, t.ctx, 'get_next_prayer', { latitude: '23.8', longitude: '90.4', timezone: 'Asia/Dhaka' });
+    await t.flush();
+    const codes = (t.db.prepare('SELECT error_code FROM events ORDER BY id').all() as any[]).map(r => r.error_code);
+    assert.deepEqual(codes, ['unsupported_city', 'invalid_params']);
+  });
+
   it('skips unknown tools and fails open without the binding', async () => {
     const t = makeEnv();
     await call(t.env, t.ctx, 'rm_rf', {});
