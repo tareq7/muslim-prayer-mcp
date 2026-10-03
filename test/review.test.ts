@@ -189,8 +189,10 @@ describe('Review regressions', () => {
     }
   });
 
-  it('uses timetable query coordinates and preserves an explicit calendar date in UTC+14', async () => {
-    const response = await worker.fetch(new Request('http://localhost/api/timetable?lat=-21.14&lng=-175.2&timezone=Pacific/Kiritimati&date=2026-09-03'), {});
+  it('rejects contradictory UTC+14 input and preserves a valid Kiritimati calendar date', async () => {
+    const invalid = await worker.fetch(new Request('http://localhost/api/timetable?lat=-21.14&lng=-175.2&timezone=Pacific/Kiritimati&date=2026-09-03'), {});
+    assert.equal(invalid.status, 400);
+    const response = await worker.fetch(new Request('http://localhost/api/timetable?lat=1.87&lng=-157.43&timezone=Pacific/Kiritimati&date=2026-09-03'), {});
     const body = await response.json() as any;
     assert.equal(response.status, 200);
     assert.equal(body.localDate, '2026-09-03');

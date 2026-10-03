@@ -220,6 +220,9 @@ describe('Analytics validation and helpers', () => {
     assert.equal(e.client, 'Other');
     assert.equal(e.errorCode, 'tool_error');
     assert.equal(e.authority, null);
+    for (const errorCode of ['location_timezone_mismatch', 'invalid_location']) {
+      assert.equal(validateEvent({ kind: 'tool', tool: 'get_next_prayer', status: 'error', errorCode })?.errorCode, errorCode);
+    }
   });
 
   it('parses report queries with safe defaults', () => {

@@ -14,6 +14,83 @@ async function rpc(name: string, args: Record<string, unknown>, kv = new MemoryK
 }
 
 describe('Remaining issue regressions', () => {
+  it('rejects contradictory coordinate timezones and reports the expected zone', async () => {
+    for (const args of [
+      { latitude: 40.71, longitude: -74.01, timezone: 'Asia/Dubai', expected: 'America/New_York' },
+      { latitude: 25.2, longitude: 55.27, timezone: 'America/New_York', expected: 'Asia/Dubai' },
+    ]) {
+      for (const name of ['get_today_prayer_times', 'get_next_prayer', 'get_prayer_status']) {
+        const result = await rpc(name, args);
+        assert.equal(result.isError, true);
+        assert.equal(result.structuredContent.code, 'location_timezone_mismatch');
+        assert.equal(result.structuredContent.expectedTimezone, args.expected);
+      }
+    }
+    const compatible = await rpc('get_today_prayer_times', { latitude: 40.71, longitude: -74.01, timezone: 'US/Eastern' });
+    assert.notEqual(compatible.isError, true);
+    assert.equal(compatible.structuredContent.calculationMethod, 'NorthAmerica');
+    assert.equal(compatible.structuredContent.calculationDetails.expectedTimezone, 'America/New_York');
+  });
+  it('rejects contradictory fixed-city timezone updates without changing existing storage', async () => {
+    const kv = new MemoryKV();
+    await rpc('configure_prayer_preferences', { userId: 'city-timezone', locationMode: 'fixed', fixedCity: 'Riyadh' }, kv);
+    const before = await kv.get('pref:city-timezone');
+    const result = await rpc('configure_prayer_preferences', { userId: 'city-timezone', timezone: 'America/New_York' }, kv);
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.code, 'location_timezone_mismatch');
+    assert.equal(await kv.get('pref:city-timezone'), before);
+    const valid = await rpc('configure_prayer_preferences', { userId: 'city-timezone', timezone: 'Asia/Riyadh' }, kv);
+    assert.equal(valid.structuredContent.preferences.timezone, 'Asia/Riyadh');
+  });
+  it('allows disabling legacy preferences without silently replacing their location', async () => {
+    const kv = new MemoryKV();
+    const coordinates = { latitude: 40.71, longitude: -74.01 };
+    await kv.put('pref:legacy-location', JSON.stringify({ userId: 'legacy-location', locationMode: 'fixed', fixedCoordinates: coordinates, timezone: 'Asia/Dubai', enabled: true }));
+    const updated = await rpc('configure_prayer_preferences', { userId: 'legacy-location', enabled: false, locale: 'ar' }, kv);
+    assert.notEqual(updated.isError, true);
+    const stored = JSON.parse(await kv.get('pref:legacy-location'));
+    assert.deepEqual(stored.fixedCoordinates, coordinates);
+    assert.equal(stored.timezone, 'Asia/Dubai');
+    assert.equal(stored.enabled, false);
+    assert.equal((await rpc('get_today_prayer_times', { userId: 'legacy-location' }, kv)).structuredContent.code, 'location_timezone_mismatch');
+    assert.equal((await rpc('configure_prayer_preferences', { userId: 'legacy-location', locationMode: 'fixed' }, kv)).structuredContent.code, 'location_timezone_mismatch');
+    const repaired = await rpc('configure_prayer_preferences', { userId: 'legacy-location', timezone: 'America/New_York' }, kv);
+    assert.notEqual(repaired.isError, true);
+  });
+  it('does not treat similar seasonal offsets as timezone aliases across DST transitions', async () => {
+    const result = await rpc('get_today_prayer_times', { latitude: 31.7683, longitude: 35.2137, timezone: 'Europe/Athens', date: '2026-03-27' });
+    assert.equal(result.isError, true);
+    assert.equal(result.structuredContent.code, 'location_timezone_mismatch');
+    assert.equal(result.structuredContent.expectedTimezone, 'Asia/Jerusalem');
+  });
+  it('applies contradiction checks to forwarded city and coordinate headers', async () => {
+    const mismatch = await rpc('get_today_prayer_times', {}, new MemoryKV(), { 'X-User-City': 'New York', 'X-User-Timezone': 'Asia/Dubai' });
+    assert.equal(mismatch.structuredContent.code, 'location_timezone_mismatch');
+    const mixed = await rpc('get_today_prayer_times', {}, new MemoryKV(), { 'X-User-City': 'Dubai', 'X-User-Coordinates': '40.71,-74.01', 'X-User-Timezone': 'America/New_York' });
+    assert.equal(mixed.structuredContent.code, 'invalid_location');
+    const invalid = await rpc('get_today_prayer_times', {}, new MemoryKV(), { 'X-User-City': 'New York', 'X-User-Timezone': 'not/a-timezone' });
+    assert.equal(invalid.structuredContent.code, 'invalid_location');
+  });
+  it('rejects mixed city/coordinates on all prayer tools and REST', async () => {
+    for (const timezone of [undefined, 'America/New_York']) {
+      for (const name of ['get_today_prayer_times', 'get_next_prayer', 'get_prayer_status']) {
+        assert.equal((await rpc(name, { city: 'Riyadh', latitude: 40.71, longitude: -74.01, timezone })).isError, true);
+      }
+    }
+    const response = await worker.fetch(new Request('https://review.invalid/api/timetable?city=Riyadh&lat=40.71&lng=-74.01&timezone=America/New_York'), {});
+    assert.equal(response.status, 400);
+  });
+  it('advertises current result fields, whitespace validation, and the exact-window default', async () => {
+    const request = new Request('https://review.invalid/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+    const tools = (await (await worker.fetch(request, {})).json() as any).result.tools;
+    const configure = tools.find((tool: any) => tool.name === 'configure_prayer_preferences');
+    assert.equal(configure.inputSchema.properties.userId.pattern, '\\S');
+    assert.match(configure.inputSchema.properties.exactWindowMinutes.description, /20/);
+    const status = tools.find((tool: any) => tool.name === 'get_prayer_status');
+    assert.ok(status.outputSchema.properties.prayerWindowExpiresAtUtc);
+    assert.ok(status.outputSchema.properties.reminderWindowExpiresAtUtc);
+    assert.ok(status.outputSchema.properties.calculationDetails.properties.timezoneSource);
+  });
   it('rejects explicit coordinates without a same-request timezone instead of inheriting Dubai', async () => {
     const kv = new MemoryKV();
     await rpc('configure_prayer_preferences', { userId: 'traveler-dubai', locationMode: 'fixed', fixedCity: 'Dubai', timezone: 'Asia/Dubai', calculationMethod: 'Dubai' }, kv);
@@ -103,10 +180,10 @@ describe('Remaining issue regressions', () => {
     assert.equal(result.structuredContent.calculationDetails.locationBasis, 'explicit_city');
     assert.equal(result.structuredContent.calculationDetails.fallbackLocationUsed, false);
   });
-  it('allows explicit overrides without silently changing the geographic authority for a known city', async () => {
+  it('rejects a timezone override that contradicts a predefined city', async () => {
     const result = await rpc('get_today_prayer_times', { city: 'London', timezone: 'Asia/Riyadh', date: '2026-09-03' });
-    assert.equal(result.structuredContent.calculationMethod, 'MuslimWorldLeague');
-    assert.equal(result.structuredContent.timezone, 'Asia/Riyadh');
+    assert.equal(result.structuredContent.code, 'location_timezone_mismatch');
+    assert.equal(result.structuredContent.expectedTimezone, 'Europe/London');
   });
   it('requires location on REST and accepts explicit city queries', async () => {
     for (const path of ['/api/status', '/api/timetable']) {
@@ -130,13 +207,13 @@ describe('Remaining issue regressions', () => {
     assert.equal(times.structuredContent.calculationDetails.locationBasis, 'stored_fixed_coordinates');
     assert.equal((await rpc('get_prayer_preferences', { userId: 'unknown' }, kv)).structuredContent.fixedCoordinatesConfigured, false);
   });
-  it('preserves coordinate-based Palestinian routing with a stored display timezone', async () => {
+  it('preserves coordinate-based Palestinian routing with a compatible timezone', async () => {
     const kv = new MemoryKV();
-    await new PrayerStorage(kv).saveUserPreferences({ userId: 'palestine-fixed', locationMode: 'fixed', fixedCoordinates: { latitude: 31.5, longitude: 34.46 }, timezone: 'Europe/London' });
+    await new PrayerStorage(kv).saveUserPreferences({ userId: 'palestine-fixed', locationMode: 'fixed', fixedCoordinates: { latitude: 31.5, longitude: 34.46 }, timezone: 'Asia/Gaza' });
     const result = await rpc('get_today_prayer_times', { userId: 'palestine-fixed', date: '2026-09-03' }, kv);
     assert.equal(result.structuredContent.calculationMethod, 'Egyptian');
     assert.equal(result.structuredContent.minuteAdjustments.maghrib, 3);
-    assert.equal(result.structuredContent.timezone, 'Europe/London');
+    assert.equal(result.structuredContent.timezone, 'Asia/Gaza');
   });
   it('discloses polar clamping and attaches the same disclosure to authority notices', async () => {
     for (const latitude of [69.65, 90, -90]) {

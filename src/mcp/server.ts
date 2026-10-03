@@ -20,7 +20,8 @@ import {
   resolveCalculationParameters,
 } from '../engine/calculator.ts';
 import { evaluatePrayerStatus } from '../engine/reminder.ts';
-import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from '../location/resolver.ts';
+import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, type ResolveLocationParams } from '../location/resolver.ts';
+import { LocationTimezoneMismatchError } from '../location/timezone.ts';
 import { PrayerStorage, InvalidPreferencesError } from '../storage/kv-store.ts';
 import type { ReminderMode, Locale } from '../engine/types.ts';
 
@@ -28,8 +29,8 @@ async function prayerResult(operation: () => Promise<CallToolResult>): Promise<C
   try {
     return await operation();
   } catch (error) {
-    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError) && !(error instanceof InvalidPreferencesError)) throw error;
-    const details = { code: error.code, message: error.message };
+    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError) && !(error instanceof InvalidPreferencesError) && !(error instanceof LocationTimezoneMismatchError) && !(error instanceof InvalidLocationInputError)) throw error;
+    const details = { code: error.code, message: error.message, ...(error instanceof LocationTimezoneMismatchError ? { expectedTimezone: error.expectedTimezone, timezoneMismatchDetected: true } : {}) };
     return { isError: true, structuredContent: details, content: [{ type: 'text', text: JSON.stringify(details) }] };
   }
 }
@@ -40,7 +41,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
   const server = new McpServer(
     {
       name: 'muslim-prayer-reminder',
-      version: '1.1.1',
+      version: '1.1.2',
     },
     {
       instructions:
@@ -289,8 +290,8 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     {
       title: 'Configure User Prayer Preferences',
       description:
-        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and clears the stored timezone unless supplied; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Fixed mode requires a supported fixedCity or fixedCoordinates with timezone; new coordinates require timezone in the same request. clearFixedLocation removes saved location and timezone and defaults to auto_travel. Previous values are not retained for undo.',
-      inputSchema: ConfigurePrayerPreferencesInputSchema.shape,
+        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and stores the canonical city timezone; contradictory timezones are rejected; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Fixed mode requires a supported fixedCity or fixedCoordinates with timezone; new coordinates require timezone in the same request. clearFixedLocation removes saved location and timezone and defaults to auto_travel. Previous values are not retained for undo.',
+      inputSchema: ConfigurePrayerPreferencesInputSchema,
       outputSchema: ConfigurePrayerPreferencesOutputSchema.shape,
       annotations: {
         readOnlyHint: false,
@@ -324,7 +325,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     {
       title: 'Retrieve Stored Prayer Preferences',
       description: 'Returns the currently active calculation settings and preferences for a user. Read-only operation.',
-      inputSchema: GetPrayerPreferencesInputSchema.shape,
+      inputSchema: GetPrayerPreferencesInputSchema,
       outputSchema: GetPrayerPreferencesOutputSchema.shape,
       annotations: {
         readOnlyHint: true,

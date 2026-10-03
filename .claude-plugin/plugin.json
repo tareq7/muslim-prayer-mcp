@@ -1,6 +1,6 @@
 {
   "name": "muslim-prayer-mcp",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Calculates astronomical prayer times and provides timely prayer reminders for Claude.",
   "author": {
     "name": "Tareq Naji",

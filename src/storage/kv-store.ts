@@ -1,6 +1,7 @@
 import type { PrayerSchedule, UserPreferences } from '../engine/types.ts';
 import { StoredUserPreferencesSchema } from '../mcp/schemas.ts';
-import { sanitizeCoordinate } from '../location/resolver.ts';
+import { sanitizeCoordinate, getKnownCity } from '../location/resolver.ts';
+import { validateCityTimezone, validateCoordinateTimezone } from '../location/timezone.ts';
 
 export interface KVNamespaceLike {
   get(key: string, type?: 'text' | 'json'): Promise<any>;
@@ -111,7 +112,11 @@ export class PrayerStorage {
     }
     const parsed = StoredUserPreferencesSchema.safeParse(value);
     if (!parsed.success || parsed.data.userId !== userId) return null;
-    return this.sanitizePreferences(parsed.data);
+    const prefs = this.sanitizePreferences(parsed.data);
+    // Older records could contain an ignored display timezone alongside a city.
+    // Canonicalize that view without rewriting other saved preferences on a read.
+    const city = prefs.fixedCity && !prefs.fixedCoordinates ? getKnownCity(prefs.fixedCity) : undefined;
+    return city ? { ...prefs, timezone: city.timezone } : prefs;
   }
 
   private sanitizePreferences(prefs: UserPreferences): UserPreferences {
@@ -124,8 +129,21 @@ export class PrayerStorage {
     };
   }
 
+  private normalizeLocation(prefs: UserPreferences): UserPreferences {
+    if (prefs.fixedCoordinates) {
+      if (!prefs.timezone) throw new InvalidPreferencesError('Fixed coordinates require timezone.');
+      validateCoordinateTimezone(prefs.fixedCoordinates.latitude, prefs.fixedCoordinates.longitude, prefs.timezone);
+    } else if (prefs.fixedCity) {
+      const city = getKnownCity(prefs.fixedCity);
+      if (!city) throw new InvalidPreferencesError('Unsupported fixed city.');
+      validateCityTimezone(city.timezone, prefs.timezone);
+      return { ...prefs, timezone: city.timezone };
+    }
+    return prefs;
+  }
+
   async saveUserPreferences(prefs: UserPreferences): Promise<void> {
-    const validated = StoredUserPreferencesSchema.parse(prefs);
+    const validated = this.normalizeLocation(StoredUserPreferencesSchema.parse(prefs));
     if (validated.locationMode === 'fixed' && (validated.fixedCoordinates ? !validated.timezone : !validated.fixedCity)) {
       throw new InvalidPreferencesError('Fixed mode requires a supported fixedCity or fixedCoordinates with timezone. No preferences were saved.');
     }
@@ -134,7 +152,10 @@ export class PrayerStorage {
 
   async updateUserPreferences(input: Partial<UserPreferences> & { userId: string; clearFixedLocation?: boolean }): Promise<UserPreferences> {
     return this.withUserLock(input.userId, async () => {
-      const existing = await this.getUserPreferences(input.userId) || {
+      const previous = await this.getUserPreferences(input.userId);
+      const validateLocation = !previous || input.fixedCity !== undefined || input.fixedCoordinates !== undefined ||
+        input.timezone !== undefined || !!input.clearFixedLocation || input.locationMode === 'fixed';
+      const existing = previous || {
         userId: input.userId,
         locationMode: 'auto_travel' as const,
         enabled: true,
@@ -163,10 +184,17 @@ export class PrayerStorage {
       } else if (input.fixedCoordinates !== undefined && input.fixedCity === undefined) {
         existing.fixedCity = undefined;
       }
-      const updated = this.sanitizePreferences(StoredUserPreferencesSchema.parse({
+      const parsed = this.sanitizePreferences(StoredUserPreferencesSchema.parse({
         ...existing, ...supplied, updatedAtUtc: new Date().toISOString(),
       }));
-      await this.saveUserPreferences(updated);
+      const updated = validateLocation ? this.normalizeLocation(parsed) : parsed;
+      if (validateLocation) {
+        await this.saveUserPreferences(updated);
+      } else {
+        // Preserve legacy location fields on unrelated edits (including disable).
+        // New/activated locations and calculations still enforce timezone validation.
+        await this.backend(() => this.kv.put(`pref:${updated.userId}`, JSON.stringify(updated)));
+      }
       return updated;
     });
   }

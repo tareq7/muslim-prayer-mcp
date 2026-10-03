@@ -67,6 +67,8 @@ export interface ResolvedLocation {
   isApproximated: boolean;
   basis?: CalculationDetails['locationBasis'];
   timezoneSource?: CalculationDetails['timezoneSource'];
+  expectedTimezone?: string;
+  timezoneValidation?: CalculationDetails['timezoneValidation'];
 }
 
 export interface PrayerTimesUtc {
@@ -89,6 +91,8 @@ export interface HighLatitudeAdjustment {
 }
 
 export interface CalculationDetails {
+  expectedTimezone?: string;
+  timezoneValidation?: 'coordinate_lookup' | 'nearby_boundary' | 'city_registry' | 'polar_choice' | 'ocean_choice';
   timezoneSource?: 'explicit_override' | 'stored_preference' | 'city_default' | 'host_header';
   locationBasis?: 'explicit_coordinates' | 'explicit_city' | 'stored_fixed_coordinates' | 'stored_fixed_city' | 'host_coordinates' | 'host_city' | 'network_geolocation' | 'default_location';
   locationIsApproximate?: boolean;

@@ -1,7 +1,8 @@
 import { createPrayerMcpServer } from './mcp/server.ts';
 import { PrayerStorage, InvalidPreferencesError, type KVNamespaceLike } from './storage/kv-store.ts';
 import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferences, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
-import { resolveUserLocation, LocationRequiredError, type ResolveLocationParams } from './location/resolver.ts';
+import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, type ResolveLocationParams } from './location/resolver.ts';
+import { LocationTimezoneMismatchError } from './location/timezone.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
 import { calculateDailySchedule, resolveCalculationParameters, InvalidCalculationError } from './engine/calculator.ts';
 import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS } from './analytics/dashboard.ts';
@@ -174,7 +175,7 @@ export default {
       return jsonResponse({
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
-        version: '1.1.1',
+        version: '1.1.2',
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
@@ -194,7 +195,7 @@ export default {
       return jsonResponse({
         serverInfo: {
           name: 'muslim-prayer-reminder',
-          version: '1.1.1',
+          version: '1.1.2',
           publisher: 'Smart Creations',
         },
         description: 'Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.',
@@ -220,7 +221,7 @@ export default {
     if (url.pathname === '/privacy') {
       return jsonResponse({
         app: 'Muslim Prayer Reminder',
-        version: '1.1.1',
+        version: '1.1.2',
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         fullPolicyUrl: 'https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/',
@@ -467,9 +468,10 @@ export default {
         }
       }
 
-      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.1' }, 404);
+      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.2' }, 404);
     } catch (error) {
-      if (error instanceof LocationRequiredError || error instanceof InvalidCalculationError || error instanceof InvalidPreferencesError) return jsonResponse({ code: error.code, error: error.message }, 400);
+      if (error instanceof LocationTimezoneMismatchError) return jsonResponse({ code: error.code, error: error.message, expectedTimezone: error.expectedTimezone, timezoneMismatchDetected: true }, 400);
+      if (error instanceof LocationRequiredError || error instanceof InvalidCalculationError || error instanceof InvalidPreferencesError || error instanceof InvalidLocationInputError) return jsonResponse({ code: error.code, error: error.message }, 400);
       return jsonResponse({ error: 'Internal server error' }, 500);
     }
   },

@@ -9,9 +9,9 @@ Generated from src/mcp/schemas.ts by scripts/generate-skill.mjs. Regenerate with
 
 ## Location and error handling
 
-Use an explicit supported city, a latitude/longitude pair with an IANA timezone, or a stored complete fixed location. Explicit per-call location overrides stored settings. Explicit coordinates require timezone in the same request; a stored timezone or a standalone timezone header is never paired with new explicit coordinates. An explicit timezone is a display choice and is not geographically validated. Trusted host headers may supply end-user coordinates/timezone or a supported city. Never infer the user location from connector/server IP or Cloudflare network geolocation. A timezone alone cannot locate the user.
+Use an explicit supported city, a latitude/longitude pair with an IANA timezone, or a stored complete fixed location. Explicit per-call location overrides stored settings. Supply city or coordinates, never both. Explicit coordinates require timezone in the same request; a stored timezone or a standalone timezone header is never paired with new explicit coordinates. City timezones must match the canonical city zone or its IANA alias. Coordinates are validated using an approximate offline timezone lookup and nearby boundary cells; default authority follows the geographic lookup rather than the supplied display zone. Contradictions return location_timezone_mismatch with expectedTimezone. Exact poles have no unique civil timezone and retain explicit choices; ocean cells require a matching nautical zone or nearby civil zone. Disclose calculationDetails.timezoneValidation and the approximate lookup limits. Trusted host headers may supply end-user coordinates/timezone or a supported city. Never infer the user location from connector/server IP or Cloudflare network geolocation. A timezone alone cannot locate the user.
 
-If a prayer tool returns isError:true and structuredContent.code is location_required, ask for a supported city or coordinates/timezone. Do not substitute Makkah or guess a location. If code is invalid_calculation, ask the user to correct a nonexistent local date or minute adjustments that reverse prayer windows. For invalid_preferences, correct the configuration; failed transactions save nothing.
+If a prayer tool returns isError:true and structuredContent.code is location_required, ask for a supported city or coordinates/timezone. Do not substitute Makkah or guess a location. If code is invalid_calculation, ask the user to correct a nonexistent local date or minute adjustments that reverse prayer windows. For invalid_location or location_timezone_mismatch, correct the conflicting location/timezone; never guess. For invalid_preferences, correct the configuration; failed transactions save nothing.
 
 Public coordinates are rounded before calculation/storage and never echoed. Preferences expose fixedCoordinatesConfigured/fixedCityConfigured indicators. Read-only prayer queries do not return user identifiers.
 
@@ -23,7 +23,7 @@ Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramal
 
 ## Tool contracts
 
-Omitted preference fields preserve existing settings. Fixed mode requires a supported fixedCity or fixedCoordinates plus timezone. New coordinates require timezone in the same configuration request. Switching to auto_travel preserves the saved fixed location for later reuse; clearFixedLocation:true removes the saved city, coordinates and timezone and defaults to auto_travel, preserving other preferences. Clear cannot be combined with a replacement location/timezone or incomplete fixed mode. New preferences inherit geographic/service defaults. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. For identified users, prayer_window and exact_window emit once per prayer/date/mode; changing locale or disabling/re-enabling does not reset the marker. Anonymous calls have no persistent deduplication. expiresAtUtc is the legacy prayer period end; prayerWindowExpiresAtUtc names that same boundary, while reminderWindowExpiresAtUtc is the exact eligibility end capped by the prayer period. Expiry fields appear when a reminder is emitted. KV deduplication and partial preference updates are best effort across regions.
+Omitted preference fields preserve existing settings. Fixed mode requires a supported fixedCity or fixedCoordinates plus timezone. New coordinates require timezone in the same configuration request. auto_travel does not discover location: the caller supplies its current city or coordinates/timezone on each request; method preferences still follow the user. Switching to auto_travel preserves the saved fixed location for later reuse; clearFixedLocation:true removes the saved city, coordinates and timezone and defaults to auto_travel, preserving other preferences. Clear cannot be combined with a replacement location/timezone or incomplete fixed mode. Fixed city configurations store their canonical city timezone; contradictory supplied timezones are rejected before saving. New preferences inherit geographic/service defaults. exact_window defaults to the saved duration, or the service default of 20 minutes when unset (operators may override it). Omitting the duration does not reset an existing value. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. For identified users, prayer_window and exact_window emit once per prayer/date/mode; changing locale or disabling/re-enabling does not reset the marker. Anonymous calls have no persistent deduplication. expiresAtUtc is the legacy prayer period end; prayerWindowExpiresAtUtc names that same boundary, while reminderWindowExpiresAtUtc is the exact eligibility end capped by the prayer period. Expiry fields appear when a reminder is emitted. KV deduplication and partial preference updates are best effort across regions.
 
 ### get_prayer_status
 
@@ -35,7 +35,7 @@ Input
 | `userId` | string | optional | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 | `latitude` | number | optional | Optional explicit latitude override |
 | `longitude` | number | optional | Optional explicit longitude override |
-| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone. |
+| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Must agree with the city or be compatible with the coordinate timezone lookup. |
 | `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
 | `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
@@ -75,7 +75,7 @@ Input
 | `date` | string | optional | Date in YYYY-MM-DD format (defaults to today) |
 | `latitude` | number | optional | Optional explicit latitude override |
 | `longitude` | number | optional | Optional explicit longitude override |
-| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone. |
+| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Must agree with the city or be compatible with the coordinate timezone lookup. |
 | `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
 | `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
@@ -106,7 +106,7 @@ Input
 | `userId` | string | optional | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
 | `latitude` | number | optional | Optional explicit latitude override |
 | `longitude` | number | optional | Optional explicit longitude override |
-| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Explicit overrides select the display timezone. |
+| `timezone` | string | optional | IANA timezone; required in the same request when latitude/longitude are supplied. Must agree with the city or be compatible with the coordinate timezone lookup. |
 | `calculationMethod` | `UmmAlQura`, `MuslimWorldLeague`, `Egyptian`, `Karachi`, `NorthAmerica`, `Dubai`, `Qatar`, `Kuwait`, `MoonsightingCommittee`, `Singapore`, `Turkey`, `Tehran` | optional | Optional calculation authority override (auto-resolved from location by default) |
 | `madhab` | `Shafi`, `Hanafi` | optional | Optional Asr shadow jurisprudence override (Shafi or Hanafi) |
 
@@ -137,7 +137,7 @@ Input
 | --- | --- | --- | --- |
 | `clearFixedLocation` | boolean | optional | Remove stored fixedCity, fixedCoordinates and timezone. Switches to auto_travel unless locationMode is supplied. Cannot combine with a new fixed location/timezone. |
 | `userId` | string | required | Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved. |
-| `locationMode` | `auto_travel`, `fixed` | optional | Location strategy: auto_travel or fixed |
+| `locationMode` | `auto_travel`, `fixed` | optional | Location strategy: fixed uses saved location; auto_travel requires the caller to supply current city or coordinates/timezone on each query and never uses IP geolocation. |
 | `fixedCity` | string | optional | Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored. |
 | `fixedCoordinates` | object | optional | Fixed geographical coordinates |
 | `fixedCoordinates.latitude` | number | required |  |
@@ -147,7 +147,7 @@ Input
 | `madhab` | `Shafi`, `Hanafi` | optional | Jurisprudential Asr shadow calculation: Shafi or Hanafi |
 | `highLatitudeRule` | `MiddleOfTheNight`, `SeventhOfTheNight`, `TwilightAngle` | optional | High latitude twilight adjustment rule |
 | `reminderMode` | `prayer_window`, `exact_window`, `persistent` | optional | Reminder display policy: prayer_window, exact_window, persistent |
-| `exactWindowMinutes` | integer | optional | Duration in minutes for exact_window mode |
+| `exactWindowMinutes` | integer | optional | Duration in minutes for exact_window mode. Omitted updates preserve the saved value; if unset, the service default is 20 minutes unless the operator overrides it. |
 | `locale` | `en`, `ar` | optional | Language for reminder text: en or ar |
 | `minuteAdjustments` | object | optional | Custom per-prayer minute offsets (-60 to +60) |
 | `enabled` | boolean | optional | Whether prayer reminders are enabled |
@@ -205,7 +205,9 @@ The `preferences` configuration result uses the same fields as `get_prayer_prefe
 
 | Field | Type / allowed values | Presence | Description |
 | --- | --- | --- | --- |
-| `timezoneSource` | `explicit_override`, `stored_preference`, `city_default`, `host_header` | optional | Source of the display timezone; caller-selected overrides are not geographically validated. |
+| `expectedTimezone` | string | optional | Timezone from city registry or approximate coordinate lookup |
+| `timezoneValidation` | `coordinate_lookup`, `nearby_boundary`, `city_registry`, `polar_choice`, `ocean_choice` | optional | Validation basis; ocean and mathematical-pole locations retain caller-selected civil timezone with explicit disclosure |
+| `timezoneSource` | `explicit_override`, `stored_preference`, `city_default`, `host_header` | optional | Source of the validated timezone or disclosed ocean/pole choice |
 | `locationBasis` | `explicit_coordinates`, `explicit_city`, `stored_fixed_coordinates`, `stored_fixed_city`, `host_coordinates`, `host_city`, `network_geolocation`, `default_location` | optional |  |
 | `locationIsApproximate` | boolean | optional |  |
 | `fallbackLocationUsed` | boolean | optional |  |

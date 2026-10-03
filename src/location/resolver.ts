@@ -1,4 +1,5 @@
 import type { ResolvedLocation, UserPreferences } from '../engine/types.ts';
+import { validateCityTimezone, validateCoordinateTimezone } from './timezone.ts';
 
 export interface KnownCityCoordinates {
   latitude: number;
@@ -275,49 +276,66 @@ export class LocationRequiredError extends Error {
   }
 }
 
+export class InvalidLocationInputError extends Error {
+  readonly code = 'invalid_location';
+}
+
 export function resolveUserLocation(params: ResolveLocationParams & { explicitCity?: string }): ResolvedLocation {
   const { explicitCity, explicitLat, explicitLng, explicitTimezone, userPrefs, headers } = params;
+  if (explicitCity !== undefined && (explicitLat !== undefined || explicitLng !== undefined)) {
+    throw new InvalidLocationInputError('Supply city or latitude/longitude, not both.');
+  }
   const knownCity = (value?: string | null) => {
     return value ? getKnownCity(value) : undefined;
   };
-  const cityLocation = (city: string, basis: ResolvedLocation['basis']): ResolvedLocation => {
+  const cityLocation = (city: string, basis: ResolvedLocation['basis'], timezoneInput = explicitTimezone): ResolvedLocation => {
     const found = knownCity(city);
     if (!found) throw new LocationRequiredError();
+    if (timezoneInput !== undefined && !isValidIanaTimezone(timezoneInput)) {
+      throw new InvalidLocationInputError('Invalid end-user timezone. Supply an IANA timezone.');
+    }
+    validateCityTimezone(found.timezone, timezoneInput);
     return {
       latitude: sanitizeCoordinate(found.latitude), longitude: sanitizeCoordinate(found.longitude),
-      timezone: validTimezone(explicitTimezone) || found.timezone, country: found.country, city,
-      timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'city_default',
+      timezone: validTimezone(timezoneInput) || found.timezone, country: found.country, city,
+      timezoneSource: validTimezone(timezoneInput) ? (basis === 'host_city' && !explicitTimezone ? 'host_header' : 'explicit_override') : 'city_default',
+      expectedTimezone: found.timezone, timezoneValidation: 'city_registry',
       source: basis === 'stored_fixed_city' ? 'user_fixed_preference' : basis === 'host_city' ? 'host_header' : 'explicit_request',
       isApproximated: true, basis,
     };
   };
   if (explicitLat !== undefined || explicitLng !== undefined) {
     const timezone = validTimezone(explicitTimezone);
-    if (!validCoordinatePair(explicitLat, explicitLng) || !timezone) throw new LocationRequiredError();
-    return { ...resolveLocation({ explicitLat, explicitLng, explicitTimezone: timezone }), basis: 'explicit_coordinates', timezoneSource: 'explicit_override' };
+    if (typeof explicitLat !== 'number' || typeof explicitLng !== 'number' || !validCoordinatePair(explicitLat, explicitLng) || !timezone) throw new LocationRequiredError();
+    const validation = validateCoordinateTimezone(explicitLat, explicitLng, timezone);
+    const location = resolveLocation({ explicitLat, explicitLng, explicitTimezone: validation.expectedTimezone });
+    return { ...location, ...validation, timezone, basis: 'explicit_coordinates', timezoneSource: 'explicit_override' };
   }
   if (explicitCity) return cityLocation(explicitCity, 'explicit_city');
   if (userPrefs?.locationMode === 'fixed') {
     if (userPrefs.fixedCoordinates) {
       const timezone = validTimezone(explicitTimezone, userPrefs.timezone);
       if (!timezone || !validCoordinatePair(userPrefs.fixedCoordinates.latitude, userPrefs.fixedCoordinates.longitude)) throw new LocationRequiredError();
-      const location = resolveLocation({ userPrefs: { ...userPrefs, fixedCity: undefined, timezone: userPrefs.timezone || timezone }, explicitTimezone: timezone });
-      // A display-timezone override must not change the stored geographic authority.
-      return { ...location, basis: 'stored_fixed_coordinates', timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'stored_preference' };
+      const { latitude, longitude } = userPrefs.fixedCoordinates;
+      const validation = validateCoordinateTimezone(latitude, longitude, timezone);
+      const location = resolveLocation({ explicitLat: latitude, explicitLng: longitude, explicitTimezone: validation.expectedTimezone });
+      return { ...location, ...validation, timezone, source: 'user_fixed_preference', basis: 'stored_fixed_coordinates', timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'stored_preference' };
     }
     if (userPrefs.fixedCity) return cityLocation(userPrefs.fixedCity, 'stored_fixed_city');
     throw new LocationRequiredError();
   }
   const headerCoordinates = headers?.get('X-User-Coordinates');
+  const headerCity = headers?.get('X-User-City');
+  if (headerCoordinates && headerCity) throw new InvalidLocationInputError('Supply X-User-City or X-User-Coordinates, not both.');
   if (headerCoordinates) {
     const pair = headerCoordinates.split(',');
     const latitude = parseCoordinate(pair[0]);
     const longitude = parseCoordinate(pair[1]);
     const timezone = validTimezone(explicitTimezone, headers?.get('X-User-Timezone') ?? undefined);
     if (pair.length !== 2 || !validCoordinatePair(latitude, longitude) || !timezone) throw new LocationRequiredError();
-    return { ...resolveLocation({ explicitLat: latitude, explicitLng: longitude, explicitTimezone: timezone }), source: 'host_header', basis: 'host_coordinates', timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'host_header' };
+    const validation = validateCoordinateTimezone(latitude, longitude, timezone);
+    return { ...resolveLocation({ explicitLat: latitude, explicitLng: longitude, explicitTimezone: validation.expectedTimezone }), ...validation, timezone, source: 'host_header', basis: 'host_coordinates', timezoneSource: validTimezone(explicitTimezone) ? 'explicit_override' : 'host_header' };
   }
-  const headerCity = headers?.get('X-User-City');
-  if (headerCity) return cityLocation(headerCity, 'host_city');
+  if (headerCity) return cityLocation(headerCity, 'host_city', explicitTimezone ?? headers?.get('X-User-Timezone') ?? undefined);
   throw new LocationRequiredError();
 }

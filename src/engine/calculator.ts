@@ -551,7 +551,7 @@ export function resolveCalculationParameters(
   overrideMethod?: CalculationMethodName,
   overrideMadhab?: MadhabName
 ): ResolvedCalculationParams {
-  const defaults = getDefaultCalculationParameters(location);
+  const defaults = getDefaultCalculationParameters({ ...location, timezone: location.expectedTimezone || location.timezone });
 
   const method = overrideMethod || userPrefs?.calculationMethod || defaults.method;
   const madhab = overrideMadhab || userPrefs?.madhab || defaults.madhab;
@@ -586,6 +586,8 @@ export function resolveCalculationParameters(
   return {
     calculationDetails: {
       timezoneSource: location.timezoneSource,
+      expectedTimezone: location.expectedTimezone,
+      timezoneValidation: location.timezoneValidation,
       locationBasis: location.basis || (location.source === 'cf_geo' ? 'network_geolocation' : location.source === 'fallback_default' ? 'default_location' : undefined),
       locationIsApproximate: location.isApproximated,
       fallbackLocationUsed: location.source === 'fallback_default',
