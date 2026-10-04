@@ -1,4 +1,5 @@
 import { createPrayerMcpServer } from './mcp/server.ts';
+import { publicPrayerStatus } from './mcp/status-response.ts';
 import { PrayerStorage, InvalidPreferencesError, type KVNamespaceLike } from './storage/kv-store.ts';
 import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferences, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
 import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, type ResolveLocationParams } from './location/resolver.ts';
@@ -367,8 +368,7 @@ export default {
             await storage.recordDedupeSent(status.dedupeKey, ttl);
           }
 
-          const { dedupeKey, locationSource, ...publicStatus } = status;
-          return jsonResponse(publicStatus);
+          return jsonResponse(publicPrayerStatus(status));
         });
       }
 

@@ -2,6 +2,11 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.ts';
 import { MemoryKV, PrayerStorage } from '../src/storage/kv-store.ts';
+import { evaluatePrayerStatus } from '../src/engine/reminder.ts';
+import { resolveUserLocation } from '../src/location/resolver.ts';
+import { resolveCalculationParameters } from '../src/engine/calculator.ts';
+import { publicPrayerStatus } from '../src/mcp/status-response.ts';
+import { PrayerStatusOutputSchema } from '../src/mcp/schemas.ts';
 
 async function rpc(name: string, args: Record<string, unknown>, kv = new MemoryKV(), headers: Record<string,string> = {}, cf?: { latitude: number; longitude: number; timezone: string; country: string }) {
   const request = Object.assign(new Request('https://review.invalid/mcp', {
@@ -14,6 +19,62 @@ async function rpc(name: string, args: Record<string, unknown>, kv = new MemoryK
 }
 
 describe('Remaining issue regressions', () => {
+  it('publishes draft-07 status dependencies and typed business result fields', async () => {
+    const request = new Request('https://review.invalid/mcp', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }) });
+    const tools = (await (await worker.fetch(request, {})).json() as any).result.tools;
+    const status = tools.find((tool: any) => tool.name === 'get_prayer_status');
+    assert.equal(status.inputSchema.$schema, 'http://json-schema.org/draft-07/schema#');
+    assert.deepEqual(status.inputSchema.dependencies.latitude, ['longitude', 'timezone']);
+    assert.equal(status.inputSchema.dependentRequired, undefined);
+    assert.equal(status.inputSchema.properties.city.type, 'string');
+    assert.equal(status.outputSchema.properties.reminderDue.type, 'boolean');
+    assert.equal(status.outputSchema.properties.nextPrayerCalculation.properties.usesCurrentCalculation.type, 'boolean');
+  });
+  it('compacts status provenance while preserving parsed fallback and REST parity', async (t) => {
+    const now = new Date('2026-09-03T04:00:00Z');
+    t.mock.timers.enable({ apis: ['Date'], now });
+    const result = await rpc('get_prayer_status', { city: 'Riyadh' });
+    const status = result.structuredContent;
+    assert.equal(status.authorityNotice.calculationDetails, undefined);
+    assert.equal(status.authorityNotice.highLatitudeAdjustment, undefined);
+    assert.equal(status.nextPrayerCalculation.usesCurrentCalculation, true);
+    assert.equal(status.nextPrayerCalculation.calculationDetails, undefined);
+    assert.ok(status.calculationDetails);
+    assert.ok(status.highLatitudeAdjustment);
+    assert.deepEqual(JSON.parse(result.content[0].text), status);
+    assert.equal(result.content[0].text, JSON.stringify(status));
+    const location = resolveUserLocation({ explicitCity: 'Riyadh' });
+    const params = resolveCalculationParameters(location);
+    const raw = await evaluatePrayerStatus({ now, location, ...params, userId: 'anon', isAlreadySent: () => false });
+    const { dedupeKey, locationSource, ...oldStatus } = raw;
+    const oldEnvelope = { structuredContent: oldStatus, content: [{ type: 'text', text: JSON.stringify(oldStatus, null, 2) }] };
+    assert.ok(JSON.stringify(result).length < JSON.stringify(oldEnvelope).length * 0.6);
+    for (const field of ['reminderDue', 'localDate', 'nextPrayer', 'nextPrayerAtUtc', 'timezone', 'calculationMethod', 'madhab']) {
+      assert.equal(status[field], oldStatus[field as keyof typeof oldStatus]);
+    }
+    const rest = await worker.fetch(new Request('https://review.invalid/api/status?city=Riyadh'), {});
+    assert.deepEqual(await rest.json(), status);
+    assert.equal(PrayerStatusOutputSchema.safeParse(status).success, true);
+  });
+  it('keeps distinct next-date metadata and does not mutate internal schedules', async () => {
+    const location = resolveUserLocation({ explicitCity: 'London' });
+    const params = resolveCalculationParameters(location);
+    const raw = await evaluatePrayerStatus({ now: new Date('2026-06-21T12:00:00Z'), location, ...params, userId: 'anon', isAlreadySent: () => false });
+    assert.ok(raw.nextPrayerCalculation?.calculationDetails);
+    const amended = { ...raw, nextPrayerCalculation: {
+      ...raw.nextPrayerCalculation,
+      localDate: '2026-06-22',
+      calculationDetails: { ...raw.nextPrayerCalculation.calculationDetails, calendarAlignmentAdjusted: !raw.calculationDetails?.calendarAlignmentAdjusted },
+    } };
+    const original = JSON.stringify(amended);
+    const result = publicPrayerStatus(amended);
+    assert.equal(result.nextPrayerCalculation?.usesCurrentCalculation, false);
+    assert.equal(result.nextPrayerCalculation?.localDate, '2026-06-22');
+    assert.deepEqual(result.nextPrayerCalculation?.calculationDetails, amended.nextPrayerCalculation.calculationDetails);
+    assert.deepEqual(result.highLatitudeAdjustment, amended.highLatitudeAdjustment);
+    assert.equal(JSON.stringify(amended), original);
+    assert.equal(PrayerStatusOutputSchema.safeParse(result).success, true);
+  });
   it('rejects contradictory coordinate timezones and reports the expected zone', async () => {
     for (const args of [
       { latitude: 40.71, longitude: -74.01, timezone: 'Asia/Dubai', expected: 'America/New_York' },
@@ -273,7 +334,9 @@ describe('Remaining issue regressions', () => {
     assert.equal(result.structuredContent.nextPrayer, 'Fajr');
     assert.equal(result.structuredContent.nextPrayerCalculation.localDate, '2026-09-04');
     const upcoming = await rpc('get_next_prayer', { city: 'Makkah' });
-    assert.deepEqual(upcoming.structuredContent.highLatitudeAdjustment, result.structuredContent.nextPrayerCalculation.highLatitudeAdjustment);
+    const nextAdjustment = result.structuredContent.nextPrayerCalculation.usesCurrentCalculation
+      ? result.structuredContent.highLatitudeAdjustment : result.structuredContent.nextPrayerCalculation.highLatitudeAdjustment;
+    assert.deepEqual(upcoming.structuredContent.highLatitudeAdjustment, nextAdjustment);
   });
   it('rejects a timezone-skipped calendar day instead of returning a different day', async () => {
     const result = await rpc('get_today_prayer_times', { latitude: -13.83, longitude: -171.75, timezone: 'Pacific/Apia', date: '2011-12-30' });

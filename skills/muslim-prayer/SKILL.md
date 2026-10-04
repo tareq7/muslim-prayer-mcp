@@ -21,6 +21,10 @@ MCP endpoint: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
 Local runner: npx -y muslim-prayer-mcp
 Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity.
 
+## Status response layout
+
+get_prayer_status and REST /api/status keep detailed provenance in top-level calculationDetails/highLatitudeAdjustment. authorityNotice contains the mandatory authority/selection/display notice without duplicating those objects. nextPrayerCalculation always names the next event's localDate. When usesCurrentCalculation is true, use the top-level metadata for that event; otherwise use its own distinct metadata. Do not interpret omitted inherited adjustments as no adjustment. Other prayer tools retain their full timetable/next-prayer contracts. MCP responses preserve structuredContent plus a compact JSON text fallback; clients should consume one representation, not concatenate both.
+
 ## Tool contracts
 
 Omitted preference fields preserve existing settings. Fixed mode requires a supported fixedCity or fixedCoordinates plus timezone. New coordinates require timezone in the same configuration request. auto_travel does not discover location: the caller supplies its current city or coordinates/timezone on each request; method preferences still follow the user. Switching to auto_travel preserves the saved fixed location for later reuse; clearFixedLocation:true removes the saved city, coordinates and timezone and defaults to auto_travel, preserving other preferences. Clear cannot be combined with a replacement location/timezone or incomplete fixed mode. Fixed city configurations store their canonical city timezone; contradictory supplied timezones are rejected before saving. New preferences inherit geographic/service defaults. exact_window defaults to the saved duration, or the service default of 20 minutes when unset (operators may override it). Omitting the duration does not reset an existing value. Status calls with userId can write expiring deduplication markers; persistent mode bypasses deduplication, and enabled:false suppresses reminders. For identified users, prayer_window and exact_window emit once per prayer/date/mode; changing locale or disabling/re-enabling does not reset the marker. Anonymous calls have no persistent deduplication. expiresAtUtc is the legacy prayer period end; prayerWindowExpiresAtUtc names that same boundary, while reminderWindowExpiresAtUtc is the exact eligibility end capped by the prayer period. Expiry fields appear when a reminder is emitted. KV deduplication and partial preference updates are best effort across regions.
@@ -61,7 +65,7 @@ Output
 | `selectionReason` | string | optional | Reason for authority selection |
 | `highLatitudeAdjustment` | object | optional |  |
 | `calculationDetails` | object | optional |  |
-| `authorityNotice` | object | optional | Mandatory theological transparency notice |
+| `authorityNotice` | object | optional | Mandatory theological transparency notice; detailed provenance is at top level |
 | `reminderText` | string | optional | Localized reminder message |
 
 ### get_today_prayer_times

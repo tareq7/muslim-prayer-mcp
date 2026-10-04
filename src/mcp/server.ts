@@ -24,6 +24,7 @@ import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, 
 import { LocationTimezoneMismatchError } from '../location/timezone.ts';
 import { PrayerStorage, InvalidPreferencesError } from '../storage/kv-store.ts';
 import type { ReminderMode, Locale } from '../engine/types.ts';
+import { publicPrayerStatus } from './status-response.ts';
 
 async function prayerResult(operation: () => Promise<CallToolResult>): Promise<CallToolResult> {
   try {
@@ -112,14 +113,14 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
             await storage.recordDedupeSent(status.dedupeKey, ttl);
           }
 
-          const { dedupeKey, locationSource, ...cleanStatus } = status;
+          const cleanStatus = publicPrayerStatus(status);
 
           return {
             structuredContent: cleanStatus,
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(cleanStatus, null, 2),
+                text: JSON.stringify(cleanStatus),
               },
             ],
           };
