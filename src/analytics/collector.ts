@@ -62,11 +62,11 @@ const RPC_ERRORS = new Map([[-32602, 'invalid_params'], [-32601, 'method_not_fou
 
 const HTTP_ERRORS = new Map([[406, 'not_acceptable'], [415, 'unsupported_media']]);
 
-function outcome(responseBody: unknown, id: unknown, httpStatus: number): { status: 'ok' | 'error'; errorCode: string | null; authority: string | null; methodSource: string | null } {
+function outcome(responseBody: unknown, id: unknown, httpStatus: number, incomplete = false): { status: 'ok' | 'error'; errorCode: string | null; authority: string | null; methodSource: string | null } {
   if (httpStatus >= 400) return { status: 'error', errorCode: HTTP_ERRORS.get(httpStatus) ?? 'http_error', authority: null, methodSource: null };
   const items = Array.isArray(responseBody) ? responseBody : [responseBody];
   const res = items.find(r => isRec(r) && r.id === id);
-  if (!isRec(res)) return { status: 'error', errorCode: 'transport_error', authority: null, methodSource: null };
+  if (!isRec(res)) return { status: 'error', errorCode: incomplete ? 'observation_incomplete' : 'transport_error', authority: null, methodSource: null };
   if (isRec(res.error)) return { status: 'error', errorCode: RPC_ERRORS.get(Number(res.error.code)) ?? 'tool_error', authority: null, methodSource: null };
   const result = isRec(res.result) ? res.result : {};
   const sc = isRec(result.structuredContent) ? result.structuredContent : {};
@@ -86,6 +86,73 @@ function outcome(responseBody: unknown, id: unknown, httpStatus: number): { stat
   };
 }
 
+const RESPONSE_BYTE_LIMIT = 524_288;
+const RESPONSE_READ_TIMEOUT_MS = 2_000;
+
+// Observe only a bounded prefix of the cloned body. SSE may remain open after
+// its RPC response, so finish as soon as all tracked request IDs are resolved.
+async function readResponse(response: Response, pending: Pending[]): Promise<{ replies: Rec[]; incomplete: boolean }> {
+  const reader = response.clone().body?.getReader();
+  if (!reader) return { replies: [], incomplete: false };
+  const decoder = new TextDecoder();
+  const sse = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase() === 'text/event-stream';
+  const replies: Rec[] = [];
+  let buffer = '', bytes = 0, line = '', skipLF = false;
+  let dataLines: string[] = [];
+  const timeoutError = new Error('Analytics response observation timed out');
+  let timer: ReturnType<typeof setTimeout>;
+  const expired = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(timeoutError), RESPONSE_READ_TIMEOUT_MS);
+  });
+  const add = (value: unknown) => {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (isRec(item) && ('result' in item || 'error' in item) && pending.some(p => p.id === item.id)
+        && !replies.some(r => r.id === item.id)) replies.push(item);
+    }
+  };
+  const finishLine = () => {
+    if (!line) {
+      if (dataLines.length) {
+        try { add(JSON.parse(dataLines.join('\n'))); } catch { /* Skip malformed events, not later valid replies. */ }
+      }
+      dataLines = [];
+    } else if (line.startsWith('data:')) dataLines.push(line.slice(5).replace(/^ /, ''));
+    line = '';
+  };
+  const parseFrames = (text: string) => {
+    for (const char of text) {
+      if (skipLF) { skipLF = false; if (char === '\n') continue; }
+      if (char === '\r') { finishLine(); skipLF = true; }
+      else if (char === '\n') finishLine();
+      else line += char;
+    }
+  };
+  try {
+    while (true) {
+      const { value, done } = await Promise.race([reader.read(), expired]);
+      if (done) {
+        const tail = decoder.decode();
+        if (sse) parseFrames(tail);
+        else add(JSON.parse(buffer + tail));
+        return { replies, incomplete: false };
+      }
+      bytes += value.byteLength;
+      if (bytes > RESPONSE_BYTE_LIMIT) return { replies, incomplete: true };
+      const text = decoder.decode(value, { stream: true });
+      if (sse) {
+        parseFrames(text);
+        if (pending.every(p => replies.some(r => r.id === p.id))) return { replies, incomplete: false };
+      } else buffer += text;
+    }
+  } catch (error) { return { replies, incomplete: error === timeoutError }; }
+  finally {
+    clearTimeout(timer!);
+    // A tee branch's cancel promise can await the consumer of the other branch.
+    // Do not block analytics or the live response waiting for that consumer.
+    void reader.cancel().catch(() => {});
+  }
+}
+
 export interface CollectInput {
   requestText: string;
   request: Request & { cf?: { country?: string } };
@@ -99,13 +166,7 @@ export async function collectEvents({ requestText, request, response, startedAt 
   const pending = parseRequest(body);
   if (!pending.length) return [];
   const latencyMs = Math.max(0, Date.now() - startedAt);
-  let responseBody: unknown = null;
-  try {
-    const text = await response.clone().text();
-    if (text.length <= 524_288) responseBody = text.trimStart().startsWith('event:') || text.includes('\ndata:')
-      ? JSON.parse(text.split('\n').filter(l => l.startsWith('data:')).map(l => l.slice(5)).pop() ?? 'null')
-      : JSON.parse(text);
-  } catch { responseBody = null; }
+  const responseBody = await readResponse(response, pending);
 
   await refreshEgress(fetch);
   const verified = isOpenAIEgress(request.headers.get('CF-Connecting-IP')) ? 1 : 0;
@@ -121,7 +182,7 @@ export async function collectEvents({ requestText, request, response, startedAt 
     const country = locCountry ?? (client === 'ChatGPT' || client === 'Claude' ? null : cfCountry?.toUpperCase() ?? null);
     const locale = typeof m['openai/locale'] === 'string' ? m['openai/locale'].split(/[-_]/)[0]?.toLowerCase() ?? null : null;
     const local = localParts(loc.timezone, Date.now());
-    const result = outcome(responseBody, p.id, response.status);
+    const result = outcome(responseBody.replies, p.id, response.status, responseBody.incomplete);
     const subject = typeof m['openai/subject'] === 'string' && m['openai/subject'].length <= 2048 ? m['openai/subject'] : null;
     const session = typeof m['openai/session'] === 'string' && m['openai/session'].length <= 2048 ? m['openai/session'] : null;
     events.push({

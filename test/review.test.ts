@@ -221,8 +221,8 @@ describe('Review regressions', () => {
     const kv = new MemoryKV();
     kv.put = async () => { throw new Error('private backend details'); };
     const response = await save({ PRAYER_KV: kv }, { userId: 'failure-user', locale: 'ar' });
-    assert.equal(response.status, 500);
-    assert.ok(!(await response.text()).includes('private backend'));
+    assert.equal(response.status, 503);
+    assert.deepEqual(await response.json(), { code: 'storage_unavailable', error: 'Prayer storage is unavailable' });
   });
 
   it('allows browser deletion and MCP protocol headers in preflight', async () => {

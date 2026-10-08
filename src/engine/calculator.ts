@@ -309,7 +309,6 @@ export interface CalculationDefaults {
 export function isPalestineLocation(loc: LocationSignals): boolean {
   // Legacy API name: matches a configured regional profile, not a jurisdiction boundary.
   if (loc.country) return ['PS', 'IL'].includes(loc.country.toUpperCase());
-  if (loc.country === 'PS' || loc.country === 'IL') return true;
   if (
     loc.timezone === 'Asia/Gaza' ||
     loc.timezone === 'Asia/Hebron' ||

@@ -144,7 +144,7 @@ export interface PrayerStatusResult {
   expiresAtUtc?: string;
   prayerWindowExpiresAtUtc?: string;
   reminderWindowExpiresAtUtc?: string;
-  nextPrayer: PrayerName;
+  nextPrayer: ObligatoryPrayerName;
   nextPrayerAtUtc: string;
   timezone: string;
   calculationMethod: CalculationMethodName;

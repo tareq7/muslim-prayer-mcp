@@ -1,12 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { runInNewContext } from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.ts';
 import { MemoryKV } from '../src/storage/kv-store.ts';
 import { AnalyticsDO } from '../src/analytics/durable-object.ts';
 import { buildReport, migrate, recordEvents, validateEvent, parseReportQuery, DAY, type AnalyticsEvent, type SqlLike } from '../src/analytics/store.ts';
 import { compileRanges, isOpenAIEgress } from '../src/analytics/openai-egress.ts';
-import { classifyClient, hashId, localParts } from '../src/analytics/collector.ts';
+import { classifyClient, hashId, localParts, collectEvents } from '../src/analytics/collector.ts';
 
 const OPENAI_IP = '104.192.219.205';
 
@@ -311,5 +312,140 @@ describe('Analytics dashboard routes', () => {
     assert.equal(body.legacy.totalCalls, 407);
     assert.equal(body.tz, 180);
     assert.ok(!JSON.stringify(body).includes('live-user'));
+  });
+});
+
+
+describe('Analytics response observation', () => {
+  const rpcRequest = [{ jsonrpc: '2.0', id: 1, method: 'tools/list' }, { jsonrpc: '2.0', id: 'two', method: 'tools/list' }];
+  const observe = (response: Response, body: unknown = rpcRequest) => collectEvents({
+    requestText: JSON.stringify(body), request: new Request('https://t.invalid/mcp'), response, startedAt: Date.now(),
+  });
+
+  it('correlates all SSE replies across split CRLF and multiline frames, skipping notifications and malformed events', async () => {
+    const text = ': keepalive\r\n\r\ndata: invalid\r\n\r\n'
+      + 'data: {"jsonrpc":"2.0","method":"notifications/progress"}\r\n\r\n'
+      + 'event: message\r\ndata: {"jsonrpc":"2.0",\r\ndata: "id":"two","error":{"code":-32602}}\r\n\r\n'
+      + 'data: {"jsonrpc":"2.0","id":1,"result":{}}\r\n\r\n';
+    const encoded = new TextEncoder().encode(text);
+    let offset = 0;
+    const response = new Response(new ReadableStream({ pull(controller) {
+      if (offset >= encoded.length) return; // The transport stays open after the replies.
+      controller.enqueue(encoded.slice(offset, offset += 7));
+    } }), { headers: { 'Content-Type': 'text/event-stream' } });
+    const events = await observe(response);
+    assert.deepEqual(events.map(e => [e.status, e.errorCode]), [['ok', null], ['error', 'invalid_params']]);
+    assert.equal(response.bodyUsed, false);
+    await response.body?.cancel();
+  });
+
+  it('accepts bare CR frame separators and case-insensitive SSE media types', async () => {
+    const events = await observe(new Response('data: {"jsonrpc":"2.0","id":1,"result":{}}\r\r',
+      { headers: { 'Content-Type': 'Text/Event-Stream; charset=utf-8' } }), rpcRequest[0]);
+    assert.equal(events[0].status, 'ok');
+  });
+
+  it('keeps malformed completed JSON classified as a transport error', async () => {
+    const events = await observe(new Response('{invalid', { headers: { 'Content-Type': 'application/json' } }), rpcRequest[0]);
+    assert.equal(events[0].errorCode, 'transport_error');
+  });
+
+  it('does not treat an unterminated SSE frame as a completed response', async () => {
+    const events = await observe(new Response('data: {"jsonrpc":"2.0","id":1,"result":{}}',
+      { headers: { 'Content-Type': 'text/event-stream' } }), rpcRequest[0]);
+    assert.equal(events[0].errorCode, 'transport_error');
+  });
+
+  it('marks a valid oversized response observation incomplete without consuming the live response', async () => {
+    let pulls = 0, offset = 0;
+    const json = JSON.stringify({ jsonrpc: '2.0', id: 1, result: { padding: 'x'.repeat(3_000_000) } });
+    const bytes = new TextEncoder().encode(json);
+    const response = new Response(new ReadableStream({ pull(controller) {
+      pulls++;
+      if (offset >= bytes.length) { controller.close(); return; }
+      controller.enqueue(bytes.slice(offset, offset += 100_000));
+    } }), { headers: { 'Content-Type': 'application/json' } });
+    const events = await observe(response, rpcRequest[0]);
+    assert.equal(events[0].errorCode, 'observation_incomplete');
+    assert.ok(pulls < 10, 'The observer must stop before consuming the oversized response');
+    assert.equal(response.bodyUsed, false);
+    const live = await response.json() as any;
+    assert.equal(live.id, 1);
+    assert.equal(live.result.padding.length, 3_000_000);
+  });
+
+  it('marks a delayed valid SSE reply as an incomplete observation and preserves its live result', async () => {
+    const response = new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode(': connected\n\n'));
+      setTimeout(() => {
+        controller.enqueue(new TextEncoder().encode('data: {"jsonrpc":"2.0","id":1,"result":{}}\n\n'));
+        controller.close();
+      }, 2300);
+    } }), { headers: { 'Content-Type': 'text/event-stream' } });
+    const events = await observe(response, rpcRequest[0]);
+    assert.equal(events[0].errorCode, 'observation_incomplete');
+    assert.equal(response.bodyUsed, false);
+    assert.match(await response.text(), /"id":1,"result":\{\}/);
+  });
+
+});
+
+describe('Analytics selected-period consistency', () => {
+  it('excludes old and future rows from period sections and future rows from rolling activity and retention', () => {
+    const now = Date.UTC(2026, 9, 3, 12);
+    const { sql } = makeSql();
+    migrate(sql);
+    recordEvents(sql, [
+      ev({ ts: now - 40 * DAY, uid: 'a'.repeat(16) }),
+      ev({ ts: now - 1000, uid: 'b'.repeat(16) }),
+      ev({ ts: now + 60_000, uid: 'c'.repeat(16), status: 'error', errorCode: 'invalid_params', latencyMs: 9000, country: 'US' }),
+      ev({ ts: now + 60_000, uid: 'a'.repeat(16), kind: 'initialize' }),
+      ev({ ts: now + 60_000, kind: 'list' }),
+      ev({ ts: now + 60_000, uid: 'a'.repeat(16) }),
+    ], now);
+    for (const segment of ['all', 'verified'] as const) {
+      const r = buildReport(sql, { range: 7, tz: 180, segment }, now);
+      assert.equal(r.kpis.current.calls, 1);
+      assert.equal(r.kpis.current.newUsers, 1);
+      assert.equal(r.daily.reduce((sum, day) => sum + day.calls, 0), 1);
+      assert.equal(r.daily.reduce((sum, day) => sum + day.newUsers, 0), 1);
+      assert.equal(r.tools.reduce((sum, tool) => sum + tool.calls, 0), 1);
+      assert.equal(Object.values(r.toolDaily.series).flat().reduce((sum, n) => sum + n, 0), 1);
+      assert.equal(r.countries.items.reduce((sum, c) => sum + c.calls, 0), 1);
+      assert.equal(r.kpis.latency.samples, 1);
+      assert.equal(r.kpis.latency.p95, 12);
+      assert.equal(r.kpis.dau, 1);
+      assert.equal(r.kpis.wau, 1);
+      assert.equal(r.kpis.mau, 1);
+      assert.equal(r.heatmap.cells.flat().reduce((sum, n) => sum + n, 0), 1);
+      assert.equal(r.depth.reduce((sum, d) => sum + d.users, 0), 1);
+      assert.equal(r.errors.length, 0);
+      assert.equal(r.handshakes.initialize.length, 0);
+      assert.equal(r.handshakes.list, 0);
+      assert.equal(r.topUsers.length, 1);
+      assert.equal(r.recent.length, 1);
+      assert.equal(r.retention[0].retained, 0);
+      assert.equal(r.cohorts.reduce((sum, c) => sum + c.size, 0), 2);
+    }
+  });
+});
+
+describe('Analytics dashboard request ordering', () => {
+  for (const staleError of [false, true]) it('ignores a stale ' + (staleError ? 'error' : 'success') + ' after a newer selection resolves', async () => {
+    const js = await (await worker.fetch(new Request('https://t.invalid/analytics/app.js'), {} as never)).text();
+    // Execute the shipped request controller without requiring the chart/DOM renderer.
+    const source = js.slice(js.indexOf('  function load() {'), js.indexOf('  function schedule() {'));
+    const requests: { resolve: (v: unknown) => void; reject: (e: Error) => void }[] = [];
+    const state = { range: 30, segment: 'all', requestId: 0, data: null as unknown };
+    let renders = 0;
+    const context = { state, render: () => renders++, fetch: () => new Promise((resolve, reject) => requests.push({ resolve, reject })) };
+    runInNewContext(source + '\nload(); state.range = 7; load();', context);
+    requests[1].resolve({ ok: true, status: 200, json: async () => ({ range: 7 }) });
+    await new Promise(resolve => setImmediate(resolve));
+    if (staleError) requests[0].reject(new Error('old failure'));
+    else requests[0].resolve({ ok: true, status: 200, json: async () => ({ range: 30 }) });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(state.data, { range: 7 });
+    assert.equal(renders, 1);
   });
 });

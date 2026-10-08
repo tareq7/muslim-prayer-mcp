@@ -61,6 +61,15 @@ export class InvalidPreferencesError extends Error {
   readonly code = 'invalid_preferences';
 }
 
+export class StorageUnavailableError extends Error {
+  readonly code = 'storage_unavailable';
+
+  constructor() {
+    super('Prayer storage is unavailable');
+    this.name = 'StorageUnavailableError';
+  }
+}
+
 export class PrayerStorage {
   private kv: KVNamespaceLike;
 
@@ -94,7 +103,7 @@ export class PrayerStorage {
     try {
       return await operation();
     } catch {
-      throw new Error('Prayer storage is unavailable');
+      throw new StorageUnavailableError();
     }
   }
 
@@ -217,9 +226,9 @@ export class PrayerStorage {
 
   async saveCachedSchedule(userId: string, localDate: string, schedule: PrayerSchedule): Promise<void> {
     // Cache for 24 hours (86400s)
-    await this.kv.put(`sched:${userId}:${localDate}`, JSON.stringify(schedule), {
+    await this.backend(() => this.kv.put(`sched:${userId}:${localDate}`, JSON.stringify(schedule), {
       expirationTtl: 86400,
-    });
+    }));
   }
 
   async isDedupeSent(dedupeKey: string): Promise<boolean> {
@@ -237,6 +246,6 @@ export class PrayerStorage {
   }
 
   async clearDedupe(dedupeKey: string): Promise<void> {
-    await this.kv.delete(`dedupe:${dedupeKey}`);
+    await this.backend(() => this.kv.delete(`dedupe:${dedupeKey}`));
   }
 }

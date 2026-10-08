@@ -103,7 +103,7 @@ export const DASHBOARD_JS = String.raw`
   var C = { em: 'hsl(158,70%,48%)', em2: 'hsl(168,76%,36%)', gold: 'hsl(43,92%,62%)', red: 'hsl(0,78%,66%)', blue: 'hsl(205,85%,66%)', vio: 'hsl(262,80%,74%)', mut: 'hsl(165,12%,63%)', line: 'hsl(172,24%,19%)' };
   var PALETTE = [C.em, C.gold, C.blue, C.vio, C.red, 'hsl(18,90%,62%)', 'hsl(190,70%,55%)', C.mut];
   var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  var state = { range: 30, segment: 'all', auto: false, data: null, timer: null, charts: {} };
+  var state = { range: 30, segment: 'all', auto: false, data: null, timer: null, charts: {}, requestId: 0 };
   var root = document.getElementById('app');
   var nf = new Intl.NumberFormat('en-US');
   var regionNames, langNames;
@@ -381,12 +381,13 @@ export const DASHBOARD_JS = String.raw`
   function mount(node) { root.replaceChildren(node); }
 
   function load() {
+    var requestId = ++state.requestId;
     var tz = -new Date().getTimezoneOffset();
     var url = '/api/analytics?range=' + state.range + '&segment=' + state.segment + '&tz=' + tz;
     fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { if (r.status === 401) throw new Error('Not authorized. Reload the page and sign in with your analytics token as the password.'); if (!r.ok) throw new Error('Analytics request failed (HTTP ' + r.status + ').'); return r.json(); })
-      .then(function (data) { state.data = data; render(); })
-      .catch(function (e) { state.data = { error: e.message }; render(); });
+      .then(function (data) { if (requestId !== state.requestId) return; state.data = data; render(); })
+      .catch(function (e) { if (requestId !== state.requestId) return; state.data = { error: e.message }; render(); });
   }
   function schedule() {
     if (state.timer) { clearInterval(state.timer); state.timer = null; }

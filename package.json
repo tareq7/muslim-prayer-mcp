@@ -43,16 +43,19 @@
     "LICENSE",
     "tsconfig.build.json",
     "skills",
-    "scripts/generate-skill.mjs"
+    "scripts/generate-skill.mjs",
+    "scripts/skill-zip.mjs",
+    "assets/muslim-prayer-skill.zip"
   ],
   "type": "module",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
-    "test": "node --experimental-strip-types --test test/calculator.test.ts test/reminder.test.ts test/location.test.ts test/mcp.test.ts test/e2e.test.ts test/review.test.ts test/analytics.test.ts test/remaining.test.ts",
+    "test": "node --experimental-strip-types --test test/analytics.test.ts test/calculator.test.ts test/e2e.test.ts test/location.test.ts test/mcp.test.ts test/remaining.test.ts test/reminder.test.ts test/rest-overrides.test.ts test/review-fixes.test.ts test/review.test.ts",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "prepack": "npm run build",
     "docs:generate": "node --experimental-strip-types scripts/generate-skill.mjs",
-    "docs:check": "node --experimental-strip-types scripts/generate-skill.mjs --check"
+    "docs:check": "node --experimental-strip-types scripts/generate-skill.mjs --check",
+    "test:package": "node scripts/check-package.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -72,5 +75,19 @@
     "fast-uri": "^3.1.8",
     "hono": "^4.13.12",
     "ip-address": "^10.7.2"
+  },
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./middleware": {
+      "types": "./dist/middleware/host-connector.d.ts",
+      "import": "./dist/middleware/host-connector.js",
+      "default": "./dist/middleware/host-connector.js"
+    },
+    "./*": "./*"
   }
 }

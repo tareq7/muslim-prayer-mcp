@@ -133,7 +133,7 @@ export const HighLatitudeAdjustmentSchema = z.object({
 });
 export const CalculationDetailsSchema = z.object({
   expectedTimezone: z.string().optional().describe('Timezone from city registry or approximate coordinate lookup'),
-  timezoneValidation: z.enum(['coordinate_lookup','nearby_boundary','city_registry','polar_choice','ocean_choice']).optional().describe('Validation basis; ocean and mathematical-pole locations retain caller-selected civil timezone with explicit disclosure'),
+  timezoneValidation: z.enum(['coordinate_lookup','nearby_boundary','city_registry','polar_choice','ocean_choice']).optional().describe('Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure'),
   timezoneSource: z.enum(['explicit_override','stored_preference','city_default','host_header']).optional().describe('Source of the validated timezone or disclosed ocean/pole choice'),
   locationBasis: z.enum(['explicit_coordinates','explicit_city','stored_fixed_coordinates','stored_fixed_city','host_coordinates','host_city','network_geolocation','default_location']).optional(),
   locationIsApproximate: z.boolean().optional(), fallbackLocationUsed: z.boolean().optional(),
@@ -182,7 +182,7 @@ export const PrayerStatusOutputSchema = z.object({
   selectionReason: z.string().optional().describe('Reason for authority selection'),
   highLatitudeAdjustment: HighLatitudeAdjustmentSchema.optional(),
   calculationDetails: CalculationDetailsSchema.optional(),
-  authorityNotice: StatusAuthorityNoticeSchema.optional().describe('Mandatory theological transparency notice; detailed provenance is at top level'),
+  authorityNotice: StatusAuthorityNoticeSchema.describe('Mandatory theological transparency notice; detailed provenance is at top level'),
   reminderText: z.string().optional().describe('Localized reminder message'),
 });
 

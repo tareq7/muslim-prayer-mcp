@@ -1,6 +1,6 @@
 import { createPrayerMcpServer } from './mcp/server.ts';
 import { publicPrayerStatus } from './mcp/status-response.ts';
-import { PrayerStorage, InvalidPreferencesError, type KVNamespaceLike } from './storage/kv-store.ts';
+import { PrayerStorage, InvalidPreferencesError, StorageUnavailableError, type KVNamespaceLike } from './storage/kv-store.ts';
 import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferences, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
 import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, type ResolveLocationParams } from './location/resolver.ts';
 import { LocationTimezoneMismatchError } from './location/timezone.ts';
@@ -122,6 +122,8 @@ function parseCalculationQuery(url: URL) {
     city: url.searchParams.get('city') ?? undefined,
     latitude: coordinate('lat'), longitude: coordinate('lng'),
     timezone: url.searchParams.get('timezone') ?? undefined,
+    calculationMethod: url.searchParams.get('calculationMethod') ?? undefined,
+    madhab: url.searchParams.get('madhab') ?? undefined,
   });
 }
 
@@ -322,7 +324,7 @@ export default {
       if (url.pathname === '/api/status' && request.method === 'GET') {
         const input = parseCalculationQuery(url);
         if (!input.success) return jsonResponse({ error: 'Invalid calculation parameters' }, 400);
-        const { userId, latitude, longitude, timezone, city } = input.data;
+        const { userId, latitude, longitude, timezone, city, calculationMethod, madhab } = input.data;
 
         return await storage.withUserLock(userId, async () => {
           const userPrefs = userId ? await storage.getUserPreferences(userId) : null;
@@ -338,7 +340,7 @@ export default {
             cf: requestCf,
           });
 
-          const params = resolveCalculationParameters(location, userPrefs);
+          const params = resolveCalculationParameters(location, userPrefs, calculationMethod, madhab);
           const defaults = getReminderDefaults(env);
           const reminderMode = userPrefs?.reminderMode ?? defaults.reminderMode;
           const exactWindowMinutes = userPrefs?.exactWindowMinutes ?? defaults.exactWindowMinutes;
@@ -376,7 +378,7 @@ export default {
       if (url.pathname === '/api/timetable' && request.method === 'GET') {
         const input = parseCalculationQuery(url);
         if (!input.success) return jsonResponse({ error: 'Invalid calculation parameters' }, 400);
-        const { userId, date, latitude, longitude, timezone, city } = input.data;
+        const { userId, date, latitude, longitude, timezone, city, calculationMethod, madhab } = input.data;
         const userPrefs = userId ? await storage.getUserPreferences(userId) : null;
 
         const location = resolveUserLocation({
@@ -390,7 +392,7 @@ export default {
         });
 
         const targetDate = date ?? new Date();
-        const params = resolveCalculationParameters(location, userPrefs);
+        const params = resolveCalculationParameters(location, userPrefs, calculationMethod, madhab);
 
         const schedule = calculateDailySchedule({
           latitude: location.latitude,
@@ -470,6 +472,7 @@ export default {
 
       return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.2' }, 404);
     } catch (error) {
+      if (error instanceof StorageUnavailableError) return jsonResponse({ code: error.code, error: error.message }, 503);
       if (error instanceof LocationTimezoneMismatchError) return jsonResponse({ code: error.code, error: error.message, expectedTimezone: error.expectedTimezone, timezoneMismatchDetected: true }, 400);
       if (error instanceof LocationRequiredError || error instanceof InvalidCalculationError || error instanceof InvalidPreferencesError || error instanceof InvalidLocationInputError) return jsonResponse({ code: error.code, error: error.message }, 400);
       return jsonResponse({ error: 'Internal server error' }, 500);

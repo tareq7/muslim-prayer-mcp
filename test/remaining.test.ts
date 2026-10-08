@@ -28,6 +28,8 @@ describe('Remaining issue regressions', () => {
     assert.equal(status.inputSchema.dependentRequired, undefined);
     assert.equal(status.inputSchema.properties.city.type, 'string');
     assert.equal(status.outputSchema.properties.reminderDue.type, 'boolean');
+    assert.ok(status.outputSchema.required.includes('authorityNotice'));
+    assert.equal(PrayerStatusOutputSchema.safeParse({ reminderDue: false }).success, false);
     assert.equal(status.outputSchema.properties.nextPrayerCalculation.properties.usesCurrentCalculation.type, 'boolean');
   });
   it('compacts status provenance while preserving parsed fallback and REST parity', async (t) => {

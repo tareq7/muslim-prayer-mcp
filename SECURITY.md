@@ -6,12 +6,12 @@ We take the security of **Muslim Prayer Reminder MCP** and user privacy with ext
 
 ## Supported Versions
 
-Only the latest release receive active security patches. We strongly advise all integrators and hosts to use the latest version or bind to the managed Cloudflare Workers endpoint.
+Only the latest release receives active security patches. We strongly advise all integrators and hosts to use the latest version or bind to the managed Cloudflare Workers endpoint.
 
 | Version | Supported | Security Maintenance |
 | :--- | :--- | :--- |
-| **1.0.x** | :white_check_mark: | Active security updates and patch releases |
-| **< 1.0.0** | :x: | Deprecated / End of Life |
+| **1.1.2 (latest)** | :white_check_mark: | Active security updates and patch releases |
+| **Earlier versions** | :x: | Deprecated / End of Life |
 
 ---
 
@@ -20,8 +20,7 @@ Only the latest release receive active security patches. We strongly advise all 
 If you discover an actual or potential security vulnerability, please report it privately via GitHub:
 
 * **Private Vulnerability Reporting**: [Submit via GitHub Security Advisory](https://github.com/tareq7/muslim-prayer-mcp/security/advisories/new)
-* **Direct Email Contact**: 
-ajetareqz@gmail.com (Subject: [SECURITY] muslim-prayer-mcp Vulnerability Report)
+* **Direct Email Contact**: najetareqz@gmail.com (Subject: [SECURITY] muslim-prayer-mcp Vulnerability Report)
 
 **Please do NOT disclose vulnerabilities in public GitHub issues, discussions, or pull requests until they have been reviewed and remediated.**
 
