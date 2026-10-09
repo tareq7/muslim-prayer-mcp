@@ -312,7 +312,8 @@ describe('Remaining issue regressions', () => {
   });
   it('rejects offsets that reverse prayer windows rather than returning an invalid timetable', async () => {
     const kv = new MemoryKV();
-    await new PrayerStorage(kv).saveUserPreferences({ userId: 'reversed', locationMode: 'fixed', fixedCity: 'Makkah', minuteAdjustments: { fajr: 60, sunrise: -60 } });
+    // Seed an invalid legacy record directly; preference writes now reject it.
+    await kv.put('pref:reversed', JSON.stringify({ userId: 'reversed', locationMode: 'fixed', fixedCity: 'Makkah', minuteAdjustments: { fajr: 60, sunrise: -60 } }));
     const result = await rpc('get_today_prayer_times', { userId: 'reversed', date: '2026-09-03' }, kv);
     assert.equal(result.isError, true);
     assert.equal(result.structuredContent.code, 'invalid_calculation');

@@ -291,7 +291,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
     {
       title: 'Configure User Prayer Preferences',
       description:
-        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and stores the canonical city timezone; contradictory timezones are rejected; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Fixed mode requires a supported fixedCity or fixedCoordinates with timezone; new coordinates require timezone in the same request. clearFixedLocation removes saved location and timezone and defaults to auto_travel. Previous values are not retained for undo.',
+        'Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and stores the canonical city timezone; contradictory timezones are rejected; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Fixed mode requires a supported fixedCity or fixedCoordinates with timezone; new coordinates require timezone in the same request. clearFixedLocation removes saved location and timezone and defaults to auto_travel. Combined fixed-location calculation settings are validated for the current and next local day before saving. Invalid combinations preserve the previous preferences. Auto-travel chronology is checked when a query supplies its location. Previous values are not retained for undo.',
       inputSchema: ConfigurePrayerPreferencesInputSchema,
       outputSchema: ConfigurePrayerPreferencesOutputSchema.shape,
       annotations: {

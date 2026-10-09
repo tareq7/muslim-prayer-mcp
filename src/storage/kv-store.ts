@@ -1,7 +1,8 @@
 import type { PrayerSchedule, UserPreferences } from '../engine/types.ts';
 import { StoredUserPreferencesSchema } from '../mcp/schemas.ts';
-import { sanitizeCoordinate, getKnownCity } from '../location/resolver.ts';
+import { sanitizeCoordinate, getKnownCity, resolveUserLocation } from '../location/resolver.ts';
 import { validateCityTimezone, validateCoordinateTimezone } from '../location/timezone.ts';
+import { addDaysToCalendarDate, calculateDailySchedule, getLocalDateString, resolveCalculationParameters } from '../engine/calculator.ts';
 
 export interface KVNamespaceLike {
   get(key: string, type?: 'text' | 'json'): Promise<any>;
@@ -156,7 +157,22 @@ export class PrayerStorage {
     if (validated.locationMode === 'fixed' && (validated.fixedCoordinates ? !validated.timezone : !validated.fixedCity)) {
       throw new InvalidPreferencesError('Fixed mode requires a supported fixedCity or fixedCoordinates with timezone. No preferences were saved.');
     }
-    await this.backend(() => this.kv.put(`pref:${prefs.userId}`, JSON.stringify(this.sanitizePreferences(validated))));
+    const sanitized = this.sanitizePreferences(validated);
+    this.validatePreferenceCalculation(sanitized);
+    await this.backend(() => this.kv.put(`pref:${prefs.userId}`, JSON.stringify(sanitized)));
+  }
+
+  private validatePreferenceCalculation(prefs: UserPreferences): void {
+    // Travel-mode requests resolve their location later from caller input. Do not
+    // invent a location to certify settings that have no saved calculation site.
+    if (prefs.locationMode !== 'fixed') return;
+    const location = resolveUserLocation({ userPrefs: prefs });
+    const params = resolveCalculationParameters(location, prefs);
+    const today = getLocalDateString(new Date(), location.timezone);
+    // Status calculations also use tomorrow's timetable after the last prayer.
+    for (const date of [today, addDaysToCalendarDate(today, 1)]) {
+      calculateDailySchedule({ ...location, ...params, date });
+    }
   }
 
   async updateUserPreferences(input: Partial<UserPreferences> & { userId: string; clearFixedLocation?: boolean }): Promise<UserPreferences> {
@@ -164,6 +180,9 @@ export class PrayerStorage {
       const previous = await this.getUserPreferences(input.userId);
       const validateLocation = !previous || input.fixedCity !== undefined || input.fixedCoordinates !== undefined ||
         input.timezone !== undefined || !!input.clearFixedLocation || input.locationMode === 'fixed';
+      const validateCalculation = validateLocation || input.locationMode !== undefined || input.enabled === true ||
+        input.calculationMethod !== undefined || input.madhab !== undefined ||
+        input.highLatitudeRule !== undefined || input.minuteAdjustments !== undefined;
       const existing = previous || {
         userId: input.userId,
         locationMode: 'auto_travel' as const,
@@ -200,6 +219,7 @@ export class PrayerStorage {
       if (validateLocation) {
         await this.saveUserPreferences(updated);
       } else {
+        if (validateCalculation) this.validatePreferenceCalculation(updated);
         // Preserve legacy location fields on unrelated edits (including disable).
         // New/activated locations and calculations still enforce timezone validation.
         await this.backend(() => this.kv.put(`pref:${updated.userId}`, JSON.stringify(updated)));
