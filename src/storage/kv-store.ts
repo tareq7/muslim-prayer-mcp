@@ -157,7 +157,7 @@ export class PrayerStorage {
     if (validated.locationMode === 'fixed' && (validated.fixedCoordinates ? !validated.timezone : !validated.fixedCity)) {
       throw new InvalidPreferencesError('Fixed mode requires a supported fixedCity or fixedCoordinates with timezone. No preferences were saved.');
     }
-    const sanitized = this.sanitizePreferences(validated);
+    const sanitized = this.normalizeLocation(this.sanitizePreferences(validated));
     this.validatePreferenceCalculation(sanitized);
     await this.backend(() => this.kv.put(`pref:${prefs.userId}`, JSON.stringify(sanitized)));
   }
@@ -212,10 +212,12 @@ export class PrayerStorage {
       } else if (input.fixedCoordinates !== undefined && input.fixedCity === undefined) {
         existing.fixedCity = undefined;
       }
-      const parsed = this.sanitizePreferences(StoredUserPreferencesSchema.parse({
+      const parsed = StoredUserPreferencesSchema.parse({
         ...existing, ...supplied, updatedAtUtc: new Date().toISOString(),
-      }));
-      const updated = validateLocation ? this.normalizeLocation(parsed) : parsed;
+      });
+      // Validate original input before rounding can turn a near-pole into an exact pole.
+      const normalized = validateLocation ? this.normalizeLocation(parsed) : parsed;
+      const updated = this.sanitizePreferences(normalized);
       if (validateLocation) {
         await this.saveUserPreferences(updated);
       } else {

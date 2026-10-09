@@ -136,3 +136,18 @@ describe('Preference timetable validation before persistence', () => {
     assert.equal(await kv.get('pref:tomorrow'), before);
   });
 });
+
+for (const transport of ['REST', 'MCP'] as const) {
+  it(`${transport} distinguishes exact poles from coordinates that round to a pole`, async (t) => {
+    t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-09T12:00:00Z') });
+    const kv = new MemoryKV();
+    for (const latitude of [89.999, -89.999]) {
+      const userId = `near-pole-${transport}-${latitude > 0 ? 'north' : 'south'}`;
+      const rejected = await configure(transport, { userId, locationMode: 'fixed', fixedCoordinates: { latitude, longitude: 0 }, timezone: 'Asia/Dubai' }, kv);
+      assert.equal(rejected.value.code, 'location_timezone_mismatch');
+      assert.equal(await kv.get(`pref:${userId}`), null);
+    }
+    const accepted = await configure(transport, { userId: `exact-pole-${transport}`, locationMode: 'fixed', fixedCoordinates: { latitude: 90, longitude: 0 }, timezone: 'Asia/Dubai' }, kv);
+    assert.equal(accepted.value.success, true);
+  });
+}
