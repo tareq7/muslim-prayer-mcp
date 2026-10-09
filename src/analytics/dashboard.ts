@@ -103,7 +103,7 @@ export const DASHBOARD_JS = String.raw`
   var C = { em: 'hsl(158,70%,48%)', em2: 'hsl(168,76%,36%)', gold: 'hsl(43,92%,62%)', red: 'hsl(0,78%,66%)', blue: 'hsl(205,85%,66%)', vio: 'hsl(262,80%,74%)', mut: 'hsl(165,12%,63%)', line: 'hsl(172,24%,19%)' };
   var PALETTE = [C.em, C.gold, C.blue, C.vio, C.red, 'hsl(18,90%,62%)', 'hsl(190,70%,55%)', C.mut];
   var DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  var state = { range: 30, segment: 'all', auto: false, data: null, timer: null, charts: {} };
+  var state = { range: 30, segment: 'all', auto: false, data: null, timer: null, charts: {}, requestId: 0 };
   var root = document.getElementById('app');
   var nf = new Intl.NumberFormat('en-US');
   var regionNames, langNames;
@@ -192,8 +192,9 @@ export const DASHBOARD_JS = String.raw`
     if (best.v) out.push(['Peak usage', DAYS[best.dow] + ' around ' + String(best.hr).padStart(2, '0') + ':00 ' + (d.heatmap.userLocalShare > 0.5 ? 'user-local time' : 'your time')]);
     var r1 = d.retention[0];
     if (r1 && r1.eligible) out.push(['Day-1 retention', pct(r1.rate, 0) + ' of ' + fmt(r1.eligible) + ' eligible users came back after a day']);
-    var tot = k.current.calls, er = tot ? k.current.errors / tot : 0;
-    out.push(['Reliability', tot ? (pct(1 - er) + ' of calls succeeded' + (d.errors[0] ? '; top error: ' + errName(d.errors[0].code) : '')) : 'No calls yet']);
+    var tot = k.current.calls - (k.current.incomplete || 0), er = k.current.errorRate;
+    out.push(['Reliability', tot ? (pct(1 - er) + ' of observed outcomes succeeded' + (d.errors[0] ? '; top error: ' + errName(d.errors[0].code) : '')) : 'No observed outcomes yet']);
+    if (k.current.incomplete) out.push(['Incomplete observations', fmt(k.current.incomplete) + ' calls have unknown outcomes; excluded from reliability rates']);
     if (k.current.users) out.push(['Loyalty', pct(k.current.returning / k.current.users, 0) + ' of active users are returning (' + fmt(k.current.returning) + ')']);
     if (d.countries.items[0]) out.push(['Top country', country(d.countries.items[0].key) + ' · ' + fmt(d.countries.items[0].users) + ' users']);
     return h('div', 'insights', null, out.map(function (i) { return h('div', 'ins', null, [h('b', null, i[0]), h('span', null, i[1])]); }));
@@ -236,8 +237,8 @@ export const DASHBOARD_JS = String.raw`
   }
 
   function exportCsv(d) {
-    var lines = ['date,calls,users,sessions,new_users,errors'];
-    d.daily.forEach(function (r) { lines.push([r.date, r.calls, r.users, r.sessions, r.newUsers, r.errors].join(',')); });
+    var lines = ['date,calls,users,sessions,new_users,errors,incomplete'];
+    d.daily.forEach(function (r) { lines.push([r.date, r.calls, r.users, r.sessions, r.newUsers, r.errors, r.incomplete].join(',')); });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
     a.download = 'prayer-mcp-analytics-' + d.range + 'd.csv';
@@ -280,8 +281,8 @@ export const DASHBOARD_JS = String.raw`
     if (d.enabled === false) { mount(wrap); return; }
 
     var k = d.kpis, c = k.current, p = k.previous;
-    var errRate = c.calls ? c.errors / c.calls : 0, prevErr = p.calls ? p.errors / p.calls : 0;
-    var errDelta = h('div', 'd'); errDelta.textContent = p.calls ? (errRate <= prevErr ? '▼ ' : '▲ ') + Math.abs((errRate - prevErr) * 100).toFixed(1) + ' pts vs prev' : 'no prior data'; errDelta.className = 'd ' + (p.calls ? (errRate <= prevErr ? 'up' : 'down') : '');
+    var errRate = c.errorRate, prevErr = p.errorRate;
+    var errDelta = h('div', 'd'); errDelta.textContent = errRate !== null && prevErr !== null ? (errRate <= prevErr ? '▼ ' : '▲ ') + Math.abs((errRate - prevErr) * 100).toFixed(1) + ' pts vs prev' : 'no prior data'; errDelta.className = 'd ' + (errRate !== null && prevErr !== null ? (errRate <= prevErr ? 'up' : 'down') : '');
     var cards = [
       ['Active users', fmt(c.users), delta(c.users, p.users), 'Unique pseudonymous ChatGPT users'],
       ['Tool calls', fmt(c.calls), delta(c.calls, p.calls), fmt(c.anonymous) + ' without a user ID'],
@@ -292,7 +293,7 @@ export const DASHBOARD_JS = String.raw`
       ['WAU · last 7d', fmt(k.wau), h('div', 'd', ''), 'Rolling 7 days'],
       ['MAU · last 30d', fmt(k.mau), h('div', 'd', ''), 'Rolling 30 days'],
       ['Stickiness', pct(k.stickiness, 0), h('div', 'd', 'DAU ÷ MAU'), '20%+ is healthy for utilities'],
-      ['Error rate', pct(errRate), errDelta, fmt(c.errors) + ' failed calls'],
+      ['Error rate', errRate === null ? '–' : pct(errRate), errDelta, fmt(c.errors) + ' failed · ' + fmt(c.incomplete) + ' unknown'],
       ['Calls per user', String(k.callsPerUser), h('div', 'd', ''), 'Identified users only'],
       ['Server time p95', k.latency.p95 === null ? '–' : k.latency.p95 + ' ms', h('div', 'd', k.latency.p50 === null ? '' : 'p50 ' + k.latency.p50 + ' ms'), 'I/O-inclusive; CPU time not shown']
     ];
@@ -329,7 +330,7 @@ export const DASHBOARD_JS = String.raw`
 
     panels.appendChild(panel('s6', 'Tool health', 'Calls, users, failures and average server time', table([
       { h: 'Tool', f: function (r) { return toolName(r.tool); } }, { h: 'Calls', n: 1, f: function (r) { return fmt(r.calls); } }, { h: 'Users', n: 1, f: function (r) { return fmt(r.users); } },
-      { h: 'Errors', n: 1, f: function (r) { return fmt(r.errors); } }, { h: 'Error %', n: 1, f: function (r) { return pct(r.calls ? r.errors / r.calls : 0); } }, { h: 'Avg ms', n: 1, f: function (r) { return r.avgMs === null ? '–' : fmt(r.avgMs); } }
+      { h: 'Errors', n: 1, f: function (r) { return fmt(r.errors); } }, { h: 'Unknown', n: 1, f: function (r) { return fmt(r.incomplete); } }, { h: 'Error %', n: 1, f: function (r) { return r.errorRate === null ? '–' : pct(r.errorRate); } }, { h: 'Avg ms', n: 1, f: function (r) { return r.avgMs === null ? '–' : fmt(r.avgMs); } }
     ], d.tools)));
     panels.appendChild(panel('s6', 'Errors', 'Failed calls by type. location_required means the model asked for a city first', table([
       { h: 'Tool', f: function (r) { return toolName(r.tool); } }, { h: 'Error', f: function (r) { return h('span', 'pill bad', errName(r.code)); } }, { h: 'Count', n: 1, f: function (r) { return fmt(r.n); } }
@@ -344,7 +345,7 @@ export const DASHBOARD_JS = String.raw`
       { h: 'Event', f: function (r) { return r.kind === 'tool' ? toolName(r.tool) : r.kind; } },
       { h: 'Client', f: function (r) { return r.client || '–'; } },
       { h: 'Where', f: function (r) { return r.country ? country(r.country) : '–'; } },
-      { h: 'Result', f: function (r) { return h('span', 'pill ' + (r.status === 'ok' ? 'ok' : 'bad'), r.status === 'ok' ? 'ok' : errName(r.code)); } },
+      { h: 'Result', f: function (r) { return h('span', 'pill ' + (r.status === 'error' ? 'bad' : r.status === 'ok' ? 'ok' : ''), r.status === 'unknown' ? 'unknown' : r.status === 'ok' ? 'ok' : errName(r.code)); } },
       { h: 'Src', f: function (r) { return r.verified ? h('span', 'pill gold', 'OpenAI') : h('span', 'pill', 'other'); } }
     ], d.recent)));
     wrap.appendChild(panels);
@@ -381,12 +382,13 @@ export const DASHBOARD_JS = String.raw`
   function mount(node) { root.replaceChildren(node); }
 
   function load() {
+    var requestId = ++state.requestId;
     var tz = -new Date().getTimezoneOffset();
     var url = '/api/analytics?range=' + state.range + '&segment=' + state.segment + '&tz=' + tz;
     fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
       .then(function (r) { if (r.status === 401) throw new Error('Not authorized. Reload the page and sign in with your analytics token as the password.'); if (!r.ok) throw new Error('Analytics request failed (HTTP ' + r.status + ').'); return r.json(); })
-      .then(function (data) { state.data = data; render(); })
-      .catch(function (e) { state.data = { error: e.message }; render(); });
+      .then(function (data) { if (requestId !== state.requestId) return; state.data = data; render(); })
+      .catch(function (e) { if (requestId !== state.requestId) return; state.data = { error: e.message }; render(); });
   }
   function schedule() {
     if (state.timer) { clearInterval(state.timer); state.timer = null; }

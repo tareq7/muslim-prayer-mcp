@@ -7,7 +7,6 @@ import type {
   MadhabName,
   MinuteAdjustments,
   ObligatoryPrayerName,
-  PrayerName,
   PrayerSchedule,
   PrayerStatusResult,
   ReminderMode,
@@ -98,7 +97,7 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
   let activePrayer: ObligatoryPrayerName | null = null;
   let activeStartMs: number = 0;
   let activeExpireMs: number = 0;
-  let nextPrayerName: PrayerName = 'Fajr';
+  let nextPrayerName: ObligatoryPrayerName = 'Fajr';
   let nextPrayerMs: number = fajrMs;
   let activeLocalDate: string = localDateStr;
   let activeSchedule: PrayerSchedule = todaySchedule;
@@ -133,8 +132,8 @@ export async function evaluatePrayerStatus(options: EvaluateStatusOptions): Prom
     activePrayer = 'Fajr';
     activeStartMs = fajrMs;
     activeExpireMs = sunriseMs;
-    nextPrayerName = 'Sunrise';
-    nextPrayerMs = sunriseMs;
+    nextPrayerName = 'Dhuhr';
+    nextPrayerMs = dhuhrMs;
   } else if (nowMs >= sunriseMs && nowMs < dhuhrMs) {
     // Post-sunrise before Dhuhr: no obligatory prayer due
     activePrayer = null;

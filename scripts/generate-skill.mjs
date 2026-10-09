@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import * as schemas from '../src/mcp/schemas.ts';
 import { MAJOR_CITIES, CITY_ALIASES } from '../src/location/resolver.ts';
+import { skillZip } from './skill-zip.mjs';
 
 const tools = [
   ['get_prayer_status', schemas.GetPrayerStatusInputSchema, schemas.PrayerStatusOutputSchema],
@@ -18,14 +19,23 @@ function typeOf(field) {
   if (field.anyOf) return field.anyOf.map(typeOf).join(' or ');
   return field.type === 'array' ? 'array of ' + typeOf(field.items || {}) : field.type || 'value';
 }
-function fields(schema, prefix = '') {
+function fields(schema, prefix = '', root = schema, ancestors = new Set()) {
+  if (schema.$ref) {
+    if (!schema.$ref.startsWith('#/') || ancestors.has(schema.$ref)) return [];
+    const target = schema.$ref.slice(2).split('/').reduce((value, key) => value?.[key.replaceAll('~1', '/').replaceAll('~0', '~')], root);
+    return target ? fields(target, prefix, root, new Set([...ancestors, schema.$ref])) : [];
+  }
   const rows = [];
   for (const [name, field] of Object.entries(schema.properties || {})) {
     const key = prefix + name;
     rows.push(`| \`${key}\` | ${clean(typeOf(field))} | ${schema.required?.includes(name) ? 'required' : 'optional'} | ${clean(field.description)} |`);
-    if (field.type === 'object' && name === 'fixedCoordinates') rows.push(...fields(field, key + '.'));
+    const variants = field.anyOf || field.oneOf || [field];
+    for (const variant of variants) {
+      const nested = variant.type === 'array' ? variant.items : variant;
+      if (nested) rows.push(...fields(nested, key + (variant.type === 'array' ? '[].' : '.'), root, ancestors));
+    }
   }
-  return rows;
+  return [...new Set(rows)];
 }
 let body = `# Muslim Prayer Reminder MCP
 
@@ -44,6 +54,10 @@ Always disclose authorityNotice.authorityDescription and authorityNotice.selecti
 MCP endpoint: https://muslim-prayer-mcp.najetareqz.workers.dev/mcp
 Local runner: npx -y muslim-prayer-mcp
 Supported cities: ${Object.keys(MAJOR_CITIES).join(', ')}. Aliases: ${Object.keys(CITY_ALIASES).join(', ')}.
+
+## Status response layout
+
+get_prayer_status and REST /api/status keep detailed provenance in top-level calculationDetails/highLatitudeAdjustment. authorityNotice contains the mandatory authority/selection/display notice without duplicating those objects. nextPrayerCalculation always names the next event's localDate. When usesCurrentCalculation is true, use the top-level metadata for that event; otherwise use its own distinct metadata. Do not interpret omitted inherited adjustments as no adjustment. Other prayer tools retain their full timetable/next-prayer contracts. MCP responses preserve structuredContent plus a compact JSON text fallback; clients should consume one representation, not concatenate both.
 
 ## Tool contracts
 
@@ -65,9 +79,24 @@ for (const [name, schema] of [
   body += fields(z.toJSONSchema(schema, { unrepresentable: 'any' })).join('\n') + '\n';
 }
 const check = process.argv.includes('--check');
+if (check) {
+  // These integration fields must remain discoverable to skill consumers.
+  // Checking the generated text catches accidental loss of nested traversal.
+  for (const field of [
+    'minuteAdjustments.fajr',
+    'fixedCoordinates.latitude',
+    'timesUtc.fajr',
+    'timesLocal.Fajr',
+    'nextPrayerCalculation.calculationDetails.timezoneValidation',
+  ]) {
+    if (!body.includes(`| \`${field}\` |`)) throw new Error(`Skill omits nested contract field: ${field}`);
+  }
+}
+let canonicalContents;
 for (const name of ['muslim-prayer-mcp', 'muslim-prayer']) {
   const path = fileURLToPath(new URL(`../skills/${name}/SKILL.md`, import.meta.url));
   const contents = `---\nname: ${name}\ndescription: Query prayer times and status using verified user location; explain calculation authority and applied approximations.\n---\n\n` + body;
+  if (name === 'muslim-prayer-mcp') canonicalContents = contents;
   if (check) {
     if ((await readFile(path, 'utf8')).replaceAll('\r\n', '\n') !== contents) {
       throw new Error(`Generated skill is stale: ${name}`);
@@ -77,4 +106,11 @@ for (const name of ['muslim-prayer-mcp', 'muslim-prayer']) {
     await writeFile(path, contents, 'utf8');
   }
 }
-console.log(check ? 'Generated skill contracts match schemas.' : 'Generated both skill contracts from schemas.');
+const archivePath = fileURLToPath(new URL('../assets/muslim-prayer-skill.zip', import.meta.url));
+const archive = skillZip(canonicalContents);
+if (check) {
+  if (!(await readFile(archivePath)).equals(archive)) throw new Error('Generated skill ZIP is stale.');
+} else {
+  await writeFile(archivePath, archive);
+}
+console.log(check ? 'Generated skill contracts and ZIP match schemas.' : 'Generated both skill contracts and ZIP from schemas.');

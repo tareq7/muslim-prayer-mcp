@@ -84,7 +84,7 @@ gemini mcp add --transport http muslim-prayer https://muslim-prayer-mcp.najetare
 ---
 
 ## Tool Verification
-After configuring, call `get_today_prayer_times` with `{}`:
+After configuring, call `get_today_prayer_times` with `{ "city": "Riyadh" }`:
 Expected response contains 6 prayer times in UTC, formatted local time, and an `authorityNotice` object.
 
 ---

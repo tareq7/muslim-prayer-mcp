@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Regenerates src/analytics/openai-egress.ts from OpenAI's published connector egress list.
+// Regenerates src/analytics/openai-egress-snapshot.ts from OpenAI's published connector egress list.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 

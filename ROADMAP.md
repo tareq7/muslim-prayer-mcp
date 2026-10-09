@@ -4,23 +4,22 @@ This roadmap outlines the planned enhancements and future directions for **Musli
 
 ---
 
-## Current Release (v1.0.1) :white_check_mark:
+## Current Release (v1.1.2) :white_check_mark:
 
 - [x] Streamable HTTP MCP server on Cloudflare Workers.
-- [x] Local Stdio CLI runner via \
-px muslim-prayer-mcp\.
-- [x] In-isolate sub-millisecond astronomical solar solver (\dhan\).
+- [x] Local Stdio CLI runner via `npx muslim-prayer-mcp`.
+- [x] In-isolate astronomical solar solver (`adhan`).
 - [x] Autonomous authority calibration across 7 sovereign Islamic jurisdictions.
-- [x] Layered location resolution (Coordinates, User KV, Host Headers, Cloudflare GeoIP, Makkah).
+- [x] Verified location resolution from explicit coordinates or supported city, stored fixed settings, and trusted end-user host headers. Missing location returns `location_required`.
 - [x] Deterministic Host Completion Middleware for Vercel AI SDK and LangChain.
-- [x] Full Zod input and output schema contracts with \structuredContent\ across all 5 tools.
-- [x] 44 automated test suites passing across 10 worldwide benchmark cities.
+- [x] Full Zod input and output schema contracts with `structuredContent` across all 5 tools.
+- [x] Automated unit, integration and E2E tests, including worldwide benchmark cities.
 
 ---
 
 ## Q4 2026 :hourglass_flowing_sand:
 
-- [ ] **\get_qibla_direction\ Tool**: Spherical Great-Circle trigonometric compass solver calculating exact Qibla heading, true north bearing, and distance in km to the Kaaba.
+- [ ] **`get_qibla_direction` Tool**: Spherical Great-Circle trigonometric compass solver calculating exact Qibla heading, true north bearing, and distance in km to the Kaaba.
 - [ ] **Hijri Calendar Conversion Tool**: Dual Umm al-Qura and standard astronomical lunar calendar converter with moon sighting adjustment offsets.
 - [ ] **Audio Azan Stream Resource**: MCP Resource exposing authenticated audio streaming URLs for regional Adhan recitations.
 

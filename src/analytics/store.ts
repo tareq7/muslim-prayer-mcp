@@ -10,7 +10,7 @@ const EVENT_RETENTION_DAYS = 180;
 const USER_RETENTION_DAYS = 400;
 
 export const CLIENTS = ['ChatGPT', 'Claude', 'Cursor', 'VS Code', 'Windsurf', 'Gemini', 'Other'] as const;
-export const ERROR_CODES = ['location_required', 'location_timezone_mismatch', 'invalid_location', 'invalid_calculation', 'invalid_preferences', 'invalid_params', 'unsupported_city', 'method_not_found', 'internal_error', 'not_acceptable', 'unsupported_media', 'http_error', 'transport_error', 'tool_error'] as const;
+export const ERROR_CODES = ['location_required', 'location_timezone_mismatch', 'invalid_location', 'invalid_calculation', 'invalid_preferences', 'invalid_params', 'unsupported_city', 'method_not_found', 'internal_error', 'not_acceptable', 'unsupported_media', 'http_error', 'transport_error', 'observation_incomplete', 'storage_unavailable', 'tool_error'] as const;
 export const METHOD_SOURCES = ['explicit_override', 'stored_preference', 'geographic_default'] as const;
 const KINDS = ['tool', 'initialize', 'list'] as const;
 const RANGES = [7, 30, 90, 180] as const;
@@ -25,7 +25,7 @@ export interface AnalyticsEvent {
   locale: string | null;
   client: string | null;
   verified: 0 | 1;
-  status: 'ok' | 'error';
+  status: 'ok' | 'error' | 'unknown';
   errorCode: string | null;
   latencyMs: number | null;
   localHour: number | null;
@@ -48,7 +48,7 @@ export function validateEvent(raw: unknown, now = Date.now()): AnalyticsEvent | 
   if (!kind) return null;
   const tool = pick(REGISTERED_TOOL_NAMES, raw.tool);
   if (kind === 'tool' && !tool) return null;
-  const status = raw.status === 'error' ? 'error' : 'ok';
+  const status = raw.status === 'unknown' ? 'unknown' : raw.status === 'error' ? 'error' : 'ok';
   const ts = int(raw.ts, now - 3_600_000, now + 300_000) ?? now;
   const country = match(/^[A-Z]{2}$/, raw.country);
   return {
@@ -59,7 +59,7 @@ export function validateEvent(raw: unknown, now = Date.now()): AnalyticsEvent | 
     client: raw.client == null ? null : pick(CLIENTS, raw.client) ?? 'Other',
     verified: raw.verified === true || raw.verified === 1 ? 1 : 0,
     status,
-    errorCode: status === 'error' ? pick(ERROR_CODES, raw.errorCode) ?? 'tool_error' : null,
+    errorCode: status !== 'ok' ? pick(ERROR_CODES, raw.errorCode) ?? (status === 'unknown' ? 'observation_incomplete' : 'tool_error') : null,
     latencyMs: int(raw.latencyMs, 0, 600_000),
     localHour: int(raw.localHour, 0, 23),
     localDow: int(raw.localDow, 0, 6),
@@ -153,85 +153,85 @@ export function buildReport(sql: SqlLike, query: ReportQuery, now = Date.now()) 
 
   const totals = (a: number, b: number) => {
     const t = one(sql, `SELECT COUNT(*) AS calls, COUNT(DISTINCT uid) AS users, COUNT(DISTINCT sid) AS sessions,
-      COALESCE(SUM(status = 'error'), 0) AS errors, COALESCE(SUM(uid IS NULL), 0) AS anonymous, COALESCE(SUM(verified), 0) AS verified
+      COALESCE(SUM(status = 'error'), 0) AS errors, COALESCE(SUM(status = 'unknown'), 0) AS incomplete, COALESCE(SUM(uid IS NULL), 0) AS anonymous, COALESCE(SUM(verified), 0) AS verified
       FROM events WHERE ${tool} AND ts >= ? AND ts <= ?`, a, b);
     const newUsers = num(one(sql, `SELECT COUNT(*) AS n FROM users u WHERE u.first_seen >= ? AND u.first_seen <= ?${segU}`, a, b).n);
     const returning = num(one(sql, `SELECT COUNT(DISTINCT e.uid) AS n FROM events e JOIN users u ON u.uid = e.uid
       WHERE e.kind = 'tool' AND e.ts >= ? AND e.ts <= ? AND u.first_seen < ?${segE}`, a, b, a).n);
-    return { calls: num(t.calls), users: num(t.users), sessions: num(t.sessions), errors: num(t.errors),
+    return { calls: num(t.calls), users: num(t.users), sessions: num(t.sessions), errors: num(t.errors), incomplete: num(t.incomplete), errorRate: num(t.calls) > num(t.incomplete) ? rate(num(t.errors), num(t.calls) - num(t.incomplete)) : null,
       anonymous: num(t.anonymous), verified: num(t.verified), newUsers, returning };
   };
   const current = totals(start, now);
   const previous = totals(prevStart, prevEnd);
-  const activeSince = (ms: number) => num(one(sql, `SELECT COUNT(DISTINCT uid) AS n FROM events WHERE ${tool} AND ts > ?`, now - ms).n);
+  const activeSince = (ms: number) => num(one(sql, `SELECT COUNT(DISTINCT uid) AS n FROM events WHERE ${tool} AND ts > ? AND ts <= ?`, now - ms, now).n);
   const mau = activeSince(30 * DAY);
   const userDays30 = num(one(sql, `SELECT COUNT(*) AS n FROM (SELECT DISTINCT uid, ${dayExpr} AS d FROM events
-    WHERE ${tool} AND uid IS NOT NULL AND ts > ?)`, now - 30 * DAY).n);
+    WHERE ${tool} AND uid IS NOT NULL AND ts > ? AND ts <= ?)`, now - 30 * DAY, now).n);
 
   const latencyAt = (p: number, n: number) => n === 0 ? null : num(one(sql, `SELECT latency_ms AS v FROM events
-    WHERE ${tool} AND ts >= ? AND latency_ms IS NOT NULL ORDER BY latency_ms LIMIT 1 OFFSET ?`, start, Math.floor(p * (n - 1))).v);
-  const latencySamples = num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND latency_ms IS NOT NULL`, start).n);
+    WHERE ${tool} AND ts >= ? AND ts <= ? AND latency_ms IS NOT NULL ORDER BY latency_ms LIMIT 1 OFFSET ?`, start, now, Math.floor(p * (n - 1))).v);
+  const latencySamples = num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND ts <= ? AND latency_ms IS NOT NULL`, start, now).n);
 
   const dailyRows = new Map(rows(sql, `SELECT ${dayExpr} AS d, COUNT(*) AS calls, COUNT(DISTINCT uid) AS users,
-    COUNT(DISTINCT sid) AS sessions, COALESCE(SUM(status = 'error'), 0) AS errors
-    FROM events WHERE ${tool} AND ts >= ? GROUP BY d`, start).map(r => [num(r.d), r]));
+    COUNT(DISTINCT sid) AS sessions, COALESCE(SUM(status = 'error'), 0) AS errors, COALESCE(SUM(status = 'unknown'), 0) AS incomplete
+    FROM events WHERE ${tool} AND ts >= ? AND ts <= ? GROUP BY d`, start, now).map(r => [num(r.d), r]));
   const newRows = new Map(rows(sql, `SELECT CAST((u.first_seen + ${tzMs}) / ${DAY} AS INTEGER) AS d, COUNT(*) AS n
-    FROM users u WHERE u.first_seen >= ?${segU} GROUP BY d`, start).map(r => [num(r.d), num(r.n)]));
+    FROM users u WHERE u.first_seen >= ? AND u.first_seen <= ?${segU} GROUP BY d`, start, now).map(r => [num(r.d), num(r.n)]));
   const days = Array.from({ length: range }, (_, i) => startDay + i);
   const daily = days.map(d => {
     const r = dailyRows.get(d) ?? {};
-    return { date: dateOfDay(d), calls: num(r.calls), users: num(r.users), sessions: num(r.sessions), errors: num(r.errors), newUsers: newRows.get(d) ?? 0 };
+    return { date: dateOfDay(d), calls: num(r.calls), users: num(r.users), sessions: num(r.sessions), errors: num(r.errors), incomplete: num(r.incomplete), errorRate: num(r.calls) > num(r.incomplete) ? rate(num(r.errors), num(r.calls) - num(r.incomplete)) : null, newUsers: newRows.get(d) ?? 0 };
   });
 
   const toolSeries: Record<string, number[]> = {};
-  for (const r of rows(sql, `SELECT ${dayExpr} AS d, tool, COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? GROUP BY d, tool`, start)) {
+  for (const r of rows(sql, `SELECT ${dayExpr} AS d, tool, COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND ts <= ? GROUP BY d, tool`, start, now)) {
     const name = str(r.tool);
     const idx = num(r.d) - startDay;
     if (!name || idx < 0 || idx >= range) continue;
     (toolSeries[name] ??= new Array(range).fill(0))[idx] = num(r.n);
   }
 
-  const tools = rows(sql, `SELECT tool, COUNT(*) AS calls, COUNT(DISTINCT uid) AS users, COALESCE(SUM(status = 'error'), 0) AS errors,
-    CAST(AVG(latency_ms) AS INTEGER) AS avgMs FROM events WHERE ${tool} AND ts >= ? GROUP BY tool ORDER BY calls DESC`, start)
-    .map(r => ({ tool: str(r.tool), calls: num(r.calls), users: num(r.users), errors: num(r.errors), avgMs: r.avgMs == null ? null : num(r.avgMs) }));
+  const tools = rows(sql, `SELECT tool, COUNT(*) AS calls, COUNT(DISTINCT uid) AS users, COALESCE(SUM(status = 'error'), 0) AS errors, COALESCE(SUM(status = 'unknown'), 0) AS incomplete,
+    CAST(AVG(latency_ms) AS INTEGER) AS avgMs FROM events WHERE ${tool} AND ts >= ? AND ts <= ? GROUP BY tool ORDER BY calls DESC`, start, now)
+    .map(r => ({ tool: str(r.tool), calls: num(r.calls), users: num(r.users), errors: num(r.errors), incomplete: num(r.incomplete), errorRate: num(r.calls) > num(r.incomplete) ? rate(num(r.errors), num(r.calls) - num(r.incomplete)) : null, avgMs: r.avgMs == null ? null : num(r.avgMs) }));
 
   const breakdown = (col: string, limit = 20) => ({
     items: rows(sql, `SELECT ${col} AS k, COUNT(*) AS calls, COUNT(DISTINCT uid) AS users FROM events
-      WHERE ${tool} AND ts >= ? AND ${col} IS NOT NULL GROUP BY ${col} ORDER BY users DESC, calls DESC LIMIT ${limit}`, start)
+      WHERE ${tool} AND ts >= ? AND ts <= ? AND ${col} IS NOT NULL GROUP BY ${col} ORDER BY users DESC, calls DESC LIMIT ${limit}`, start, now)
       .map(r => ({ key: str(r.k), calls: num(r.calls), users: num(r.users) })),
-    unknownCalls: num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND ${col} IS NULL`, start).n),
+    unknownCalls: num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND ts <= ? AND ${col} IS NULL`, start, now).n),
   });
 
   const handshakes = {
-    initialize: rows(sql, `SELECT COALESCE(client, 'Other') AS k, COUNT(*) AS n FROM events WHERE kind = 'initialize'${seg} AND ts >= ?
-      GROUP BY k ORDER BY n DESC`, start).map(r => ({ key: str(r.k), n: num(r.n) })),
-    list: num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE kind = 'list'${seg} AND ts >= ?`, start).n),
+    initialize: rows(sql, `SELECT COALESCE(client, 'Other') AS k, COUNT(*) AS n FROM events WHERE kind = 'initialize'${seg} AND ts >= ? AND ts <= ?
+      GROUP BY k ORDER BY n DESC`, start, now).map(r => ({ key: str(r.k), n: num(r.n) })),
+    list: num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE kind = 'list'${seg} AND ts >= ? AND ts <= ?`, start, now).n),
   };
 
-  const errors = rows(sql, `SELECT tool, error_code AS code, COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND status = 'error'
-    GROUP BY tool, error_code ORDER BY n DESC LIMIT 20`, start).map(r => ({ tool: str(r.tool), code: str(r.code), n: num(r.n) }));
+  const errors = rows(sql, `SELECT tool, error_code AS code, COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND ts <= ? AND status = 'error'
+    GROUP BY tool, error_code ORDER BY n DESC LIMIT 20`, start, now).map(r => ({ tool: str(r.tool), code: str(r.code), n: num(r.n) }));
 
   const cells = Array.from({ length: 7 }, () => new Array(24).fill(0));
   const localShift = Math.floor(tzMs / 1000);
   for (const r of rows(sql, `SELECT COALESCE(local_dow, CAST(strftime('%w', ts / 1000 + ${localShift}, 'unixepoch') AS INTEGER)) AS dow,
     COALESCE(local_hour, CAST(strftime('%H', ts / 1000 + ${localShift}, 'unixepoch') AS INTEGER)) AS hr, COUNT(*) AS n
-    FROM events WHERE ${tool} AND ts >= ? GROUP BY dow, hr`, start)) {
+    FROM events WHERE ${tool} AND ts >= ? AND ts <= ? GROUP BY dow, hr`, start, now)) {
     const dow = num(r.dow), hr = num(r.hr);
     if (dow >= 0 && dow < 7 && hr >= 0 && hr < 24) cells[dow][hr] += num(r.n);
   }
-  const localCount = num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND local_hour IS NOT NULL`, start).n);
+  const localCount = num(one(sql, `SELECT COUNT(*) AS n FROM events WHERE ${tool} AND ts >= ? AND ts <= ? AND local_hour IS NOT NULL`, start, now).n);
 
   const depthOrder = ['1', '2', '3-6', '7-13', '14+'];
   const depthRows = new Map(rows(sql, `SELECT CASE WHEN days = 1 THEN '1' WHEN days = 2 THEN '2' WHEN days <= 6 THEN '3-6'
     WHEN days <= 13 THEN '7-13' ELSE '14+' END AS b, COUNT(*) AS n FROM (SELECT uid, COUNT(DISTINCT ${dayExpr}) AS days
-    FROM events WHERE ${tool} AND uid IS NOT NULL AND ts >= ? GROUP BY uid) GROUP BY b`, start).map(r => [str(r.b), num(r.n)]));
+    FROM events WHERE ${tool} AND uid IS NOT NULL AND ts >= ? AND ts <= ? GROUP BY uid) GROUP BY b`, start, now).map(r => [str(r.b), num(r.n)]));
   const depth = depthOrder.map(bucket => ({ bucket, users: depthRows.get(bucket) ?? 0 }));
 
   const cohortFloor = now - EVENT_RETENTION_DAYS * DAY;
   const retention = [1, 7, 30].map(n => {
     const r = one(sql, `SELECT COUNT(*) AS eligible, COALESCE(SUM(EXISTS(SELECT 1 FROM events e WHERE e.uid = u.uid AND e.kind = 'tool'
-      AND e.ts >= u.first_seen + ?)), 0) AS retained FROM users u WHERE u.first_seen <= ? AND u.first_seen >= ?${segU}`,
-      n * DAY, now - n * DAY, cohortFloor);
+      AND e.ts >= u.first_seen + ? AND e.ts <= ?${segE})), 0) AS retained FROM users u WHERE u.first_seen <= ? AND u.first_seen >= ?${segU}`,
+      n * DAY, now, now - n * DAY, cohortFloor);
     const eligible = num(r.eligible), retained = num(r.retained);
     return { day: n, eligible, retained, rate: rate(retained, eligible) };
   });
@@ -243,7 +243,7 @@ export function buildReport(sql: SqlLike, query: ReportQuery, now = Date.now()) 
   for (const r of rows(sql, `SELECT CAST((u.first_seen + ${weekShift}) / ${WEEK} AS INTEGER) AS cw,
     CAST((e.ts + ${weekShift}) / ${WEEK} AS INTEGER) - CAST((u.first_seen + ${weekShift}) / ${WEEK} AS INTEGER) AS off,
     COUNT(DISTINCT e.uid) AS n FROM users u JOIN events e ON e.uid = u.uid AND e.kind = 'tool'
-    WHERE u.first_seen >= ?${segU} GROUP BY cw, off`, firstWeek * WEEK - weekShift)) {
+    WHERE u.first_seen >= ? AND u.first_seen <= ? AND e.ts <= ?${segU}${segE} GROUP BY cw, off`, firstWeek * WEEK - weekShift, now, now)) {
     const cw = num(r.cw), off = num(r.off);
     if (off < 0) continue;
     if (!cohortMap.has(cw)) cohortMap.set(cw, new Map());
@@ -251,21 +251,21 @@ export function buildReport(sql: SqlLike, query: ReportQuery, now = Date.now()) 
   }
   const cohorts = Array.from({ length: 8 }, (_, i) => firstWeek + i).map(cw => {
     const m = cohortMap.get(cw) ?? new Map<number, number>();
-    const size = num(one(sql, `SELECT COUNT(*) AS n FROM users u WHERE u.first_seen >= ? AND u.first_seen < ?${segU}`,
-      cw * WEEK - weekShift, (cw + 1) * WEEK - weekShift).n);
+    const size = num(one(sql, `SELECT COUNT(*) AS n FROM users u WHERE u.first_seen >= ? AND u.first_seen < ? AND u.first_seen <= ?${segU}`,
+      cw * WEEK - weekShift, (cw + 1) * WEEK - weekShift, now).n);
     return { week: dateOfDay(cw * 7 - 3), size, cells: Array.from({ length: currentWeek - cw + 1 }, (_, off) => rate(m.get(off) ?? 0, size)) };
   });
 
   const topUsers = rows(sql, `SELECT e.uid AS uid, COUNT(*) AS calls, COUNT(DISTINCT CAST((e.ts + ${tzMs}) / ${DAY} AS INTEGER)) AS days,
     MAX(e.ts) AS last, u.first_seen AS first, u.calls AS lifetime, COUNT(DISTINCT e.tool) AS tools
-    FROM events e LEFT JOIN users u ON u.uid = e.uid WHERE e.kind = 'tool' AND e.uid IS NOT NULL AND e.ts >= ?${segE}
-    GROUP BY e.uid ORDER BY calls DESC LIMIT 10`, start).map(r => ({
+    FROM events e LEFT JOIN users u ON u.uid = e.uid WHERE e.kind = 'tool' AND e.uid IS NOT NULL AND e.ts >= ? AND e.ts <= ?${segE}
+    GROUP BY e.uid ORDER BY calls DESC LIMIT 10`, start, now).map(r => ({
       id: (str(r.uid) ?? '').slice(0, 8), calls: num(r.calls), days: num(r.days), tools: num(r.tools),
       firstSeen: iso(r.first == null ? null : num(r.first)), lastSeen: iso(num(r.last)), lifetimeCalls: num(r.lifetime),
     }));
 
   const recent = rows(sql, `SELECT ts, kind, tool, uid, country, locale, client, verified, status, error_code, latency_ms, authority
-    FROM events WHERE 1 = 1${seg} ORDER BY id DESC LIMIT 30`).map(r => ({
+    FROM events WHERE ts >= ? AND ts <= ?${seg} ORDER BY ts DESC, id DESC LIMIT 30`, start, now).map(r => ({
       ts: iso(num(r.ts)), kind: str(r.kind), tool: str(r.tool), user: str(r.uid)?.slice(0, 8) ?? null, country: str(r.country),
       locale: str(r.locale), client: str(r.client), verified: num(r.verified) === 1, status: str(r.status), code: str(r.error_code),
       ms: r.latency_ms == null ? null : num(r.latency_ms), authority: str(r.authority),

@@ -1,0 +1,34 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const consumer = mkdtempSync(join(tmpdir(), 'prayer-package-consumer-'));
+// Invoke npm's JavaScript entry point directly to avoid platform shell quoting.
+const npm = process.env.npm_execpath;
+if (!npm) throw new Error('Run this check with npm run test:package.');
+const run = (args, cwd = consumer) => execFileSync(process.execPath, [npm, ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const packed = JSON.parse(run(['pack', '--json', '--pack-destination', consumer], root));
+writeFileSync(join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
+run(['install', '--ignore-scripts', '--no-audit', '--no-fund', '--package-lock=false', join(consumer, packed[0].filename)]);
+const source = `import assert from 'node:assert/strict';
+import worker from 'muslim-prayer-mcp';
+import { PrayerReminderMiddleware } from 'muslim-prayer-mcp/middleware';
+const middleware = new PrayerReminderMiddleware({ workerBaseUrl: 'https://example.invalid/' });
+assert.equal(typeof worker.fetch, 'function');
+assert.equal(typeof middleware.processResponse, 'function');
+assert.equal(typeof middleware.checkPrayerStatus, 'function');
+assert.match(import.meta.resolve('muslim-prayer-mcp/bin/cli.js'), /bin\\/cli\\.js$/);
+console.log('Packed package root, middleware and CLI paths resolve.');
+`;
+writeFileSync(join(consumer, 'check.mjs'), source);
+execFileSync(process.execPath, ['check.mjs'], { cwd: consumer, stdio: 'inherit' });
+writeFileSync(join(consumer, 'check.ts'), `import { PrayerReminderMiddleware, type HostMiddlewareOptions } from 'muslim-prayer-mcp/middleware';
+const options: HostMiddlewareOptions = { workerBaseUrl: 'https://example.invalid/' };
+const middleware: PrayerReminderMiddleware = new PrayerReminderMiddleware(options);
+void middleware;
+`);
+execFileSync(process.execPath, [join(root, 'node_modules/typescript/bin/tsc'), '--noEmit', '--module', 'NodeNext', '--moduleResolution', 'NodeNext', '--skipLibCheck', '--target', 'ES2022', 'check.ts'], { cwd: consumer, stdio: 'inherit' });
+console.log('Packed middleware types resolve in a separate consumer. Artifacts: ' + consumer);

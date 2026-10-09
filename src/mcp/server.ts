@@ -22,14 +22,15 @@ import {
 import { evaluatePrayerStatus } from '../engine/reminder.ts';
 import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, type ResolveLocationParams } from '../location/resolver.ts';
 import { LocationTimezoneMismatchError } from '../location/timezone.ts';
-import { PrayerStorage, InvalidPreferencesError } from '../storage/kv-store.ts';
+import { PrayerStorage, InvalidPreferencesError, StorageUnavailableError } from '../storage/kv-store.ts';
 import type { ReminderMode, Locale } from '../engine/types.ts';
+import { publicPrayerStatus } from './status-response.ts';
 
 async function prayerResult(operation: () => Promise<CallToolResult>): Promise<CallToolResult> {
   try {
     return await operation();
   } catch (error) {
-    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError) && !(error instanceof InvalidPreferencesError) && !(error instanceof LocationTimezoneMismatchError) && !(error instanceof InvalidLocationInputError)) throw error;
+    if (!(error instanceof LocationRequiredError) && !(error instanceof InvalidCalculationError) && !(error instanceof InvalidPreferencesError) && !(error instanceof LocationTimezoneMismatchError) && !(error instanceof InvalidLocationInputError) && !(error instanceof StorageUnavailableError)) throw error;
     const details = { code: error.code, message: error.message, ...(error instanceof LocationTimezoneMismatchError ? { expectedTimezone: error.expectedTimezone, timezoneMismatchDetected: true } : {}) };
     return { isError: true, structuredContent: details, content: [{ type: 'text', text: JSON.stringify(details) }] };
   }
@@ -112,14 +113,14 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
             await storage.recordDedupeSent(status.dedupeKey, ttl);
           }
 
-          const { dedupeKey, locationSource, ...cleanStatus } = status;
+          const cleanStatus = publicPrayerStatus(status);
 
           return {
             structuredContent: cleanStatus,
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(cleanStatus, null, 2),
+                text: JSON.stringify(cleanStatus),
               },
             ],
           };
@@ -335,17 +336,19 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
       },
     },
     async (args) => {
-      const prefs = await storage.getUserPreferences(args.userId);
-      const result = publicPreferences(prefs);
-      return {
-        structuredContent: result,
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
+      return prayerResult(async () => {
+        const prefs = await storage.getUserPreferences(args.userId);
+        const result = publicPreferences(prefs);
+        return {
+          structuredContent: result,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      });
     }
   );
 
