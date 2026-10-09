@@ -50,7 +50,7 @@
   "type": "module",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc -p tsconfig.build.json",
-    "test": "node --experimental-strip-types --test test/analytics.test.ts test/calculator.test.ts test/e2e.test.ts test/location.test.ts test/mcp.test.ts test/remaining.test.ts test/reminder.test.ts test/rest-overrides.test.ts test/review-fixes.test.ts test/review.test.ts",
+    "test": "node --experimental-strip-types --test test/analytics.test.ts test/calculator.test.ts test/e2e.test.ts test/location.test.ts test/mcp.test.ts test/remaining.test.ts test/reminder.test.ts test/rest-overrides.test.ts test/review-fixes.test.ts test/preferences-chronology.test.ts test/review.test.ts",
     "typecheck": "node node_modules/typescript/bin/tsc --noEmit",
     "prepack": "npm run build",
     "docs:generate": "node --experimental-strip-types scripts/generate-skill.mjs",

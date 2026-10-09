@@ -115,7 +115,7 @@ export const ConfigurePrayerPreferencesInputSchema = z.object({
   reminderMode: ReminderModeEnum.optional().describe('Reminder display policy: prayer_window, exact_window, persistent'),
   exactWindowMinutes: z.number().int().min(5).max(120).optional().describe('Duration in minutes for exact_window mode. Omitted updates preserve the saved value; if unset, the service default is 20 minutes unless the operator overrides it.'),
   locale: LocaleEnum.optional().describe('Language for reminder text: en or ar'),
-  minuteAdjustments: MinuteAdjustmentsSchema.optional().describe('Custom per-prayer minute offsets (-60 to +60)'),
+  minuteAdjustments: MinuteAdjustmentsSchema.optional().describe('Custom per-prayer minute offsets (-60 to +60). For fixed locations, combined settings must preserve timetable chronology for the current and next local day before saving; auto-travel offsets are validated when a query supplies its location.'),
   enabled: z.boolean().optional().describe('Whether prayer reminders are enabled'),
 });
 

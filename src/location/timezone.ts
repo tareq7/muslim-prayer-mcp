@@ -30,8 +30,9 @@ export function validateCoordinateTimezone(latitude: number, longitude: number, 
   expectedTimezone: string; timezoneValidation: TimezoneValidation;
 } {
   const expectedTimezone = tzLookup(latitude, longitude);
-  // The mathematical poles have no single local civil timezone. Ocean cells
-  // describe nautical zones, not an inhabited jurisdiction; retain explicit choices.
+  // Exact mathematical poles have no single civil timezone, so explicit choices
+  // are permitted there. Ocean cells require their canonical nautical zone or a
+  // civil zone matched in the small boundary neighborhood below.
   if (Math.abs(latitude) === 90) return { expectedTimezone, timezoneValidation: 'polar_choice' };
   if (expectedTimezone.startsWith('Etc/GMT') && equivalentTimezone(expectedTimezone, suppliedTimezone)) return { expectedTimezone, timezoneValidation: 'ocean_choice' };
   if (equivalentTimezone(expectedTimezone, suppliedTimezone)) return { expectedTimezone, timezoneValidation: 'coordinate_lookup' };
