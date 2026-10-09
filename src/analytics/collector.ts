@@ -62,11 +62,11 @@ const RPC_ERRORS = new Map([[-32602, 'invalid_params'], [-32601, 'method_not_fou
 
 const HTTP_ERRORS = new Map([[406, 'not_acceptable'], [415, 'unsupported_media']]);
 
-function outcome(responseBody: unknown, id: unknown, httpStatus: number, incomplete = false): { status: 'ok' | 'error'; errorCode: string | null; authority: string | null; methodSource: string | null } {
+function outcome(responseBody: unknown, id: unknown, httpStatus: number, incomplete = false): { status: 'ok' | 'error' | 'unknown'; errorCode: string | null; authority: string | null; methodSource: string | null } {
   if (httpStatus >= 400) return { status: 'error', errorCode: HTTP_ERRORS.get(httpStatus) ?? 'http_error', authority: null, methodSource: null };
   const items = Array.isArray(responseBody) ? responseBody : [responseBody];
   const res = items.find(r => isRec(r) && r.id === id);
-  if (!isRec(res)) return { status: 'error', errorCode: incomplete ? 'observation_incomplete' : 'transport_error', authority: null, methodSource: null };
+  if (!isRec(res)) return { status: incomplete ? 'unknown' : 'error', errorCode: incomplete ? 'observation_incomplete' : 'transport_error', authority: null, methodSource: null };
   if (isRec(res.error)) return { status: 'error', errorCode: RPC_ERRORS.get(Number(res.error.code)) ?? 'tool_error', authority: null, methodSource: null };
   const result = isRec(res.result) ? res.result : {};
   const sc = isRec(result.structuredContent) ? result.structuredContent : {};

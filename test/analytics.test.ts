@@ -367,6 +367,7 @@ describe('Analytics response observation', () => {
     } }), { headers: { 'Content-Type': 'application/json' } });
     const events = await observe(response, rpcRequest[0]);
     assert.equal(events[0].errorCode, 'observation_incomplete');
+    assert.equal(events[0].status, 'unknown');
     assert.ok(pulls < 10, 'The observer must stop before consuming the oversized response');
     assert.equal(response.bodyUsed, false);
     const live = await response.json() as any;
@@ -384,6 +385,7 @@ describe('Analytics response observation', () => {
     } }), { headers: { 'Content-Type': 'text/event-stream' } });
     const events = await observe(response, rpcRequest[0]);
     assert.equal(events[0].errorCode, 'observation_incomplete');
+    assert.equal(events[0].status, 'unknown');
     assert.equal(response.bodyUsed, false);
     assert.match(await response.text(), /"id":1,"result":\{\}/);
   });
@@ -447,5 +449,31 @@ describe('Analytics dashboard request ordering', () => {
     await new Promise(resolve => setImmediate(resolve));
     assert.deepEqual(state.data, { range: 7 });
     assert.equal(renders, 1);
+  });
+});
+
+
+describe('Analytics incomplete outcomes', () => {
+  it('preserves unknown outcomes through validation and excludes them from reliability denominators', () => {
+    const now = Date.UTC(2026, 9, 3, 12);
+    const unknown = validateEvent(ev({ ts: now, status: 'unknown', errorCode: 'observation_incomplete' }), now)!;
+    assert.equal(unknown.status, 'unknown');
+    assert.equal(unknown.errorCode, 'observation_incomplete');
+    const { sql } = makeSql();
+    migrate(sql);
+    recordEvents(sql, [unknown, ev({ ts: now, status: 'error', errorCode: 'transport_error' }), ev({ ts: now }),
+      ev({ ts: now - 7 * DAY, status: 'unknown', errorCode: 'observation_incomplete' })], now);
+    const report = buildReport(sql, { range: 7, tz: 0, segment: 'all' }, now);
+    for (const section of [report.kpis.current, report.daily.at(-1)!, report.tools[0]]) {
+      assert.equal(section.calls, 3);
+      assert.equal(section.errors, 1);
+      assert.equal(section.incomplete, 1);
+      assert.equal(section.errorRate, 0.5);
+    }
+    assert.equal(report.kpis.previous.incomplete, 1);
+    assert.equal(report.kpis.previous.errors, 0);
+    assert.equal(report.kpis.previous.errorRate, null);
+    assert.deepEqual(report.errors.map(e => e.code), ['transport_error']);
+    assert.equal(report.recent.find(e => e.code === 'observation_incomplete')?.status, 'unknown');
   });
 });
