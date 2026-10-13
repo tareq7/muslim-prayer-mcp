@@ -253,7 +253,7 @@ export default {
             'Timetable and next-prayer queries write no data; identified status queries can write temporary deduplication markers',
             'Explicit MCP or REST preference updates store user identifiers, calculation and reminder settings, fixed city, rounded fixed coordinates, and timezone until deleted',
             'Deduplication markers expire at the prayer window end, with a maximum TTL of 24 hours',
-            'Pseudonymous operational analytics in a Durable Object: one row per tool call with a salted SHA-256 hash of the anonymous ChatGPT subject and session IDs (truncated to 64 bits), tool name, outcome, approximate country and language, local hour, client type and a verified-OpenAI flag. IP addresses and raw identifiers are never stored. Events are kept 180 days and per-user rows 400 days',
+            'Pseudonymous operational analytics in a Durable Object: one row per tool call with a SHA-256 hash of the anonymous ChatGPT subject and session IDs using the fixed public prefix mpr:v1: (truncated to 64 bits), tool name, outcome, approximate country and language, local hour, client type and a verified-OpenAI flag. IP addresses and raw identifiers are never stored. Events are kept 180 days and per-user rows 400 days',
           ],
           thirdPartySharing: 'None. Calculations execute locally in-isolate. The Worker downloads OpenAI public IP ranges once a day and sends no user data in that request.',
         },

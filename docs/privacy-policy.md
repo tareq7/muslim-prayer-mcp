@@ -87,7 +87,7 @@ Prayer queries require a supported city or end-user coordinates and timezone. Co
 
 Each MCP tool call, `initialize` and `tools/list` request is logged as one row in a Cloudflare Durable Object (SQLite). A row holds: timestamp, registered tool name, success or error code, server time, client type (for example ChatGPT, Claude, Cursor), the language part of the host locale, the country the host reports for the end user (when provided), the end user's local hour and weekday (derived from the host-reported timezone), the calculation authority used, and a flag showing whether the request came from one of OpenAI's published IP ranges.
 
-When the host sends anonymous subject and session identifiers, only a salted SHA-256 hash truncated to 64 bits is stored. These are pseudonymous identifiers, not a guarantee of anonymity. Raw identifiers, IP addresses, coordinates, city names and prayer results are never stored or returned. Dashboard user IDs show only the first 8 characters of a hash.
+When the host sends anonymous subject and session identifiers, only a SHA-256 hash with the fixed public prefix `mpr:v1:`, truncated to 64 bits, is stored. These are pseudonymous identifiers, not a guarantee of anonymity. Raw identifiers, IP addresses, coordinates, city names and prayer results are never stored or returned. Dashboard user IDs show only the first 8 characters of a hash.
 
 Event rows are deleted after 180 days. Per-user summary rows (first seen, last seen, call count) are deleted 400 days after the last call. Calls without a subject ID count as calls but not as users. Installs that never call a tool are not visible.
 
