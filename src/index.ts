@@ -173,6 +173,16 @@ export default {
       }
     }
 
+    // Public MCP discovery metadata for directory ownership verification.
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/.well-known/mcp.json') {
+      return jsonResponse({
+        name: 'Muslim Prayer Reminder MCP',
+        description: 'Open-source MCP tools for calculated Muslim prayer times and next-prayer countdowns.',
+        endpoint: 'https://muslim-prayer-mcp.najetareqz.workers.dev/mcp',
+        repository: 'https://github.com/tareq7/muslim-prayer-mcp',
+      });
+    }
+
     // Health check endpoint
     if (url.pathname === '/health' || url.pathname === '/') {
       return jsonResponse({
