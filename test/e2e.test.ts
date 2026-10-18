@@ -5,9 +5,10 @@ import worker from '../src/index.ts';
 
 describe('Public MCP directory discovery', () => {
   const discoveryUrl = 'https://muslim-prayer-mcp.najetareqz.workers.dev/.well-known/mcp.json';
+  const protectedEnv = { AUTH_TOKEN: 'private-token' };
 
   it('serves public, typed metadata for GET', async () => {
-    const response = await worker.fetch(new Request(discoveryUrl), {});
+    const response = await worker.fetch(new Request(discoveryUrl), protectedEnv);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('Content-Type') ?? '', /application\/json/);
     const discovery = await response.json() as { name: string; endpoint: string; repository: string };
@@ -17,7 +18,7 @@ describe('Public MCP directory discovery', () => {
   });
 
   it('returns the same headers but no response body for HEAD', async () => {
-    const response = await worker.fetch(new Request(discoveryUrl, { method: 'HEAD' }), {});
+    const response = await worker.fetch(new Request(discoveryUrl, { method: 'HEAD' }), protectedEnv);
     assert.equal(response.status, 200);
     assert.match(response.headers.get('Content-Type') ?? '', /application\/json/);
     assert.equal(response.body, null);
@@ -30,7 +31,7 @@ describe('Public MCP directory discovery', () => {
         'Origin': 'https://mcpub.dev',
         'Access-Control-Request-Method': 'HEAD',
       },
-    }), {});
+    }), protectedEnv);
     assert.equal(response.status, 204);
     assert.equal(response.headers.get('Access-Control-Allow-Origin'), '*');
     assert.match(response.headers.get('Access-Control-Allow-Methods') ?? '', /\bHEAD\b/);
