@@ -13,6 +13,7 @@
 <p align="center">
   <a href="https://tareq7.github.io/muslim-prayer-mcp/"><strong>Documentation</strong></a> •
   <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4"><strong>Live Demo (1080p)</strong></a> •
+  <a href="https://www.youtube.com/watch?v=09yPY0za4Ww"><strong>48s YouTube Demo</strong></a> •
   <a href="#-quick-start"><strong>Quick Start</strong></a> •
   <a href="#-mcp-tools-catalog"><strong>Tools Catalog</strong></a> •
   <a href="#-astronomical--theological-rigor"><strong>Theological Rigor</strong></a> •
