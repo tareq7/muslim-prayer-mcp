@@ -33,7 +33,7 @@ export interface Env {
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, HEAD, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-Coordinates, X-User-Timezone, X-User-City, MCP-Protocol-Version, MCP-Session-Id, Last-Event-ID',
 };
 
@@ -171,6 +171,19 @@ export default {
           return new Response(JSON.stringify({ error: 'Analytics store unavailable' }), { status: 503, headers: { 'Content-Type': 'application/json', ...ANALYTICS_HEADERS } });
         }
       }
+    }
+
+    // Public MCP discovery metadata for directory ownership verification.
+    if ((request.method === 'GET' || request.method === 'HEAD') && url.pathname === '/.well-known/mcp.json') {
+      const discovery = jsonResponse({
+        name: 'Muslim Prayer Reminder MCP',
+        description: 'Open-source MCP tools for calculated Muslim prayer times and next-prayer countdowns.',
+        endpoint: 'https://muslim-prayer-mcp.najetareqz.workers.dev/mcp',
+        repository: 'https://github.com/tareq7/muslim-prayer-mcp',
+      });
+      return request.method === 'HEAD'
+        ? new Response(null, { status: discovery.status, headers: discovery.headers })
+        : discovery;
     }
 
     // Health check endpoint
