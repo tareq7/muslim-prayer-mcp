@@ -1,0 +1,2964 @@
+{
+  "author": "Tareq Naji / Smart Creations",
+  "description": "Check location-specific Muslim prayer times and the next prayer in AI assistants, with explicit calculation authority and Asr convention. Includes a prayer-time explanation prompt and calculation guide resource; local mosque times can differ.",
+  "homepage": "https://github.com/tareq7/muslim-prayer-mcp",
+  "identifier": "tareq7-muslim-prayer-mcp",
+  "name": "Muslim Prayer Reminder MCP",
+  "prompts": [
+    {
+      "name": "check_prayer_times_with_disclosure",
+      "title": "Check prayer times with calculation disclosure",
+      "description": "Get today's prayer times for an explicitly supplied city or location, including regional calculation provenance and potential mosque differences."
+    }
+  ],
+  "resources": [
+    {
+      "name": "prayer-calculation-guide",
+      "title": "Prayer calculation and interpretation guide",
+      "uri": "prayer://calculation-guide",
+      "description": "Reference for location selection, Asr convention, twilight calculation, high-latitude limitations, and local mosque differences.",
+      "mimeType": "text/markdown"
+    }
+  ],
+  "tags": [
+    "prayer-times",
+    "muslim",
+    "islam",
+    "mcp",
+    "typescript",
+    "productivity"
+  ],
+  "tools": [
+    {
+      "name": "get_prayer_status",
+      "title": "Check Muslim Prayer Due Status",
+      "description": "Checks if a Muslim obligatory prayer (Fajr, Dhuhr, Asr, Maghrib, Isha) is currently due for the user location and returns active reminder details. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored."
+          },
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S",
+            "description": "Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved."
+          },
+          "latitude": {
+            "description": "Optional explicit latitude override",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "description": "Optional explicit longitude override",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "timezone": {
+            "description": "IANA timezone; required in the same request when latitude/longitude are supplied. Must agree with the city or be compatible with the coordinate timezone lookup.",
+            "type": "string"
+          },
+          "calculationMethod": {
+            "description": "Optional calculation authority override (auto-resolved from location by default)",
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ]
+          },
+          "madhab": {
+            "description": "Optional Asr shadow jurisprudence override (Shafi or Hanafi)",
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "allOf": [
+          {
+            "not": {
+              "required": [
+                "city",
+                "latitude"
+              ]
+            }
+          },
+          {
+            "not": {
+              "required": [
+                "city",
+                "longitude"
+              ]
+            }
+          }
+        ],
+        "dependencies": {
+          "latitude": [
+            "longitude",
+            "timezone"
+          ],
+          "longitude": [
+            "latitude",
+            "timezone"
+          ]
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "nextPrayerCalculation": {
+            "description": "Adjustment disclosure for the actual schedule of the next event, including tomorrow",
+            "type": "object",
+            "properties": {
+              "localDate": {
+                "type": "string"
+              },
+              "usesCurrentCalculation": {
+                "type": "boolean",
+                "description": "If true, this next event uses the top-level calculationDetails, highLatitudeAdjustment and authorityNotice; duplicate fields are omitted. Otherwise its own distinct metadata is included."
+              },
+              "highLatitudeAdjustment": {
+                "type": "object",
+                "properties": {
+                  "applied": {
+                    "type": "boolean"
+                  },
+                  "rule": {
+                    "type": "string",
+                    "enum": [
+                      "MiddleOfTheNight",
+                      "SeventhOfTheNight",
+                      "TwilightAngle"
+                    ]
+                  },
+                  "methodSpecificTwilightRule": {
+                    "type": "string",
+                    "const": "MoonsightingCommittee"
+                  },
+                  "astronomicalLatitudeClamped": {
+                    "type": "boolean"
+                  },
+                  "effectiveLatitude": {
+                    "description": "Substitute latitude only; never the user coordinate",
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 48
+                      },
+                      {
+                        "type": "number",
+                        "const": -48
+                      }
+                    ]
+                  },
+                  "adjustedPrayers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "Fajr",
+                        "Sunrise",
+                        "Dhuhr",
+                        "Asr",
+                        "Maghrib",
+                        "Isha"
+                      ]
+                    }
+                  },
+                  "explanation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "applied",
+                  "rule",
+                  "astronomicalLatitudeClamped",
+                  "adjustedPrayers",
+                  "explanation"
+                ],
+                "additionalProperties": false
+              },
+              "calculationDetails": {
+                "type": "object",
+                "properties": {
+                  "expectedTimezone": {
+                    "description": "Timezone from city registry or approximate coordinate lookup",
+                    "type": "string"
+                  },
+                  "timezoneValidation": {
+                    "description": "Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure",
+                    "type": "string",
+                    "enum": [
+                      "coordinate_lookup",
+                      "nearby_boundary",
+                      "city_registry",
+                      "polar_choice",
+                      "ocean_choice"
+                    ]
+                  },
+                  "timezoneSource": {
+                    "description": "Source of the validated timezone or disclosed ocean/pole choice",
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "city_default",
+                      "host_header"
+                    ]
+                  },
+                  "locationBasis": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_coordinates",
+                      "explicit_city",
+                      "stored_fixed_coordinates",
+                      "stored_fixed_city",
+                      "host_coordinates",
+                      "host_city",
+                      "network_geolocation",
+                      "default_location"
+                    ]
+                  },
+                  "locationIsApproximate": {
+                    "type": "boolean"
+                  },
+                  "fallbackLocationUsed": {
+                    "type": "boolean"
+                  },
+                  "methodSource": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "madhabSource": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "highLatitudeRuleSource": {
+                    "type": "string",
+                    "enum": [
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "regionalMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "customMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "methodMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "appliedMinuteAdjustments": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "calendarAlignmentAdjusted": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "authorityNotice": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "UmmAlQura",
+                      "MuslimWorldLeague",
+                      "Egyptian",
+                      "Karachi",
+                      "NorthAmerica",
+                      "Dubai",
+                      "Qatar",
+                      "Kuwait",
+                      "MoonsightingCommittee",
+                      "Singapore",
+                      "Turkey",
+                      "Tehran"
+                    ],
+                    "description": "The calculation authority method"
+                  },
+                  "madhab": {
+                    "type": "string",
+                    "enum": [
+                      "Shafi",
+                      "Hanafi"
+                    ],
+                    "description": "The Asr jurisprudence school"
+                  },
+                  "authorityDescription": {
+                    "type": "string",
+                    "description": "Full descriptive name of the calculation authority"
+                  },
+                  "selectionReason": {
+                    "type": "string",
+                    "description": "Rationale for selecting this authority"
+                  },
+                  "requiredDisplayInstruction": {
+                    "type": "string",
+                    "description": "Mandatory theological notice for AI presentation"
+                  }
+                },
+                "required": [
+                  "method",
+                  "madhab",
+                  "authorityDescription",
+                  "selectionReason",
+                  "requiredDisplayInstruction"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "localDate",
+              "usesCurrentCalculation"
+            ],
+            "additionalProperties": false
+          },
+          "reminderDue": {
+            "type": "boolean",
+            "description": "Whether a prayer is currently due for reminder"
+          },
+          "prayer": {
+            "description": "The name of the currently due prayer if applicable",
+            "type": "string"
+          },
+          "localDate": {
+            "type": "string",
+            "description": "Current local date in YYYY-MM-DD"
+          },
+          "startedAtUtc": {
+            "description": "UTC start time of the active prayer window",
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "description": "UTC expiration time of the active prayer window",
+            "type": "string"
+          },
+          "prayerWindowExpiresAtUtc": {
+            "description": "End of the active prayer period; same boundary as legacy expiresAtUtc",
+            "type": "string"
+          },
+          "reminderWindowExpiresAtUtc": {
+            "description": "Reminder eligibility end; exact_window is capped by the prayer period boundary. Fields appear when a reminder is emitted.",
+            "type": "string"
+          },
+          "nextPrayer": {
+            "type": "string",
+            "description": "The name of the next upcoming prayer"
+          },
+          "nextPrayerAtUtc": {
+            "type": "string",
+            "description": "UTC timestamp of the next upcoming prayer"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Resolved IANA timezone"
+          },
+          "calculationMethod": {
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ],
+            "description": "Active calculation authority"
+          },
+          "madhab": {
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ],
+            "description": "Active Asr jurisprudence"
+          },
+          "minuteAdjustments": {
+            "description": "Applied minute adjustments",
+            "type": "object",
+            "properties": {
+              "fajr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "sunrise": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "dhuhr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "asr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "maghrib": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "isha": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              }
+            },
+            "additionalProperties": false
+          },
+          "authorityDescription": {
+            "description": "Description of the calculation authority",
+            "type": "string"
+          },
+          "selectionReason": {
+            "description": "Reason for authority selection",
+            "type": "string"
+          },
+          "highLatitudeAdjustment": {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "boolean"
+              },
+              "rule": {
+                "type": "string",
+                "enum": [
+                  "MiddleOfTheNight",
+                  "SeventhOfTheNight",
+                  "TwilightAngle"
+                ]
+              },
+              "methodSpecificTwilightRule": {
+                "type": "string",
+                "const": "MoonsightingCommittee"
+              },
+              "astronomicalLatitudeClamped": {
+                "type": "boolean"
+              },
+              "effectiveLatitude": {
+                "description": "Substitute latitude only; never the user coordinate",
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 48
+                  },
+                  {
+                    "type": "number",
+                    "const": -48
+                  }
+                ]
+              },
+              "adjustedPrayers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "Fajr",
+                    "Sunrise",
+                    "Dhuhr",
+                    "Asr",
+                    "Maghrib",
+                    "Isha"
+                  ]
+                }
+              },
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "applied",
+              "rule",
+              "astronomicalLatitudeClamped",
+              "adjustedPrayers",
+              "explanation"
+            ],
+            "additionalProperties": false
+          },
+          "calculationDetails": {
+            "type": "object",
+            "properties": {
+              "expectedTimezone": {
+                "description": "Timezone from city registry or approximate coordinate lookup",
+                "type": "string"
+              },
+              "timezoneValidation": {
+                "description": "Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure",
+                "type": "string",
+                "enum": [
+                  "coordinate_lookup",
+                  "nearby_boundary",
+                  "city_registry",
+                  "polar_choice",
+                  "ocean_choice"
+                ]
+              },
+              "timezoneSource": {
+                "description": "Source of the validated timezone or disclosed ocean/pole choice",
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "city_default",
+                  "host_header"
+                ]
+              },
+              "locationBasis": {
+                "type": "string",
+                "enum": [
+                  "explicit_coordinates",
+                  "explicit_city",
+                  "stored_fixed_coordinates",
+                  "stored_fixed_city",
+                  "host_coordinates",
+                  "host_city",
+                  "network_geolocation",
+                  "default_location"
+                ]
+              },
+              "locationIsApproximate": {
+                "type": "boolean"
+              },
+              "fallbackLocationUsed": {
+                "type": "boolean"
+              },
+              "methodSource": {
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "madhabSource": {
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "highLatitudeRuleSource": {
+                "type": "string",
+                "enum": [
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "regionalMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "customMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "methodMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "appliedMinuteAdjustments": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "calendarAlignmentAdjusted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "authorityNotice": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "UmmAlQura",
+                  "MuslimWorldLeague",
+                  "Egyptian",
+                  "Karachi",
+                  "NorthAmerica",
+                  "Dubai",
+                  "Qatar",
+                  "Kuwait",
+                  "MoonsightingCommittee",
+                  "Singapore",
+                  "Turkey",
+                  "Tehran"
+                ],
+                "description": "The calculation authority method"
+              },
+              "madhab": {
+                "type": "string",
+                "enum": [
+                  "Shafi",
+                  "Hanafi"
+                ],
+                "description": "The Asr jurisprudence school"
+              },
+              "authorityDescription": {
+                "type": "string",
+                "description": "Full descriptive name of the calculation authority"
+              },
+              "selectionReason": {
+                "type": "string",
+                "description": "Rationale for selecting this authority"
+              },
+              "requiredDisplayInstruction": {
+                "type": "string",
+                "description": "Mandatory theological notice for AI presentation"
+              }
+            },
+            "required": [
+              "method",
+              "madhab",
+              "authorityDescription",
+              "selectionReason",
+              "requiredDisplayInstruction"
+            ],
+            "additionalProperties": false,
+            "description": "Mandatory theological transparency notice; detailed provenance is at top level"
+          },
+          "reminderText": {
+            "description": "Localized reminder message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reminderDue",
+          "localDate",
+          "nextPrayer",
+          "nextPrayerAtUtc",
+          "timezone",
+          "calculationMethod",
+          "madhab",
+          "authorityNotice"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "get_today_prayer_times",
+      "title": "Get Full Daily Prayer Timetable",
+      "description": "Retrieves today prayer timetable (Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha) in UTC and formatted local time. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored."
+          },
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S",
+            "description": "Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved."
+          },
+          "date": {
+            "description": "Date in YYYY-MM-DD format (defaults to today)",
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "latitude": {
+            "description": "Optional explicit latitude override",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "description": "Optional explicit longitude override",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "timezone": {
+            "description": "IANA timezone; required in the same request when latitude/longitude are supplied. Must agree with the city or be compatible with the coordinate timezone lookup.",
+            "type": "string"
+          },
+          "calculationMethod": {
+            "description": "Optional calculation authority override (auto-resolved from location by default)",
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ]
+          },
+          "madhab": {
+            "description": "Optional Asr shadow jurisprudence override (Shafi or Hanafi)",
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "allOf": [
+          {
+            "not": {
+              "required": [
+                "city",
+                "latitude"
+              ]
+            }
+          },
+          {
+            "not": {
+              "required": [
+                "city",
+                "longitude"
+              ]
+            }
+          }
+        ],
+        "dependencies": {
+          "latitude": [
+            "longitude",
+            "timezone"
+          ],
+          "longitude": [
+            "latitude",
+            "timezone"
+          ]
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "localDate": {
+            "type": "string",
+            "description": "Local schedule date YYYY-MM-DD"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Resolved IANA timezone"
+          },
+          "calculationMethod": {
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ],
+            "description": "Active calculation authority"
+          },
+          "madhab": {
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ],
+            "description": "Active Asr jurisprudence"
+          },
+          "minuteAdjustments": {
+            "type": "object",
+            "properties": {
+              "fajr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "sunrise": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "dhuhr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "asr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "maghrib": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "isha": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              }
+            },
+            "additionalProperties": false
+          },
+          "authorityDescription": {
+            "type": "string"
+          },
+          "selectionReason": {
+            "type": "string"
+          },
+          "highLatitudeAdjustment": {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "boolean"
+              },
+              "rule": {
+                "type": "string",
+                "enum": [
+                  "MiddleOfTheNight",
+                  "SeventhOfTheNight",
+                  "TwilightAngle"
+                ]
+              },
+              "methodSpecificTwilightRule": {
+                "type": "string",
+                "const": "MoonsightingCommittee"
+              },
+              "astronomicalLatitudeClamped": {
+                "type": "boolean"
+              },
+              "effectiveLatitude": {
+                "description": "Substitute latitude only; never the user coordinate",
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 48
+                  },
+                  {
+                    "type": "number",
+                    "const": -48
+                  }
+                ]
+              },
+              "adjustedPrayers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "Fajr",
+                    "Sunrise",
+                    "Dhuhr",
+                    "Asr",
+                    "Maghrib",
+                    "Isha"
+                  ]
+                }
+              },
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "applied",
+              "rule",
+              "astronomicalLatitudeClamped",
+              "adjustedPrayers",
+              "explanation"
+            ],
+            "additionalProperties": false
+          },
+          "calculationDetails": {
+            "type": "object",
+            "properties": {
+              "expectedTimezone": {
+                "description": "Timezone from city registry or approximate coordinate lookup",
+                "type": "string"
+              },
+              "timezoneValidation": {
+                "description": "Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure",
+                "type": "string",
+                "enum": [
+                  "coordinate_lookup",
+                  "nearby_boundary",
+                  "city_registry",
+                  "polar_choice",
+                  "ocean_choice"
+                ]
+              },
+              "timezoneSource": {
+                "description": "Source of the validated timezone or disclosed ocean/pole choice",
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "city_default",
+                  "host_header"
+                ]
+              },
+              "locationBasis": {
+                "type": "string",
+                "enum": [
+                  "explicit_coordinates",
+                  "explicit_city",
+                  "stored_fixed_coordinates",
+                  "stored_fixed_city",
+                  "host_coordinates",
+                  "host_city",
+                  "network_geolocation",
+                  "default_location"
+                ]
+              },
+              "locationIsApproximate": {
+                "type": "boolean"
+              },
+              "fallbackLocationUsed": {
+                "type": "boolean"
+              },
+              "methodSource": {
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "madhabSource": {
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "highLatitudeRuleSource": {
+                "type": "string",
+                "enum": [
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "regionalMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "customMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "methodMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "appliedMinuteAdjustments": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "calendarAlignmentAdjusted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "authorityNotice": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "UmmAlQura",
+                  "MuslimWorldLeague",
+                  "Egyptian",
+                  "Karachi",
+                  "NorthAmerica",
+                  "Dubai",
+                  "Qatar",
+                  "Kuwait",
+                  "MoonsightingCommittee",
+                  "Singapore",
+                  "Turkey",
+                  "Tehran"
+                ],
+                "description": "The calculation authority method"
+              },
+              "madhab": {
+                "type": "string",
+                "enum": [
+                  "Shafi",
+                  "Hanafi"
+                ],
+                "description": "The Asr jurisprudence school"
+              },
+              "authorityDescription": {
+                "type": "string",
+                "description": "Full descriptive name of the calculation authority"
+              },
+              "selectionReason": {
+                "type": "string",
+                "description": "Rationale for selecting this authority"
+              },
+              "requiredDisplayInstruction": {
+                "type": "string",
+                "description": "Mandatory theological notice for AI presentation"
+              },
+              "highLatitudeAdjustment": {
+                "type": "object",
+                "properties": {
+                  "applied": {
+                    "type": "boolean"
+                  },
+                  "rule": {
+                    "type": "string",
+                    "enum": [
+                      "MiddleOfTheNight",
+                      "SeventhOfTheNight",
+                      "TwilightAngle"
+                    ]
+                  },
+                  "methodSpecificTwilightRule": {
+                    "type": "string",
+                    "const": "MoonsightingCommittee"
+                  },
+                  "astronomicalLatitudeClamped": {
+                    "type": "boolean"
+                  },
+                  "effectiveLatitude": {
+                    "description": "Substitute latitude only; never the user coordinate",
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 48
+                      },
+                      {
+                        "type": "number",
+                        "const": -48
+                      }
+                    ]
+                  },
+                  "adjustedPrayers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "Fajr",
+                        "Sunrise",
+                        "Dhuhr",
+                        "Asr",
+                        "Maghrib",
+                        "Isha"
+                      ]
+                    }
+                  },
+                  "explanation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "applied",
+                  "rule",
+                  "astronomicalLatitudeClamped",
+                  "adjustedPrayers",
+                  "explanation"
+                ],
+                "additionalProperties": false
+              },
+              "calculationDetails": {
+                "type": "object",
+                "properties": {
+                  "expectedTimezone": {
+                    "description": "Timezone from city registry or approximate coordinate lookup",
+                    "type": "string"
+                  },
+                  "timezoneValidation": {
+                    "description": "Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure",
+                    "type": "string",
+                    "enum": [
+                      "coordinate_lookup",
+                      "nearby_boundary",
+                      "city_registry",
+                      "polar_choice",
+                      "ocean_choice"
+                    ]
+                  },
+                  "timezoneSource": {
+                    "description": "Source of the validated timezone or disclosed ocean/pole choice",
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "city_default",
+                      "host_header"
+                    ]
+                  },
+                  "locationBasis": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_coordinates",
+                      "explicit_city",
+                      "stored_fixed_coordinates",
+                      "stored_fixed_city",
+                      "host_coordinates",
+                      "host_city",
+                      "network_geolocation",
+                      "default_location"
+                    ]
+                  },
+                  "locationIsApproximate": {
+                    "type": "boolean"
+                  },
+                  "fallbackLocationUsed": {
+                    "type": "boolean"
+                  },
+                  "methodSource": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "madhabSource": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "highLatitudeRuleSource": {
+                    "type": "string",
+                    "enum": [
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "regionalMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "customMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "methodMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "appliedMinuteAdjustments": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "calendarAlignmentAdjusted": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "method",
+              "madhab",
+              "authorityDescription",
+              "selectionReason",
+              "requiredDisplayInstruction"
+            ],
+            "additionalProperties": false
+          },
+          "timesUtc": {
+            "type": "object",
+            "properties": {
+              "fajr": {
+                "type": "string",
+                "description": "Fajr UTC timestamp"
+              },
+              "sunrise": {
+                "type": "string",
+                "description": "Sunrise UTC timestamp"
+              },
+              "dhuhr": {
+                "type": "string",
+                "description": "Dhuhr UTC timestamp"
+              },
+              "asr": {
+                "type": "string",
+                "description": "Asr UTC timestamp"
+              },
+              "maghrib": {
+                "type": "string",
+                "description": "Maghrib UTC timestamp"
+              },
+              "isha": {
+                "type": "string",
+                "description": "Isha UTC timestamp"
+              }
+            },
+            "required": [
+              "fajr",
+              "sunrise",
+              "dhuhr",
+              "asr",
+              "maghrib",
+              "isha"
+            ],
+            "additionalProperties": false
+          },
+          "timesLocal": {
+            "type": "object",
+            "properties": {
+              "Fajr": {
+                "type": "string",
+                "description": "Fajr local 24h time HH:mm"
+              },
+              "Sunrise": {
+                "type": "string",
+                "description": "Sunrise local 24h time HH:mm"
+              },
+              "Dhuhr": {
+                "type": "string",
+                "description": "Dhuhr local 24h time HH:mm"
+              },
+              "Asr": {
+                "type": "string",
+                "description": "Asr local 24h time HH:mm"
+              },
+              "Maghrib": {
+                "type": "string",
+                "description": "Maghrib local 24h time HH:mm"
+              },
+              "Isha": {
+                "type": "string",
+                "description": "Isha local 24h time HH:mm"
+              }
+            },
+            "required": [
+              "Fajr",
+              "Sunrise",
+              "Dhuhr",
+              "Asr",
+              "Maghrib",
+              "Isha"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "localDate",
+          "timezone",
+          "calculationMethod",
+          "madhab",
+          "timesUtc",
+          "timesLocal"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "get_next_prayer",
+      "title": "Get Upcoming Prayer and Countdown",
+      "description": "Returns the immediate next prayer name, scheduled time, authority calculation method, and remaining countdown in minutes. MANDATORY: The LLM must always explicitly disclose to the user which calculation authority method was used and why it was selected (see authorityNotice in response).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored."
+          },
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S",
+            "description": "Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved."
+          },
+          "latitude": {
+            "description": "Optional explicit latitude override",
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90
+          },
+          "longitude": {
+            "description": "Optional explicit longitude override",
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180
+          },
+          "timezone": {
+            "description": "IANA timezone; required in the same request when latitude/longitude are supplied. Must agree with the city or be compatible with the coordinate timezone lookup.",
+            "type": "string"
+          },
+          "calculationMethod": {
+            "description": "Optional calculation authority override (auto-resolved from location by default)",
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ]
+          },
+          "madhab": {
+            "description": "Optional Asr shadow jurisprudence override (Shafi or Hanafi)",
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ]
+          }
+        },
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "allOf": [
+          {
+            "not": {
+              "required": [
+                "city",
+                "latitude"
+              ]
+            }
+          },
+          {
+            "not": {
+              "required": [
+                "city",
+                "longitude"
+              ]
+            }
+          }
+        ],
+        "dependencies": {
+          "latitude": [
+            "longitude",
+            "timezone"
+          ],
+          "longitude": [
+            "latitude",
+            "timezone"
+          ]
+        }
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "currentLocalDate": {
+            "type": "string",
+            "description": "Current local date YYYY-MM-DD"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Resolved IANA timezone"
+          },
+          "nextPrayer": {
+            "type": "string",
+            "description": "Name of the upcoming prayer"
+          },
+          "nextPrayerAtUtc": {
+            "type": "string",
+            "description": "UTC timestamp of the upcoming prayer"
+          },
+          "nextPrayerLocalTime": {
+            "type": "string",
+            "description": "Formatted local time HH:mm"
+          },
+          "remainingMinutes": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Minutes remaining until prayer start"
+          },
+          "calculationMethod": {
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ],
+            "description": "Active calculation authority"
+          },
+          "madhab": {
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ],
+            "description": "Active Asr jurisprudence"
+          },
+          "authorityDescription": {
+            "type": "string"
+          },
+          "selectionReason": {
+            "type": "string"
+          },
+          "highLatitudeAdjustment": {
+            "type": "object",
+            "properties": {
+              "applied": {
+                "type": "boolean"
+              },
+              "rule": {
+                "type": "string",
+                "enum": [
+                  "MiddleOfTheNight",
+                  "SeventhOfTheNight",
+                  "TwilightAngle"
+                ]
+              },
+              "methodSpecificTwilightRule": {
+                "type": "string",
+                "const": "MoonsightingCommittee"
+              },
+              "astronomicalLatitudeClamped": {
+                "type": "boolean"
+              },
+              "effectiveLatitude": {
+                "description": "Substitute latitude only; never the user coordinate",
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 48
+                  },
+                  {
+                    "type": "number",
+                    "const": -48
+                  }
+                ]
+              },
+              "adjustedPrayers": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "Fajr",
+                    "Sunrise",
+                    "Dhuhr",
+                    "Asr",
+                    "Maghrib",
+                    "Isha"
+                  ]
+                }
+              },
+              "explanation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "applied",
+              "rule",
+              "astronomicalLatitudeClamped",
+              "adjustedPrayers",
+              "explanation"
+            ],
+            "additionalProperties": false
+          },
+          "calculationDetails": {
+            "type": "object",
+            "properties": {
+              "expectedTimezone": {
+                "description": "Timezone from city registry or approximate coordinate lookup",
+                "type": "string"
+              },
+              "timezoneValidation": {
+                "description": "Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure",
+                "type": "string",
+                "enum": [
+                  "coordinate_lookup",
+                  "nearby_boundary",
+                  "city_registry",
+                  "polar_choice",
+                  "ocean_choice"
+                ]
+              },
+              "timezoneSource": {
+                "description": "Source of the validated timezone or disclosed ocean/pole choice",
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "city_default",
+                  "host_header"
+                ]
+              },
+              "locationBasis": {
+                "type": "string",
+                "enum": [
+                  "explicit_coordinates",
+                  "explicit_city",
+                  "stored_fixed_coordinates",
+                  "stored_fixed_city",
+                  "host_coordinates",
+                  "host_city",
+                  "network_geolocation",
+                  "default_location"
+                ]
+              },
+              "locationIsApproximate": {
+                "type": "boolean"
+              },
+              "fallbackLocationUsed": {
+                "type": "boolean"
+              },
+              "methodSource": {
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "madhabSource": {
+                "type": "string",
+                "enum": [
+                  "explicit_override",
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "highLatitudeRuleSource": {
+                "type": "string",
+                "enum": [
+                  "stored_preference",
+                  "geographic_default"
+                ]
+              },
+              "regionalMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "customMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "methodMinuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "appliedMinuteAdjustments": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": "number"
+                }
+              },
+              "calendarAlignmentAdjusted": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "authorityNotice": {
+            "type": "object",
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "UmmAlQura",
+                  "MuslimWorldLeague",
+                  "Egyptian",
+                  "Karachi",
+                  "NorthAmerica",
+                  "Dubai",
+                  "Qatar",
+                  "Kuwait",
+                  "MoonsightingCommittee",
+                  "Singapore",
+                  "Turkey",
+                  "Tehran"
+                ],
+                "description": "The calculation authority method"
+              },
+              "madhab": {
+                "type": "string",
+                "enum": [
+                  "Shafi",
+                  "Hanafi"
+                ],
+                "description": "The Asr jurisprudence school"
+              },
+              "authorityDescription": {
+                "type": "string",
+                "description": "Full descriptive name of the calculation authority"
+              },
+              "selectionReason": {
+                "type": "string",
+                "description": "Rationale for selecting this authority"
+              },
+              "requiredDisplayInstruction": {
+                "type": "string",
+                "description": "Mandatory theological notice for AI presentation"
+              },
+              "highLatitudeAdjustment": {
+                "type": "object",
+                "properties": {
+                  "applied": {
+                    "type": "boolean"
+                  },
+                  "rule": {
+                    "type": "string",
+                    "enum": [
+                      "MiddleOfTheNight",
+                      "SeventhOfTheNight",
+                      "TwilightAngle"
+                    ]
+                  },
+                  "methodSpecificTwilightRule": {
+                    "type": "string",
+                    "const": "MoonsightingCommittee"
+                  },
+                  "astronomicalLatitudeClamped": {
+                    "type": "boolean"
+                  },
+                  "effectiveLatitude": {
+                    "description": "Substitute latitude only; never the user coordinate",
+                    "anyOf": [
+                      {
+                        "type": "number",
+                        "const": 48
+                      },
+                      {
+                        "type": "number",
+                        "const": -48
+                      }
+                    ]
+                  },
+                  "adjustedPrayers": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "Fajr",
+                        "Sunrise",
+                        "Dhuhr",
+                        "Asr",
+                        "Maghrib",
+                        "Isha"
+                      ]
+                    }
+                  },
+                  "explanation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "applied",
+                  "rule",
+                  "astronomicalLatitudeClamped",
+                  "adjustedPrayers",
+                  "explanation"
+                ],
+                "additionalProperties": false
+              },
+              "calculationDetails": {
+                "type": "object",
+                "properties": {
+                  "expectedTimezone": {
+                    "description": "Timezone from city registry or approximate coordinate lookup",
+                    "type": "string"
+                  },
+                  "timezoneValidation": {
+                    "description": "Validation basis; ocean locations require the matching nautical timezone or an adjacent coastal civil timezone; mathematical poles allow an explicit civil timezone with disclosure",
+                    "type": "string",
+                    "enum": [
+                      "coordinate_lookup",
+                      "nearby_boundary",
+                      "city_registry",
+                      "polar_choice",
+                      "ocean_choice"
+                    ]
+                  },
+                  "timezoneSource": {
+                    "description": "Source of the validated timezone or disclosed ocean/pole choice",
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "city_default",
+                      "host_header"
+                    ]
+                  },
+                  "locationBasis": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_coordinates",
+                      "explicit_city",
+                      "stored_fixed_coordinates",
+                      "stored_fixed_city",
+                      "host_coordinates",
+                      "host_city",
+                      "network_geolocation",
+                      "default_location"
+                    ]
+                  },
+                  "locationIsApproximate": {
+                    "type": "boolean"
+                  },
+                  "fallbackLocationUsed": {
+                    "type": "boolean"
+                  },
+                  "methodSource": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "madhabSource": {
+                    "type": "string",
+                    "enum": [
+                      "explicit_override",
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "highLatitudeRuleSource": {
+                    "type": "string",
+                    "enum": [
+                      "stored_preference",
+                      "geographic_default"
+                    ]
+                  },
+                  "regionalMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "customMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "methodMinuteAdjustments": {
+                    "type": "object",
+                    "properties": {
+                      "fajr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "sunrise": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "dhuhr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "asr": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "maghrib": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      },
+                      "isha": {
+                        "type": "integer",
+                        "minimum": -60,
+                        "maximum": 60
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "appliedMinuteAdjustments": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "number"
+                    }
+                  },
+                  "calendarAlignmentAdjusted": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "method",
+              "madhab",
+              "authorityDescription",
+              "selectionReason",
+              "requiredDisplayInstruction"
+            ],
+            "additionalProperties": false
+          },
+          "minuteAdjustments": {
+            "type": "object",
+            "properties": {
+              "fajr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "sunrise": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "dhuhr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "asr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "maghrib": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "isha": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "currentLocalDate",
+          "timezone",
+          "nextPrayer",
+          "nextPrayerAtUtc",
+          "nextPrayerLocalTime",
+          "remainingMinutes",
+          "calculationMethod",
+          "madhab"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "configure_prayer_preferences",
+      "title": "Configure User Prayer Preferences",
+      "description": "Updates persistent prayer preferences, overwriting supplied settings while preserving omitted settings. Setting fixedCity replaces stored fixedCoordinates and stores the canonical city timezone; contradictory timezones are rejected; setting fixedCoordinates replaces stored fixedCity. Can disable reminders. Fixed mode requires a supported fixedCity or fixedCoordinates with timezone; new coordinates require timezone in the same request. clearFixedLocation removes saved location and timezone and defaults to auto_travel. Combined fixed-location calculation settings are validated for the current and next local day before saving. Invalid combinations preserve the previous preferences. Auto-travel chronology is checked when a query supplies its location. Previous values are not retained for undo.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "clearFixedLocation": {
+            "description": "Remove stored fixedCity, fixedCoordinates and timezone. Switches to auto_travel unless locationMode is supplied. Cannot combine with a new fixed location/timezone.",
+            "type": "boolean"
+          },
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S",
+            "description": "Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved."
+          },
+          "locationMode": {
+            "description": "Location strategy: fixed uses saved location; auto_travel requires the caller to supply current city or coordinates/timezone on each query and never uses IP geolocation.",
+            "type": "string",
+            "enum": [
+              "auto_travel",
+              "fixed"
+            ]
+          },
+          "fixedCity": {
+            "type": "string",
+            "description": "Supported cities: makkah, madinah, riyadh, cairo, gaza, jerusalem, alquds, ramallah, hebron, nablus, rafah, khanyunis, dubai, abudhabi, kuwait, doha, amman, istanbul, london, paris, newyork, toronto, jakarta, singapore, karachi, kualalumpur, tehran, sydney, tromso. Aliases: gazacity, nyc, kuwaitcity. Case, spaces and punctuation are ignored."
+          },
+          "fixedCoordinates": {
+            "description": "Fixed geographical coordinates",
+            "type": "object",
+            "properties": {
+              "latitude": {
+                "type": "number",
+                "minimum": -90,
+                "maximum": 90
+              },
+              "longitude": {
+                "type": "number",
+                "minimum": -180,
+                "maximum": 180
+              }
+            },
+            "required": [
+              "latitude",
+              "longitude"
+            ]
+          },
+          "timezone": {
+            "description": "IANA timezone identifier (e.g. Asia/Riyadh, Europe/London)",
+            "type": "string"
+          },
+          "calculationMethod": {
+            "description": "Islamic prayer calculation authority",
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ]
+          },
+          "madhab": {
+            "description": "Jurisprudential Asr shadow calculation: Shafi or Hanafi",
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ]
+          },
+          "highLatitudeRule": {
+            "description": "High latitude twilight adjustment rule",
+            "type": "string",
+            "enum": [
+              "MiddleOfTheNight",
+              "SeventhOfTheNight",
+              "TwilightAngle"
+            ]
+          },
+          "reminderMode": {
+            "description": "Reminder display policy: prayer_window, exact_window, persistent",
+            "type": "string",
+            "enum": [
+              "prayer_window",
+              "exact_window",
+              "persistent"
+            ]
+          },
+          "exactWindowMinutes": {
+            "description": "Duration in minutes for exact_window mode. Omitted updates preserve the saved value; if unset, the service default is 20 minutes unless the operator overrides it.",
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 120
+          },
+          "locale": {
+            "description": "Language for reminder text: en or ar",
+            "type": "string",
+            "enum": [
+              "en",
+              "ar"
+            ]
+          },
+          "minuteAdjustments": {
+            "description": "Custom per-prayer minute offsets (-60 to +60). For fixed locations, combined settings must preserve timetable chronology for the current and next local day before saving; auto-travel offsets are validated when a query supplies its location.",
+            "type": "object",
+            "properties": {
+              "fajr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "sunrise": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "dhuhr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "asr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "maghrib": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "isha": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              }
+            }
+          },
+          "enabled": {
+            "description": "Whether prayer reminders are enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "userId"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Whether configuration succeeded"
+          },
+          "preferences": {
+            "type": "object",
+            "properties": {
+              "fixedCoordinatesConfigured": {
+                "type": "boolean"
+              },
+              "fixedCityConfigured": {
+                "type": "boolean"
+              },
+              "locationMode": {
+                "type": "string",
+                "enum": [
+                  "auto_travel",
+                  "fixed"
+                ]
+              },
+              "fixedCity": {
+                "type": "string"
+              },
+              "timezone": {
+                "type": "string"
+              },
+              "calculationMethod": {
+                "type": "string",
+                "enum": [
+                  "UmmAlQura",
+                  "MuslimWorldLeague",
+                  "Egyptian",
+                  "Karachi",
+                  "NorthAmerica",
+                  "Dubai",
+                  "Qatar",
+                  "Kuwait",
+                  "MoonsightingCommittee",
+                  "Singapore",
+                  "Turkey",
+                  "Tehran"
+                ]
+              },
+              "madhab": {
+                "type": "string",
+                "enum": [
+                  "Shafi",
+                  "Hanafi"
+                ]
+              },
+              "highLatitudeRule": {
+                "type": "string",
+                "enum": [
+                  "MiddleOfTheNight",
+                  "SeventhOfTheNight",
+                  "TwilightAngle"
+                ]
+              },
+              "reminderMode": {
+                "type": "string",
+                "enum": [
+                  "prayer_window",
+                  "exact_window",
+                  "persistent"
+                ]
+              },
+              "exactWindowMinutes": {
+                "type": "number"
+              },
+              "locale": {
+                "type": "string",
+                "enum": [
+                  "en",
+                  "ar"
+                ]
+              },
+              "minuteAdjustments": {
+                "type": "object",
+                "properties": {
+                  "fajr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "sunrise": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "dhuhr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "asr": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "maghrib": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  },
+                  "isha": {
+                    "type": "integer",
+                    "minimum": -60,
+                    "maximum": 60
+                  }
+                },
+                "additionalProperties": false
+              },
+              "enabled": {
+                "type": "boolean"
+              },
+              "updatedAtUtc": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fixedCoordinatesConfigured",
+              "fixedCityConfigured"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "success",
+          "preferences"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    },
+    {
+      "name": "get_prayer_preferences",
+      "title": "Retrieve Stored Prayer Preferences",
+      "description": "Returns the currently active calculation settings and preferences for a user. Read-only operation.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S",
+            "description": "Nonblank user identifier; at most 256 UTF-8 bytes and 256 characters. Whitespace in nonblank identifiers is preserved."
+          }
+        },
+        "required": [
+          "userId"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#"
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "fixedCoordinatesConfigured": {
+            "type": "boolean"
+          },
+          "fixedCityConfigured": {
+            "type": "boolean"
+          },
+          "locationMode": {
+            "type": "string",
+            "enum": [
+              "auto_travel",
+              "fixed"
+            ]
+          },
+          "fixedCity": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "calculationMethod": {
+            "type": "string",
+            "enum": [
+              "UmmAlQura",
+              "MuslimWorldLeague",
+              "Egyptian",
+              "Karachi",
+              "NorthAmerica",
+              "Dubai",
+              "Qatar",
+              "Kuwait",
+              "MoonsightingCommittee",
+              "Singapore",
+              "Turkey",
+              "Tehran"
+            ]
+          },
+          "madhab": {
+            "type": "string",
+            "enum": [
+              "Shafi",
+              "Hanafi"
+            ]
+          },
+          "highLatitudeRule": {
+            "type": "string",
+            "enum": [
+              "MiddleOfTheNight",
+              "SeventhOfTheNight",
+              "TwilightAngle"
+            ]
+          },
+          "reminderMode": {
+            "type": "string",
+            "enum": [
+              "prayer_window",
+              "exact_window",
+              "persistent"
+            ]
+          },
+          "exactWindowMinutes": {
+            "type": "number"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "ar"
+            ]
+          },
+          "minuteAdjustments": {
+            "type": "object",
+            "properties": {
+              "fajr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "sunrise": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "dhuhr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "asr": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "maghrib": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              },
+              "isha": {
+                "type": "integer",
+                "minimum": -60,
+                "maximum": 60
+              }
+            },
+            "additionalProperties": false
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "updatedAtUtc": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fixedCoordinatesConfigured",
+          "fixedCityConfigured"
+        ],
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": false
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      }
+    }
+  ],
+  "version": "1.1.3",
+  "cloudEndpoint": "https://muslim-prayer-mcp.najetareqz.workers.dev/mcp",
+  "icon": "https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/official-logo-512.png",
+  "category": "health-wellness"
+}

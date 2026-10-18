@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { registerPrayerContextFeatures } from './context-features.ts';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import {
   ConfigurePrayerPreferencesInputSchema,
@@ -42,13 +43,15 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
   const server = new McpServer(
     {
       name: 'muslim-prayer-reminder',
-      version: '1.1.2',
+      version: '1.1.3',
     },
     {
       instructions:
         'MANDATORY TRANSPARENCY INSTRUCTION FOR AI MODELS: When answering user queries regarding prayer times, timetable schedules, next prayer countdowns, or prayer status, you MUST ALWAYS explicitly inform the user of: 1) The exact calculation authority method used (e.g. Palestinian Ministry of Awqaf / Egyptian Survey Authority, Umm al-Qura University, Diyanet, Karachi, ISNA, etc.). 2) The exact reason WHY this authority was chosen (e.g. automatically resolved from geographic location or explicit user preference). Never present prayer times without disclosing the authority and reason. Also disclose highLatitudeAdjustment.explanation whenever applied, including substituted polar sunrise/sunset. Require explicit user city or coordinates/timezone; on location_required ask for location and never guess from infrastructure IP.',
     }
   );
+
+  registerPrayerContextFeatures(server);
 
   // Tool 1: get_prayer_status
   server.registerTool(

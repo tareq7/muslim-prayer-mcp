@@ -33,7 +33,7 @@
 
 </p>
 
-> **Project Status**: 🟢 **Actively Maintained (v1.0.1)**  
+> **Project Status**: 🟢 **Actively Maintained (v1.1.3)**
 > **Published by**: [**Smart Creations**](https://github.com/Smart-Creations) (OpenAI Org: `org-deULP4GGInsTcWmuaHWp3lxy`) • **Lead Maintainer**: [**Tareq Naji**](https://github.com/tareq7)  
 > Supported across Cloudflare Workers, Node.js 22/24 (Ubuntu & Windows), and all Model Context Protocol (MCP) clients.
 
@@ -137,6 +137,17 @@ flowchart TD
     ClientLayer --> TransportLayer
     TransportLayer --> ResolverLayer
 ```
+
+---
+
+## MCP Prompts and Resources
+
+In addition to the five calculation and preference tools, compatible MCP clients can use two protocol-native, read-only learning features:
+
+- **Prompt:** `check_prayer_times_with_disclosure` guides a client to obtain real prayer times using the tool, ask for missing location, and explain the calculation authority, reason for selection, and high-latitude adjustments.
+- **Resource:** `prayer://calculation-guide` provides a short guide to location requirements, Asr conventions, twilight methods, and differences from local mosque timetables.
+
+These features do not guess prayer times, read private preferences, or replace the calculation tools. They are available through the current hosted MCP endpoint. Older local npm versions may not provide the new prompt and resource until updated.
 
 ---
 

@@ -401,3 +401,33 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
   });
 
 });
+
+describe('MCP calculation prompt and reference resource', () => {
+  const rpc = async (id: number, method: string, params: Record<string, unknown> = {}) => {
+    const response = await worker.fetch(new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id, method, params }),
+    }), {});
+    assert.equal(response.status, 200);
+    return response.json() as Promise<any>;
+  };
+
+  it('lists genuine user-invokable prayer time prompts', async () => {
+    const result = await rpc(501, 'prompts/list');
+    assert.ok(result.result.prompts.some((prompt: any) => prompt.name === 'check_prayer_times_with_disclosure'));
+    const chosen = await rpc(502, 'prompts/get', { name: 'check_prayer_times_with_disclosure' });
+    assert.ok(chosen.result.messages[0].content.text.includes('get_today_prayer_times'));
+    assert.ok(chosen.result.messages[0].content.text.includes('calculation authority'));
+  });
+
+  it('lists and serves a real calculation guidance resource without personal data', async () => {
+    const result = await rpc(503, 'resources/list');
+    const resource = result.result.resources.find((entry: any) => entry.uri === 'prayer://calculation-guide');
+    assert.ok(resource);
+    const read = await rpc(504, 'resources/read', { uri: resource.uri });
+    assert.equal(read.result.contents[0].mimeType, 'text/markdown');
+    assert.ok(read.result.contents[0].text.includes('Compare results with your local mosque'));
+    assert.ok(read.result.contents[0].text.includes('Do not guess user location'));
+  });
+});
