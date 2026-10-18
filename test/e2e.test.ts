@@ -3,6 +3,41 @@ import assert from 'node:assert/strict';
 import { PrayerReminderMiddleware } from '../src/middleware/host-connector.ts';
 import worker from '../src/index.ts';
 
+describe('Public MCP directory discovery', () => {
+  const discoveryUrl = 'https://muslim-prayer-mcp.najetareqz.workers.dev/.well-known/mcp.json';
+
+  it('serves public, typed metadata for GET', async () => {
+    const response = await worker.fetch(new Request(discoveryUrl), {});
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('Content-Type') ?? '', /application\/json/);
+    const discovery = await response.json() as { name: string; endpoint: string; repository: string };
+    assert.equal(discovery.name, 'Muslim Prayer Reminder MCP');
+    assert.equal(discovery.endpoint, 'https://muslim-prayer-mcp.najetareqz.workers.dev/mcp');
+    assert.equal(discovery.repository, 'https://github.com/tareq7/muslim-prayer-mcp');
+  });
+
+  it('returns the same headers but no response body for HEAD', async () => {
+    const response = await worker.fetch(new Request(discoveryUrl, { method: 'HEAD' }), {});
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('Content-Type') ?? '', /application\/json/);
+    assert.equal(response.body, null);
+  });
+
+  it('advertises HEAD support in CORS preflight', async () => {
+    const response = await worker.fetch(new Request(discoveryUrl, {
+      method: 'OPTIONS',
+      headers: {
+        'Origin': 'https://mcpub.dev',
+        'Access-Control-Request-Method': 'HEAD',
+      },
+    }), {});
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get('Access-Control-Allow-Origin'), '*');
+    assert.match(response.headers.get('Access-Control-Allow-Methods') ?? '', /\bHEAD\b/);
+  });
+});
+
+
 describe('End-to-End Simulation & Deterministic Middleware Suite', () => {
   // Mock LLM generation function simulating an unrelated user query
   async function simulateLlmTurn(prompt: string): Promise<string> {
