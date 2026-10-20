@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://chatgpt.com/plugins/plugin_asdk_app_6a9bca660b2c8191a1146aa615cad6f5">
-    <img src="assets/official-logo-512.png" alt="Muslim Prayer Reminder MCP" width="88" height="88" />
+    <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/logo-192.png" alt="Muslim Prayer Reminder MCP" width="88" height="88" />
   </a>
 </p>
 
