@@ -436,17 +436,11 @@ npm test
 ## Registries & ratings
 
 <p align="center">
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.1.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
-  <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
+  <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp/badges/card.svg" alt="Muslim Prayer Reminder MCP server card on Glama" width="460"></a>
 </p>
 
 <p align="center">
-  <a href="https://lobehub.com/mcp/tareq7-muslim-prayer-mcp"><img src="https://lobehub.com/badge/mcp/tareq7-muslim-prayer-mcp" alt="LobeHub MCP Badge"></a>
-</p>
-
-<p align="center">
-  <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>
-  <a href="https://wellknown.network/agents/muslim-prayer-reminder-mcp"><img src="https://wellknown.network/agents/muslim-prayer-reminder-mcp/badge.svg" alt="Wellknown"></a>
+  <a href="https://lobehub.com/mcp/tareq7-muslim-prayer-mcp"><img src="https://lobehub.com/badge/mcp-full/tareq7-muslim-prayer-mcp" alt="Muslim Prayer Reminder MCP server card on LobeHub" width="460"></a>
 </p>
 
 <p align="center">
@@ -455,6 +449,15 @@ npm test
 
 <p align="center">
   <a href="https://aiagentslisting.com/mcp/muslim-prayer-mcp"><img src="https://aiagentslisting.com/muslim-prayer-mcp/badge.svg?claim=59e9e501cba811e5fc2d0dc45b48353e" alt="Muslim Prayer Mcp on AI Agents Listing"></a>
+</p>
+
+<p align="center">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.1.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
+</p>
+
+<p align="center">
+  <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>
+  <a href="https://wellknown.network/agents/muslim-prayer-reminder-mcp"><img src="https://wellknown.network/agents/muslim-prayer-reminder-mcp/badge.svg" alt="Wellknown"></a>
 </p>
 
 ---
