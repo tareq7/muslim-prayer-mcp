@@ -7,12 +7,12 @@
     "url": "https://github.com/tareq7/muslim-prayer-mcp",
     "source": "github"
   },
-  "version": "1.1.2",
+  "version": "1.1.3",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "muslim-prayer-mcp",
-      "version": "1.1.2",
+      "version": "1.1.3",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
