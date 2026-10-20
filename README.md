@@ -1,45 +1,40 @@
 <p align="center">
-  <a href="https://github.com/tareq7/muslim-prayer-mcp">
-    <img src="https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/banner.png" alt="Muslim Prayer Reminder MCP Banner" width="100%" />
+  <a href="https://chatgpt.com/plugins/plugin_asdk_app_6a9bca660b2c8191a1146aa615cad6f5">
+    <img src="assets/official-logo-512.png" alt="Muslim Prayer Reminder MCP" width="88" height="88" />
   </a>
 </p>
 
-<h1 align="center">🕌 Muslim Prayer Reminder MCP</h1>
+<h1 align="center">Muslim Prayer Reminder MCP</h1>
 
 <p align="center">
-  <strong>Production-ready astronomical prayer calculation and proactive notification engine on Cloudflare Workers for AI models, coding agents, and developer environments.</strong>
+  <strong>Prayer times and reminders inside your AI workflow.</strong><br />
+  Get local prayer times, see what's next, and configure reminders in ChatGPT, Claude, Cursor, and other MCP clients.
 </p>
 
 <p align="center">
-  <a href="https://tareq7.github.io/muslim-prayer-mcp/"><strong>Documentation</strong></a> •
-  <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4"><strong>Live Demo (1080p)</strong></a> •
-  <a href="https://www.youtube.com/watch?v=09yPY0za4Ww"><strong>48s YouTube Demo</strong></a> •
-  <a href="#-quick-start"><strong>Quick Start</strong></a> •
-  <a href="#-mcp-tools-catalog"><strong>Tools Catalog</strong></a> •
-  <a href="#-astronomical--theological-rigor"><strong>Theological Rigor</strong></a> •
-  <a href="SECURITY.md"><strong>Security Policy</strong></a>
+  <a href="https://chatgpt.com/plugins/plugin_asdk_app_6a9bca660b2c8191a1146aa615cad6f5"><strong>Open in ChatGPT</strong></a> &nbsp;·&nbsp;
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/">Documentation</a> &nbsp;·&nbsp;
+  <a href="#-quick-start">Quick Start</a> &nbsp;·&nbsp;
+  <a href="#-mcp-tools-catalog">Tools Catalog</a> &nbsp;·&nbsp;
+  <a href="https://www.youtube.com/watch?v=09yPY0za4Ww">Watch the Demo</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml"><img src="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status"></a>
   <a href="https://github.com/tareq7/muslim-prayer-mcp/releases"><img src="https://img.shields.io/github/v/release/tareq7/muslim-prayer-mcp.svg?color=0052CC&label=Release" alt="Latest Release"></a>
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions"><img src="https://img.shields.io/badge/Tests-172%20Passing-brightgreen" alt="Tests"></a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.1.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
-  <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
-  <a href="https://lobehub.com/mcp/tareq7-muslim-prayer-mcp"><img src="https://lobehub.com/badge/mcp/tareq7-muslim-prayer-mcp" alt="LobeHub MCP Badge"></a>
-  <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>
-  <a href="https://mcprush.com/to/muslim-prayer-reminder-mcp?ref=badge"><img src="https://mcprush.com/badge/muslim-prayer-reminder-mcp/card.svg" alt="Muslim Prayer Reminder MCP server on MCPRush"></a>
-  <a href="https://wellknown.network/agents/muslim-prayer-reminder-mcp"><img src="https://wellknown.network/agents/muslim-prayer-reminder-mcp/badge.svg" alt="Wellknown"></a>
-  <a href="https://github.com/Smart-Creations"><img src="https://img.shields.io/badge/Publisher-Smart%20Creations-0052CC?logo=github&logoColor=white" alt="Publisher: Smart Creations"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Enforced-success" alt="Security Policy"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License"></a>
-
 </p>
 
-> **Project Status**: 🟢 **Actively Maintained (v1.1.3)**
-> **Published by**: [**Smart Creations**](https://github.com/Smart-Creations) (OpenAI Org: `org-deULP4GGInsTcWmuaHWp3lxy`) • **Lead Maintainer**: [**Tareq Naji**](https://github.com/tareq7)  
-> Supported across Cloudflare Workers, Node.js 22/24 (Ubuntu & Windows), and all Model Context Protocol (MCP) clients.
+<p align="center">
+  <sub>Actively maintained · Cloudflare Workers · Node.js 22/24 on Ubuntu and Windows</sub><br />
+  <sub>By <a href="https://github.com/Smart-Creations">Smart Creations</a> · Maintained by <a href="https://github.com/tareq7">Tareq Naji</a></sub>
+</p>
 
+| Local prayer times | Next prayer at a glance | Your setup, your choice |
+| :--- | :--- | :--- |
+| Location-aware timetables with 12 calculation methods. | Next-prayer countdowns and configurable reminder windows. | Connect to the hosted endpoint or run locally over stdio. |
 
 ---
 
@@ -438,6 +433,32 @@ npm test
 
 ---
 
+## Registries & ratings
+
+<p align="center">
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.1.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
+  <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
+</p>
+
+<p align="center">
+  <a href="https://lobehub.com/mcp/tareq7-muslim-prayer-mcp"><img src="https://lobehub.com/badge/mcp/tareq7-muslim-prayer-mcp" alt="LobeHub MCP Badge"></a>
+</p>
+
+<p align="center">
+  <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>
+  <a href="https://wellknown.network/agents/muslim-prayer-reminder-mcp"><img src="https://wellknown.network/agents/muslim-prayer-reminder-mcp/badge.svg" alt="Wellknown"></a>
+</p>
+
+<p align="center">
+  <a href="https://mcprush.com/to/muslim-prayer-reminder-mcp?ref=badge"><img src="https://mcprush.com/badge/muslim-prayer-reminder-mcp/card.svg" alt="Muslim Prayer Reminder MCP server on MCPRush" width="460"></a>
+</p>
+
+<p align="center">
+  <a href="https://aiagentslisting.com/mcp/muslim-prayer-mcp"><img src="https://aiagentslisting.com/muslim-prayer-mcp/badge.svg?claim=59e9e501cba811e5fc2d0dc45b48353e" alt="Muslim Prayer Mcp on AI Agents Listing"></a>
+</p>
+
+---
+
 ## 📄 Governance, Ownership & Community
 
 * **Publisher & Organization**: [**Smart Creations**](https://github.com/Smart-Creations) (OpenAI Organization ID: `org-deULP4GGInsTcWmuaHWp3lxy`)
@@ -481,5 +502,3 @@ The supported city vocabulary and aliases are advertised in each location input 
 Timezone validation uses @photostructure/tz-lookup 11.7.0 (compact, approximate geographic data). Canonical IANA aliases are accepted; matching sampled UTC offsets is not sufficient, because DST transition dates can differ. Near boundaries, adjacent lookup zones within roughly 0.05 degrees are accepted and disclosed as nearby_boundary. This is not precise jurisdiction detection. Mathematical poles retain an explicit civil timezone choice; ocean cells require a matching nautical zone or nearby civil zone. New and updated fixed-city preferences store the canonical city timezone; contradictory supplied values are rejected. Legacy city records are presented canonically without rewriting other data on a read.
 
 The caller must supply current city or coordinates/timezone in auto_travel mode; there is no automatic IP geolocation. Stored method preferences remain active while traveling. exact_window uses the saved duration or, when unset, the service default of 20 minutes unless an operator overrides it. Omitting the duration preserves existing preferences.
-
-[![Muslim Prayer Mcp on AI Agents Listing](https://aiagentslisting.com/muslim-prayer-mcp/badge.svg?claim=59e9e501cba811e5fc2d0dc45b48353e)](https://aiagentslisting.com/mcp/muslim-prayer-mcp)
