@@ -28,6 +28,7 @@
   <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
   <a href="https://lobehub.com/mcp/tareq7-muslim-prayer-mcp"><img src="https://lobehub.com/badge/mcp/tareq7-muslim-prayer-mcp" alt="LobeHub MCP Badge"></a>
   <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>
+  <a href="https://mcprush.com/to/muslim-prayer-reminder-mcp?ref=badge"><img src="https://mcprush.com/badge/muslim-prayer-reminder-mcp/card.svg" alt="Muslim Prayer Reminder MCP server on MCPRush"></a>
   <a href="https://wellknown.network/agents/muslim-prayer-reminder-mcp"><img src="https://wellknown.network/agents/muslim-prayer-reminder-mcp/badge.svg" alt="Wellknown"></a>
   <a href="https://github.com/Smart-Creations"><img src="https://img.shields.io/badge/Publisher-Smart%20Creations-0052CC?logo=github&logoColor=white" alt="Publisher: Smart Creations"></a>
   <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Enforced-success" alt="Security Policy"></a>
