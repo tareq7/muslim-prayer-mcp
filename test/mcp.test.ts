@@ -11,6 +11,7 @@ describe('MCP Protocol & Cloudflare Worker Endpoint Suite', () => {
     const data = (await res.json()) as any;
     assert.equal(data.status, 'healthy');
     assert.equal(data.service, 'muslim-prayer-reminder-mcp');
+    assert.equal(data.version, '1.1.3');
   });
 
   it('GET /privacy returns comprehensive data category disclosures', async () => {

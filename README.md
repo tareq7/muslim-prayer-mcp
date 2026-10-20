@@ -24,7 +24,7 @@
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml"><img src="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status"></a>
   <a href="https://github.com/tareq7/muslim-prayer-mcp/releases"><img src="https://img.shields.io/github/v/release/tareq7/muslim-prayer-mcp.svg?color=0052CC&label=Release" alt="Latest Release"></a>
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions"><img src="https://img.shields.io/badge/Tests-172%20Passing-brightgreen" alt="Tests"></a>
-  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.1.3_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
+  <a href="https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/MCP_Registry-v1.1.1_Live-0052CC?logo=anthropic&logoColor=white" alt="MCP Registry"></a>
   <a href="https://glama.ai/mcp/servers/tareq7/muslim-prayer-mcp"><img src="https://img.shields.io/badge/Glama-Verified_Tier_A-7A52CC?logo=glama&logoColor=white" alt="Glama"></a>
   <a href="https://lobehub.com/mcp/tareq7-muslim-prayer-mcp"><img src="https://lobehub.com/badge/mcp/tareq7-muslim-prayer-mcp" alt="LobeHub MCP Badge"></a>
   <a href="https://m8ven.ai/mcp/tareq7/muslim-prayer-mcp"><img src="https://m8ven.ai/badge/mcp/tareq7/muslim-prayer-mcp" alt="M8ven Score"></a>

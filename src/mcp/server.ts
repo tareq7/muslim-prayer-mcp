@@ -27,6 +27,8 @@ import { PrayerStorage, InvalidPreferencesError, StorageUnavailableError } from 
 import type { ReminderMode, Locale } from '../engine/types.ts';
 import { publicPrayerStatus } from './status-response.ts';
 
+export const SERVER_VERSION = '1.1.3';
+
 async function prayerResult(operation: () => Promise<CallToolResult>): Promise<CallToolResult> {
   try {
     return await operation();
@@ -43,7 +45,7 @@ export function createPrayerMcpServer(storage: PrayerStorage, context: Pick<Reso
   const server = new McpServer(
     {
       name: 'muslim-prayer-reminder',
-      version: '1.1.3',
+      version: SERVER_VERSION,
     },
     {
       instructions:

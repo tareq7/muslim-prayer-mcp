@@ -1,4 +1,4 @@
-import { createPrayerMcpServer } from './mcp/server.ts';
+import { createPrayerMcpServer, SERVER_VERSION } from './mcp/server.ts';
 import { publicPrayerStatus } from './mcp/status-response.ts';
 import { PrayerStorage, InvalidPreferencesError, StorageUnavailableError, type KVNamespaceLike } from './storage/kv-store.ts';
 import { RestCalculationInputSchema, RestPreferencesInputSchema, publicPreferences, UserIdSchema, ReminderDefaultsSchema } from './mcp/schemas.ts';
@@ -191,7 +191,7 @@ export default {
       return jsonResponse({
         status: 'healthy',
         service: 'muslim-prayer-reminder-mcp',
-        version: '1.1.2',
+        version: SERVER_VERSION,
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         icon: 'https://raw.githubusercontent.com/tareq7/muslim-prayer-mcp/main/assets/icon.png',
@@ -211,7 +211,7 @@ export default {
       return jsonResponse({
         serverInfo: {
           name: 'muslim-prayer-reminder',
-          version: '1.1.2',
+          version: SERVER_VERSION,
           publisher: 'Smart Creations',
         },
         description: 'Production-ready Muslim prayer reminder MCP on Cloudflare Workers with Streamable HTTP, automatic location-based calculation authority calibration, mandatory theological disclosure, and deterministic host middleware.',
@@ -237,7 +237,7 @@ export default {
     if (url.pathname === '/privacy') {
       return jsonResponse({
         app: 'Muslim Prayer Reminder',
-        version: '1.1.2',
+        version: SERVER_VERSION,
         publisher: 'Smart Creations',
         author: 'Tareq Naji (@tareq7)',
         fullPolicyUrl: 'https://tareq7.github.io/muslim-prayer-mcp/privacy-policy/',
@@ -483,7 +483,7 @@ export default {
         }
       }
 
-      return jsonResponse({ error: 'Not Found', path: url.pathname, version: '1.1.2' }, 404);
+      return jsonResponse({ error: 'Not Found', path: url.pathname, version: SERVER_VERSION }, 404);
     } catch (error) {
       if (error instanceof StorageUnavailableError) return jsonResponse({ code: error.code, error: error.message }, 503);
       if (error instanceof LocationTimezoneMismatchError) return jsonResponse({ code: error.code, error: error.message, expectedTimezone: error.expectedTimezone, timezoneMismatchDetected: true }, 400);
