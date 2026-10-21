@@ -302,7 +302,7 @@ describe('Analytics dashboard routes', () => {
     assert.match(csp, /script-src 'self'/);
     assert.ok(!csp.includes('unsafe-inline'));
     const html = await res.text();
-    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=6'));
+    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=8'));
     for (const path of ['/favicon.png', '/favicon.ico', '/apple-touch-icon.png']) {
       const icon = await get(path, {});
       assert.equal(icon.status, 200);
@@ -585,5 +585,99 @@ describe('Daily new-user series', () => {
     assert.equal(current.daily.at(-1).newUsers,1);
     const restarted=await (await make().fetch(new Request('https://analytics/report?range=7'))).json();
     assert.deepEqual(restarted,current);
+  });
+});
+
+
+describe('Interactive daily chart behavior', () => {
+  async function chartFixture() {
+    class Element {
+      children: Element[] = [];
+      attributes: Record<string,string> = {};
+      style: Record<string,string> = {};
+      textContent = '';
+      className = '';
+      hidden = false;
+      disabled = false;
+      onclick?: (event: any) => void;
+      onpointermove?: (event: any) => void;
+      onpointerleave?: () => void;
+      onkeydown?: (event: any) => void;
+      tag: string;
+      constructor(tag: string) { this.tag=tag; }
+      classList = { toggle: (_name: string, _value: boolean) => {}, add: (_name: string) => {} };
+      appendChild(child: Element) { this.children.push(child); return child; }
+      replaceChildren() { this.children=[]; }
+      setAttribute(key: string,value: unknown) { this.attributes[key]=String(value); if(key==='class')this.className=String(value); }
+      getBoundingClientRect() { return {left:0,top:0,width:900,height:312}; }
+      querySelector(tag: string): Element | undefined { return this.children.find(x=>x.tag===tag) ?? this.children.map(x=>x.querySelector(tag)).find(Boolean); }
+    }
+    const root=new Element('div'), frames=new Map<number,()=>void>();
+    let frameId=0;
+    const ctx: any = {
+      document: {getElementById:()=>root,createElement:(tag:string)=>new Element(tag),createElementNS:(_ns:string,tag:string)=>new Element(tag)},
+      requestAnimationFrame:(callback:()=>void)=>{frames.set(++frameId,callback);return frameId;},
+      cancelAnimationFrame:(id:number)=>frames.delete(id),
+    };
+    const js=await (await worker.fetch(new Request('https://t.invalid/analytics/app.js'),{} as never)).text();
+    runInNewContext(js.replace('  load();\n})();','  globalThis.renderChart=lineChart;\n})();'),ctx);
+    const days=[
+      {date:'2026-10-18',users:0,newUsers:0},
+      {date:'2026-10-19',users:3,newUsers:2},
+      {date:'2026-10-20',users:7,newUsers:5},
+      {date:'2026-10-21',users:4,newUsers:1},
+    ];
+    ctx.renderChart(root,days);
+    const all=(): Element[] => {const visit=(el:Element):Element[]=>[el,...el.children.flatMap(visit)];return visit(root);};
+    const find=(cls:string)=>all().find(el=>el.className.split(' ').includes(cls))!;
+    const surface=()=>all().find(el=>el.attributes.role==='slider')!;
+    const flush=()=>{for(const [id,fn] of [...frames]){frames.delete(id);fn();}};
+    const key=(value:string)=>surface().onkeydown!({key:value,preventDefault(){}});
+    return {root,all,find,surface,flush,frames,key};
+  }
+  it('snaps across the plot, shares both values, and dismisses the tooltip on exit', async () => {
+    const c=await chartFixture();
+    c.surface().onpointermove!({clientX:602});
+    c.surface().onpointermove!({clientX:601});
+    assert.equal(c.frames.size,1,'pointer updates should share one animation frame');
+    c.flush();
+    assert.equal(c.surface().attributes['aria-valuenow'],'2');
+    assert.match(c.surface().attributes['aria-valuetext'],/7 active users, 5 new users/);
+    assert.equal(c.find('chart-tooltip').hidden,false);
+    assert.deepEqual(c.all().filter(x=>x.className==='tooltip-value').map(x=>x.textContent),['7','5']);
+    assert.ok(parseFloat(c.find('chart-tooltip').style.left)>=8);
+    assert.ok(parseFloat(c.find('chart-tooltip').style.left)+parseFloat(c.find('chart-tooltip').style.width)<=892);
+    c.surface().onpointerleave!();
+    assert.equal(c.find('chart-tooltip').hidden,true);
+  });
+  it('pins the selected day and supports keyboard navigation, zeroes, and Escape', async () => {
+    const c=await chartFixture();
+    c.surface().onclick!({clientX:601});
+    c.surface().onpointermove!({clientX:32});c.flush();
+    c.surface().onpointerleave!();
+    assert.equal(c.surface().attributes['aria-valuenow'],'2');
+    assert.equal(c.find('chart-tooltip').hidden,false);
+    c.key('Escape');assert.equal(c.find('chart-tooltip').hidden,true);
+    c.key('Home');
+    assert.equal(c.surface().attributes['aria-valuenow'],'0');
+    assert.deepEqual(c.all().filter(x=>x.className==='tooltip-value').map(x=>x.textContent),['0','0']);
+    c.key('ArrowLeft');assert.equal(c.surface().attributes['aria-valuenow'],'0');
+    c.key('End');c.key('ArrowRight');
+    assert.equal(c.surface().attributes['aria-valuenow'],'3');
+    c.key('ArrowLeft');assert.equal(c.surface().attributes['aria-valuenow'],'2');
+  });
+  it('toggles series while retaining at least one visible series', async () => {
+    const c=await chartFixture();
+    const keys=c.all().filter(x=>x.tag==='button');
+    keys[0].onclick!({});
+    assert.equal(keys[0].attributes['aria-pressed'],'false');
+    assert.equal(keys[1].attributes['aria-pressed'],'true');
+    assert.equal(keys[1].disabled,true);
+    keys[1].onclick!({});
+    assert.equal(keys[1].attributes['aria-pressed'],'true');
+    keys[0].onclick!({});
+    assert.equal(keys[1].disabled,false);
+    c.key('Home');
+    assert.equal(c.find('chart-tooltip').hidden,false);
   });
 });

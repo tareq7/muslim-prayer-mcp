@@ -4,15 +4,16 @@ export const DASHBOARD_HTML = `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#031710">
 <title>User analytics · Muslim Prayer Reminder</title>
-<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/analytics/app.css?v=6">
+<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/analytics/app.css?v=8">
 </head><body><div id="app" aria-live="polite"><div class="boot">Loading analytics…</div></div>
-<noscript>JavaScript is needed to view analytics.</noscript><script src="/analytics/app.js?v=6" defer></script></body></html>`;
+<noscript>JavaScript is needed to view analytics.</noscript><script src="/analytics/app.js?v=8" defer></script></body></html>`;
 
 export const DASHBOARD_JS = String.raw`
 (function () {
   'use strict';
   var root = document.getElementById('app'), range = 30, seq = 0;
   var snapshots = new Map();
+  var chartCleanup = null;
   var emerald = '#4de6af', gold = '#e8cc87';
   var names;
   try { names = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (_) {}
@@ -39,58 +40,157 @@ export const DASHBOARD_JS = String.raw`
   function dateLabel(value) { return new Date(value + 'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}); }
   function lineChart(parent, days) {
     if (!days.length) { add(parent,h('p','sub','No activity in this period.')); return; }
-    var legend=add(parent,h('div','chart-legend'));
-    [['Active users','active'],['New users','new']].forEach(function(item){
-      var key=add(legend,h('span','chart-key '+item[1]));
-      add(key,h('i'));add(key,h('span','',item[0]));
+    var colors=[emerald,gold], fields=['users','newUsers'], labels=['Active users','New users'];
+    var visible=[true,true], selected=days.length-1, pinned=false, isOpen=false, frame=0, pendingX=0;
+    var width=0, layout, crosshair, markers=[], bottomTag, dateTag, surface, observer;
+    var peak=days.reduce(function(best,d){return d.users>best.users?d:best;},days[0]);
+    var toolbar=add(parent,h('div','chart-toolbar')),legend=add(toolbar,h('div','chart-legend'));
+    var keys=labels.map(function(label,i){
+      var key=add(legend,h('button','chart-key '+(i?'new':'active')));
+      key.type='button';key.setAttribute('aria-pressed','true');key.setAttribute('aria-label','Show '+label.toLowerCase());
+      add(key,h('i'));add(key,h('span','',label));
+      key.onclick=function(){
+        if(visible[i] && !visible[1-i])return;
+        visible[i]=!visible[i];draw(true);
+      };
+      return key;
     });
-    var w=820, height=252, left=30, right=8, top=12, bottom=32, floor=height-bottom;
-    var peak = days.reduce(function (best,d) { return d.users > best.users ? d : best; },days[0]);
-    var maximum = Math.max(4,Math.ceil(peak.users / 4)*4), plotW=w-left-right, plotH=floor-top;
-    var chart=add(parent,svg('svg',{viewBox:'0 0 '+w+' '+height,class:'chart-svg',role:'img','aria-label':'Daily active users across '+days.length+' UTC days, with daily new users shown separately. Peak '+peak.users+' on '+peak.date+'.'}));
-    var defs=add(chart,svg('defs',{})), gradient=add(defs,svg('linearGradient',{id:'activity-fill',x1:'0',y1:'0',x2:'0',y2:'1'}));
-    add(gradient,svg('stop',{offset:'0%','stop-color':emerald,'stop-opacity':'.3'}));
-    add(gradient,svg('stop',{offset:'100%','stop-color':emerald,'stop-opacity':'.015'}));
-    for(var n=0;n<=4;n++) {
-      var y=top+plotH*n/4;
-      add(chart,svg('line',{x1:left,y1:y,x2:w-right,y2:y,class:'chart-grid'}));
-      add(chart,svg('text',{x:left-12,y:y+4,'text-anchor':'end',class:'axis-label'},fmt(maximum-maximum*n/4)));
+    add(toolbar,h('span','chart-unit','Daily · UTC'));
+    var stage=add(parent,h('div','chart-stage'));
+    var chart=add(stage,svg('svg',{class:'chart-svg','aria-label':'Interactive daily activity chart',role:'group'}));
+    var tip=add(stage,h('div','chart-tooltip'));tip.hidden=true;tip.setAttribute('role','tooltip');tip.id='daily-chart-tooltip';
+    var tipHead=add(tip,h('div','tooltip-head')),tipDate=add(tipHead,h('strong')),tipPin=add(tipHead,h('span','tooltip-pin'));
+    var tipRows=labels.map(function(label,i){
+      var row=add(tip,h('div','tooltip-row')),name=add(row,h('span','tooltip-label'));
+      add(name,h('i',i?'new':''));add(name,h('span','',label));
+      var value=add(row,h('strong','tooltip-value')),change=add(row,h('span','tooltip-change'));
+      return {row:row,value:value,change:change};
+    });
+    var tipFoot=add(tip,h('div','tooltip-foot'));
+    var footer=add(parent,h('div','chart-readout'));
+    var hint=add(footer,h('span','','Hover to explore · Click to pin · ← → to move'));
+    add(footer,h('span','','Peak '+fmt(peak.users)+' · '+dateLabel(peak.date)));
+    function fullDate(d){return new Date(d+'T00:00:00Z').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});}
+    function summary(i){return fullDate(days[i].date)+'. '+fmt(days[i].users)+' active users, '+fmt(days[i].newUsers || 0)+' new users.';}
+    function setOpen(open){
+      isOpen=open;tip.hidden=!open;
+      if(crosshair)crosshair.setAttribute('visibility',open?'visible':'hidden');
+      if(bottomTag)bottomTag.setAttribute('visibility',open?'visible':'hidden');
+      if(!open)hint.textContent='Hover to explore · Click to pin · ← → to move';
     }
-    var points=days.map(function(d,i){return [left+plotW*i/Math.max(1,days.length-1),floor-plotH*d.users/maximum];});
-    var path=points.map(function(p,i){return (i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2);}).join(' ');
-    add(chart,svg('path',{d:path+' L'+points[points.length-1][0]+' '+floor+' L'+left+' '+floor+' Z',fill:'url(#activity-fill)'}));
-    add(chart,svg('path',{d:path,class:'chart-line'}));
-    var newPoints=days.map(function(d,i){return [points[i][0],floor-plotH*(d.newUsers || 0)/maximum];});
-    var newPath=newPoints.map(function(p,i){return (i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2);}).join(' ');
-    add(chart,svg('path',{d:newPath,class:'chart-line chart-new-line'}));
-    newPoints.forEach(function(p,i){
-      if(days.length<=35 || (days[i].newUsers || 0)>0)
-        add(chart,svg('circle',{cx:p[0],cy:p[1],r:2.8,class:'chart-new-point','pointer-events':'none'}));
-    });
-    var interval=Math.max(1,Math.ceil((days.length-1)/6));
-    days.forEach(function(d,i){
-      var p=points[i];
-      if(i%interval===0 || i===days.length-1) {
-        if(i!==days.length-1 && days.length-1-i < interval/2) return;
-        add(chart,svg('text',{x:p[0],y:height-6,'text-anchor':i===0?'start':i===days.length-1?'end':'middle',class:'axis-label'},dateLabel(d.date)));
+    function inspect(index){
+      if(!layout)return;
+      selected=Math.max(0,Math.min(days.length-1,Math.round(index)));
+      var d=days[selected], x=layout.x(selected);
+      tipDate.textContent=fullDate(d.date);
+      tipPin.textContent=pinned?'Pinned':'';
+      tip.classList.toggle('is-pinned',pinned);
+      tipFoot.textContent=pinned?'Δ vs previous day · Esc to release':'Δ vs previous day · Click to pin';
+      tipRows.forEach(function(row,i){
+        row.row.hidden=!visible[i];
+        var value=d[fields[i]] || 0,prev=selected>0?(days[selected-1][fields[i]] || 0):null;
+        row.value.textContent=fmt(value);
+        row.change.textContent=prev===null?'—':(value-prev>0?'+':'')+fmt(value-prev);
+        row.change.title=prev===null?'Previous day is outside the selected period':'Change from the previous UTC day';
+        markers[i].setAttribute('cx',x);markers[i].setAttribute('cy',layout.y(value));
+        markers[i].setAttribute('visibility',visible[i]?'visible':'hidden');
+      });
+      crosshair.querySelector('line').setAttribute('x1',x);
+      crosshair.querySelector('line').setAttribute('x2',x);
+      var tagX=Math.max(layout.left+38,Math.min(width-layout.right-38,x));
+      bottomTag.setAttribute('transform','translate('+tagX+' '+(layout.floor+20)+')');
+      dateTag.textContent=dateLabel(d.date);
+      surface.setAttribute('aria-valuenow',selected);
+      surface.setAttribute('aria-valuetext',summary(selected));
+      var tipWidth=Math.min(252,Math.max(205,width-28));
+      tip.style.width=tipWidth+'px';
+      var tipX=x+20;
+      if(tipX+tipWidth>width-8)tipX=x-tipWidth-20;
+      tip.style.left=Math.max(8,Math.min(width-tipWidth-8,tipX))+'px';
+      tip.style.top='18px';
+      hint.textContent=pinned?'Pinned · '+dateLabel(d.date)+' · Esc to release':dateLabel(d.date)+' · '+fmt(d.users)+' active · '+fmt(d.newUsers || 0)+' new';
+      setOpen(true);
+    }
+    function indexAt(clientX){
+      var bounds=chart.getBoundingClientRect();
+      var localX=(clientX-bounds.left)*width/bounds.width;
+      return Math.max(0,Math.min(days.length-1,Math.round((localX-layout.left)/layout.plotW*(days.length-1))));
+    }
+    function draw(force){
+      var nextWidth=Math.max(260,Math.round(stage.getBoundingClientRect().width));
+      if(!force && width===nextWidth)return;
+      width=nextWidth;
+      var height=width<480?268:312,left=32,right=14,top=14,bottom=40,floor=height-bottom;
+      var peakValue=Math.max.apply(null,days.map(function(d){return Math.max(visible[0]?d.users:0,visible[1]?(d.newUsers || 0):0);}));
+      var step=Math.max(1,Math.ceil(peakValue/4)),maximum=step*4;
+      layout={left:left,right:right,floor:floor,plotW:width-left-right};
+      layout.x=function(i){return left+layout.plotW*i/Math.max(1,days.length-1);};
+      layout.y=function(v){return floor-(floor-top)*v/maximum;};
+      chart.replaceChildren();chart.setAttribute('viewBox','0 0 '+width+' '+height);
+      chart.style.height=height+'px';
+      var defs=add(chart,svg('defs',{})),gradient=add(defs,svg('linearGradient',{id:'activity-fill',x1:0,y1:0,x2:0,y2:1}));
+      add(gradient,svg('stop',{offset:'0%','stop-color':emerald,'stop-opacity':'.24'}));
+      add(gradient,svg('stop',{offset:'100%','stop-color':emerald,'stop-opacity':'.005'}));
+      for(var n=0;n<=4;n++){
+        var y=layout.y(n*step);
+        add(chart,svg('line',{x1:left,y1:y,x2:width-right,y2:y,class:'chart-grid'}));
+        add(chart,svg('text',{x:left-12,y:y+4,'text-anchor':'end',class:'axis-label'},fmt(n*step)));
       }
-    });
-    var readout=add(parent,h('div','chart-readout'));
-    var detail=add(readout,h('span','','Hover or focus a point to explore'));
-    add(readout,h('span','','Peak '+fmt(peak.users)+' · '+dateLabel(peak.date)));
-    points.forEach(function(p,i){
-      var g=add(chart,svg('g',{}));
-      var hit=add(g,svg('circle',{cx:p[0],cy:p[1],r:9,class:'chart-hit',tabindex:0,'aria-label':days[i].date+': '+days[i].users+' active users, '+(days[i].newUsers || 0)+' new users'}));
-      add(hit,svg('title',{},days[i].date+' · '+fmt(days[i].users)+' active · '+fmt(days[i].newUsers || 0)+' new'));
-      if(days.length<=35 || days[i].users===peak.users) add(g,svg('circle',{cx:p[0],cy:p[1],r:3.5,class:'chart-point','pointer-events':'none'}));
-      function inspect(){detail.textContent=dateLabel(days[i].date)+' · '+fmt(days[i].users)+' active · '+fmt(days[i].newUsers || 0)+' new';}
-      hit.onmouseenter=inspect; hit.onfocus=inspect; hit.onclick=inspect;
-      if (newPoints[i][1] !== p[1]) {
-        var newHit=add(chart,svg('circle',{cx:newPoints[i][0],cy:newPoints[i][1],r:8,class:'chart-hit','aria-label':days[i].date+': '+(days[i].newUsers || 0)+' new users'}));
-        add(newHit,svg('title',{},days[i].date+' · '+fmt(days[i].users)+' active · '+fmt(days[i].newUsers || 0)+' new'));
-        newHit.onmouseenter=inspect;newHit.onclick=inspect;
-      }
-    });
+      var ticks=width<480?3:6,interval=Math.max(1,Math.ceil((days.length-1)/ticks));
+      days.forEach(function(d,i){
+        if(i%interval!==0 && i!==days.length-1)return;
+        if(i!==days.length-1 && days.length-1-i<interval/2)return;
+        add(chart,svg('text',{x:layout.x(i),y:height-14,'text-anchor':i===0?'start':i===days.length-1?'end':'middle',class:'axis-label'},dateLabel(d.date)));
+      });
+      fields.forEach(function(field,i){
+        if(!visible[i])return;
+        var path=days.map(function(d,index){return (index?'L':'M')+layout.x(index).toFixed(2)+' '+layout.y(d[field] || 0).toFixed(2);}).join(' ');
+        if(i===0){
+          add(chart,svg('path',{d:path+' L'+layout.x(days.length-1)+' '+floor+' L'+left+' '+floor+' Z',fill:'url(#activity-fill)',class:'chart-area'}));
+          add(chart,svg('path',{d:path,class:'chart-line chart-glow','aria-hidden':'true'}));
+        }
+        add(chart,svg('path',{d:path,class:'chart-line'+(i?' chart-new-line':'')}));
+        var last=days[days.length-1];
+        add(chart,svg('circle',{cx:layout.x(days.length-1),cy:layout.y(last[field] || 0),r:3,fill:colors[i]}));
+      });
+      crosshair=add(chart,svg('g',{visibility:'hidden','pointer-events':'none',class:'chart-focus'}));
+      add(crosshair,svg('line',{x1:0,x2:0,y1:top,y2:floor,class:'chart-crosshair'}));
+      markers=fields.map(function(_,i){return add(crosshair,svg('circle',{cx:0,cy:0,r:5,fill:colors[i],class:'chart-focus-dot'}));});
+      bottomTag=add(chart,svg('g',{visibility:'hidden','pointer-events':'none'}));
+      add(bottomTag,svg('rect',{x:-38,y:-13,width:76,height:24,rx:6,class:'chart-date-tag'}));
+      dateTag=add(bottomTag,svg('text',{x:0,y:3,'text-anchor':'middle',class:'chart-date-label'}));
+      surface=add(chart,svg('rect',{x:left,y:top,width:layout.plotW,height:floor-top,fill:'transparent',class:'chart-surface',tabindex:0,role:'slider','aria-label':'Explore daily activity','aria-orientation':'horizontal','aria-valuemin':0,'aria-valuemax':days.length-1,'aria-valuenow':selected,'aria-valuetext':summary(selected),'aria-describedby':'daily-chart-tooltip'}));
+      surface.onpointermove=function(e){
+        if(pinned)return;
+        pendingX=e.clientX;
+        if(!frame)frame=requestAnimationFrame(function(){frame=0;inspect(indexAt(pendingX));});
+      };
+      surface.onpointerleave=function(){if(frame){cancelAnimationFrame(frame);frame=0;}if(!pinned)setOpen(false);};
+      surface.onpointercancel=function(){if(!pinned)setOpen(false);};
+      surface.onclick=function(e){
+        if(frame){cancelAnimationFrame(frame);frame=0;}
+        var next=indexAt(e.clientX);
+        pinned=!(pinned && next===selected);inspect(next);
+      };
+      surface.onfocus=function(){inspect(selected);};
+      surface.onblur=function(){if(!pinned)setOpen(false);};
+      surface.onkeydown=function(e){
+        if(e.key==='Escape'){e.preventDefault();pinned=false;setOpen(false);return;}
+        var next=selected;
+        if(e.key==='ArrowRight')next++;
+        else if(e.key==='ArrowLeft')next--;
+        else if(e.key==='Home')next=0;
+        else if(e.key==='End')next=days.length-1;
+        else if(e.key==='Enter' || e.key===' '){pinned=!pinned;}
+        else return;
+        e.preventDefault();inspect(next);
+      };
+      keys.forEach(function(key,i){key.setAttribute('aria-pressed',String(visible[i]));key.disabled=visible[i]&&!visible[1-i];});
+      if(isOpen)inspect(selected);
+    }
+    draw(true);
+    if(typeof ResizeObserver==='function'){observer=new ResizeObserver(function(){draw(false);});observer.observe(stage);}
+    chartCleanup=function(){if(observer)observer.disconnect();if(frame)cancelAnimationFrame(frame);};
   }
   function audience(parent,s) {
     var body=add(parent,h('div','audience-body')), ring=add(body,h('div','ring'));
@@ -155,6 +255,7 @@ export const DASHBOARD_JS = String.raw`
       .catch(function (e) { if (id === seq) show({ error: e.message }); });
   }
   function show(data) {
+    if(chartCleanup){chartCleanup();chartCleanup=null;}
     root.replaceChildren();
     var wrap=add(root,h('main','wrap')),top=add(wrap,h('header','top')),brand=add(top,h('div','brand'));
     var logo=add(brand,h('img'));logo.src='/apple-touch-icon.png';logo.alt='';logo.width=58;logo.height=58;
