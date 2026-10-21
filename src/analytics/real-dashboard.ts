@@ -4,9 +4,9 @@ export const DASHBOARD_HTML = `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#031710">
 <title>User analytics · Muslim Prayer Reminder</title>
-<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/analytics/app.css?v=5">
+<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/analytics/app.css?v=6">
 </head><body><div id="app" aria-live="polite"><div class="boot">Loading analytics…</div></div>
-<noscript>JavaScript is needed to view analytics.</noscript><script src="/analytics/app.js?v=5" defer></script></body></html>`;
+<noscript>JavaScript is needed to view analytics.</noscript><script src="/analytics/app.js?v=6" defer></script></body></html>`;
 
 export const DASHBOARD_JS = String.raw`
 (function () {
@@ -39,10 +39,15 @@ export const DASHBOARD_JS = String.raw`
   function dateLabel(value) { return new Date(value + 'T00:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}); }
   function lineChart(parent, days) {
     if (!days.length) { add(parent,h('p','sub','No activity in this period.')); return; }
+    var legend=add(parent,h('div','chart-legend'));
+    [['Active users','active'],['New users','new']].forEach(function(item){
+      var key=add(legend,h('span','chart-key '+item[1]));
+      add(key,h('i'));add(key,h('span','',item[0]));
+    });
     var w=820, height=252, left=30, right=8, top=12, bottom=32, floor=height-bottom;
     var peak = days.reduce(function (best,d) { return d.users > best.users ? d : best; },days[0]);
     var maximum = Math.max(4,Math.ceil(peak.users / 4)*4), plotW=w-left-right, plotH=floor-top;
-    var chart=add(parent,svg('svg',{viewBox:'0 0 '+w+' '+height,class:'chart-svg',role:'img','aria-label':'Daily active users across '+days.length+' UTC days. Peak '+peak.users+' on '+peak.date+'.'}));
+    var chart=add(parent,svg('svg',{viewBox:'0 0 '+w+' '+height,class:'chart-svg',role:'img','aria-label':'Daily active users across '+days.length+' UTC days, with daily new users shown separately. Peak '+peak.users+' on '+peak.date+'.'}));
     var defs=add(chart,svg('defs',{})), gradient=add(defs,svg('linearGradient',{id:'activity-fill',x1:'0',y1:'0',x2:'0',y2:'1'}));
     add(gradient,svg('stop',{offset:'0%','stop-color':emerald,'stop-opacity':'.3'}));
     add(gradient,svg('stop',{offset:'100%','stop-color':emerald,'stop-opacity':'.015'}));
@@ -55,6 +60,13 @@ export const DASHBOARD_JS = String.raw`
     var path=points.map(function(p,i){return (i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2);}).join(' ');
     add(chart,svg('path',{d:path+' L'+points[points.length-1][0]+' '+floor+' L'+left+' '+floor+' Z',fill:'url(#activity-fill)'}));
     add(chart,svg('path',{d:path,class:'chart-line'}));
+    var newPoints=days.map(function(d,i){return [points[i][0],floor-plotH*(d.newUsers || 0)/maximum];});
+    var newPath=newPoints.map(function(p,i){return (i?'L':'M')+p[0].toFixed(2)+' '+p[1].toFixed(2);}).join(' ');
+    add(chart,svg('path',{d:newPath,class:'chart-line chart-new-line'}));
+    newPoints.forEach(function(p,i){
+      if(days.length<=35 || (days[i].newUsers || 0)>0)
+        add(chart,svg('circle',{cx:p[0],cy:p[1],r:2.8,class:'chart-new-point','pointer-events':'none'}));
+    });
     var interval=Math.max(1,Math.ceil((days.length-1)/6));
     days.forEach(function(d,i){
       var p=points[i];
@@ -68,11 +80,16 @@ export const DASHBOARD_JS = String.raw`
     add(readout,h('span','','Peak '+fmt(peak.users)+' · '+dateLabel(peak.date)));
     points.forEach(function(p,i){
       var g=add(chart,svg('g',{}));
-      var hit=add(g,svg('circle',{cx:p[0],cy:p[1],r:9,class:'chart-hit',tabindex:0,'aria-label':days[i].date+': '+days[i].users+' active users'}));
-      add(hit,svg('title',{},days[i].date+' · '+fmt(days[i].users)+' active users'));
+      var hit=add(g,svg('circle',{cx:p[0],cy:p[1],r:9,class:'chart-hit',tabindex:0,'aria-label':days[i].date+': '+days[i].users+' active users, '+(days[i].newUsers || 0)+' new users'}));
+      add(hit,svg('title',{},days[i].date+' · '+fmt(days[i].users)+' active · '+fmt(days[i].newUsers || 0)+' new'));
       if(days.length<=35 || days[i].users===peak.users) add(g,svg('circle',{cx:p[0],cy:p[1],r:3.5,class:'chart-point','pointer-events':'none'}));
-      function inspect(){detail.textContent=dateLabel(days[i].date)+' · '+fmt(days[i].users)+' active users';}
+      function inspect(){detail.textContent=dateLabel(days[i].date)+' · '+fmt(days[i].users)+' active · '+fmt(days[i].newUsers || 0)+' new';}
       hit.onmouseenter=inspect; hit.onfocus=inspect; hit.onclick=inspect;
+      if (newPoints[i][1] !== p[1]) {
+        var newHit=add(chart,svg('circle',{cx:newPoints[i][0],cy:newPoints[i][1],r:8,class:'chart-hit','aria-label':days[i].date+': '+(days[i].newUsers || 0)+' new users'}));
+        add(newHit,svg('title',{},days[i].date+' · '+fmt(days[i].users)+' active · '+fmt(days[i].newUsers || 0)+' new'));
+        newHit.onmouseenter=inspect;newHit.onclick=inspect;
+      }
     });
   }
   function audience(parent,s) {
@@ -158,7 +175,7 @@ export const DASHBOARD_JS = String.raw`
     var rolling=add(overview,h('section','panel rolling'));rolling.setAttribute('aria-label','Daily, weekly and monthly active users');
     [['Daily',s.dau,'UTC today'],['Weekly',s.wau,'Last 7 days'],['Monthly',s.mau,'Last 30 days']].forEach(function(x){var m=add(rolling,h('div','metric'));add(m,icon('calendar'));add(m,h('span','label',x[0]));add(m,h('strong','',fmt(x[1])));add(m,h('span','hint',x[2]));});
     var charts=add(wrap,h('div','charts')),activity=add(charts,h('section','panel chart-panel'));
-    add(activity,h('h2','section-title','Daily activity'));add(activity,h('p','sub','Active users per day · Last '+range+' days'));lineChart(activity,data.daily);
+    add(activity,h('h2','section-title','Daily activity'));add(activity,h('p','sub','Active and new users per day · Last '+range+' days'));lineChart(activity,data.daily);
     var a=add(charts,h('section','panel audience'));add(a,h('h2','section-title','Audience'));add(a,h('p','sub','Unique users · Last '+range+' days'));audience(a,s);
     countries(add(wrap,h('section','panel countries')),data);
     var footer=add(wrap,h('footer')),note=add(footer,h('div','foot-note'));
@@ -166,7 +183,7 @@ export const DASHBOARD_JS = String.raw`
     add(note,h('div','','Daily analytics snapshot. Data may be up to 24 hours old.'));
     var details=add(footer,h('details','methodology'));add(details,h('summary','','About these numbers'));
     add(details,h('p','','Only identified ChatGPT tool activity from verified OpenAI networks is counted. This signal cannot prove that every call was human initiated. Known bots and anonymous traffic are excluded.'));
-    add(details,h('p','','Each user counts once per UTC day, with up to '+data.trackingLimit+' users recorded daily and '+data.retentionDays+' days of history. First seen means first observed within retained history.'));
+    add(details,h('p','','Each user counts once per UTC day, with up to '+data.trackingLimit+' users recorded daily and '+data.retentionDays+' days of history. New users and First seen mean first observed within retained history, so an older user outside the retention window may appear new.'));
     add(details,h('p','','Countries use approximate ChatGPT location metadata. Missing and historical locations remain Unknown. Each user appears under their latest recorded known country in the selected period.'));
   }
   load();

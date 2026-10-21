@@ -302,7 +302,7 @@ describe('Analytics dashboard routes', () => {
     assert.match(csp, /script-src 'self'/);
     assert.ok(!csp.includes('unsafe-inline'));
     const html = await res.text();
-    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=5'));
+    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=6'));
     for (const path of ['/favicon.png', '/favicon.ico', '/apple-touch-icon.png']) {
       const icon = await get(path, {});
       assert.equal(icon.status, 200);
@@ -551,5 +551,39 @@ describe('Country counts for identified users', () => {
     recordRealUserDays(sql,['a'.repeat(16)],Date.now(),undefined,undefined,new Map([['a'.repeat(16),'PS']]));
     migrateRealUsers(sql);
     assert.equal((db.prepare('SELECT country FROM real_user_days').get() as any).country,'PS');
+  });
+});
+
+describe('Daily new-user series', () => {
+  it('counts each subject on its first retained UTC day, excluding returning users and filling zero days', () => {
+    const {sql,db}=makeSql(); migrateRealUsers(sql);
+    const now=Date.UTC(2026,9,21,12), today=Math.floor(now/DAY);
+    const insert=db.prepare('INSERT INTO real_user_days(day,uid) VALUES (?,?)');
+    insert.run(today-10,'a'.repeat(16));
+    insert.run(today-2,'a'.repeat(16)); // Returning in this period.
+    insert.run(today-2,'b'.repeat(16));
+    insert.run(today-1,'b'.repeat(16)); // Another visit is not another new user.
+    insert.run(today,'b'.repeat(16));
+    insert.run(today,'c'.repeat(16));
+    insert.run(today+1,'d'.repeat(16)); // Future data must not affect this report.
+    const report=buildRealUserReport(sql,7,now);
+    assert.deepEqual(report.daily.map(d=>d.newUsers),[0,0,0,0,1,0,1]);
+    assert.equal(report.summary.newUsers,2);
+    assert.equal(report.daily.reduce((n,d)=>n+d.newUsers,0),report.summary.newUsers);
+    assert.equal(report.daily.at(-3)!.users,2);
+    assert.ok(report.daily.every(d=>d.newUsers<=d.users));
+    assert.equal(report.summary.returningUsers,1);
+  });
+  it('rebuilds a deployed old snapshot once, then reuses the new daily series after restart', async () => {
+    const {sql,db}=makeSql(); migrateRealUsers(sql);
+    recordRealUserDays(sql,['e'.repeat(16)]);
+    db.prepare("DELETE FROM real_schema WHERE k='v4'").run();
+    db.prepare('INSERT INTO real_report_cache(range,day,cached_at,payload) VALUES(?,?,?,?)')
+      .run(7,Math.floor(Date.now()/DAY),Date.now(),'{"daily":[{"users":99}]}');
+    const make=()=>new AnalyticsDO({storage:{sql},blockConcurrencyWhile:async fn=>fn()});
+    const current=await (await make().fetch(new Request('https://analytics/report?range=7'))).json() as any;
+    assert.equal(current.daily.at(-1).newUsers,1);
+    const restarted=await (await make().fetch(new Request('https://analytics/report?range=7'))).json();
+    assert.deepEqual(restarted,current);
   });
 });

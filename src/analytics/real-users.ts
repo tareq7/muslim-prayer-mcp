@@ -78,6 +78,11 @@ export function migrateRealUsers(sql: SqlLike): void {
     sql.exec('DELETE FROM real_report_cache');
     sql.exec("INSERT INTO real_schema(k) VALUES ('v3')");
   }
+  // Report shape changed: invalidate at most four old snapshots once.
+  if (!sql.exec("SELECT 1 AS complete FROM real_schema WHERE k = 'v4'").toArray().length) {
+    sql.exec('DELETE FROM real_report_cache');
+    sql.exec("INSERT INTO real_schema(k) VALUES ('v4')");
+  }
   // One-time transition: retain only identified/verified user-days from the
   // former event log, then permanently discard request-level and bot history.
   if (sql.exec("SELECT 1 AS complete FROM real_schema WHERE k = 'v2'").toArray().length) return;
@@ -154,7 +159,11 @@ export function buildRealUserReport(sql: SqlLike, range: number, now = Date.now(
     const country = normalizeCountry(row.country);
     if (!userCountries.has(uid) || country) userCountries.set(uid, country);
   }
-  const newUsers = [...firstSeen.values()].filter(day => day >= first).length;
+  const newByDay = new Map<number, number>();
+  for (const day of firstSeen.values()) {
+    if (day >= first) newByDay.set(day, (newByDay.get(day) ?? 0) + 1);
+  }
+  const newUsers = [...newByDay.values()].reduce((total, count) => total + count, 0);
   const counts = new Map<string, number>();
   let unknownUsers = 0;
   for (const country of userCountries.values()) {
@@ -167,7 +176,7 @@ export function buildRealUserReport(sql: SqlLike, range: number, now = Date.now(
     source: 'Approximate ChatGPT user location; latest known country per user in the selected period. Historical countries before this update are unavailable.'
   };
   const daily = Array.from({ length: range }, (_, i) => ({
-    date: dayString(first + i), users: firstDays.get(first + i) ?? 0,
+    date: dayString(first + i), users: firstDays.get(first + i) ?? 0, newUsers: newByDay.get(first + i) ?? 0,
   }));
   const budget = sql.exec('SELECT users FROM real_daily_budget WHERE day = ?', today).toArray()[0];
   return {
