@@ -4,7 +4,7 @@ import { runInNewContext } from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.ts';
 import { MemoryKV } from '../src/storage/kv-store.ts';
-import { AnalyticsDO } from '../src/analytics/durable-object.ts';
+import { AnalyticsDO, REPORT_CACHE_TTL_MS } from '../src/analytics/durable-object.ts';
 import { buildReport, migrate, recordEvents, validateEvent, parseReportQuery, DAY, type AnalyticsEvent, type SqlLike } from '../src/analytics/store.ts';
 import { compileRanges, isOpenAIEgress } from '../src/analytics/openai-egress.ts';
 import { classifyClient, hashId, localParts, collectEvents } from '../src/analytics/collector.ts';
@@ -208,6 +208,57 @@ describe('Analytics store math', () => {
     recordEvents(sql, [ev({ ts: NOW - 200 * DAY })], NOW + 200 * DAY - 1000);
     recordEvents(sql, [ev({ ts: NOW })], NOW + 200 * DAY + 5000 + DAY);
     assert.equal((db.prepare('SELECT COUNT(*) n FROM events WHERE ts < ?').get(NOW - 100 * DAY) as any).n, 0);
+  });
+});
+
+describe('Analytics Durable Object report caching', () => {
+  const uri = 'https://analytics/report?range=7&tz=180&segment=all';
+
+  it('avoids repeated event scans and reuses cached reports after eviction', async () => {
+    const { sql, db } = makeSql();
+    migrate(sql);
+    recordEvents(sql, [ev()], Date.now());
+    let scans = 0;
+    const counted: SqlLike = {
+      exec: (q, ...bindings) => {
+        if (q.includes('FROM events')) scans++;
+        return sql.exec(q, ...bindings);
+      },
+    };
+    const instantiate = () => new AnalyticsDO({
+      storage: { sql: counted },
+      blockConcurrencyWhile: async fn => fn(),
+    });
+    const first = instantiate();
+    const one = await (await first.fetch(new Request(uri))).json() as any;
+    assert.equal(one.kpis.current.calls, 1);
+    assert.ok(scans > 10, 'uncached dashboards do many scans');
+    const initialScans = scans;
+    assert.deepEqual(await (await first.fetch(new Request(uri))).json(), one);
+    assert.equal(scans, initialScans, 'same instance must not rebuild the report');
+
+    const restarted = instantiate();
+    assert.deepEqual(await (await restarted.fetch(new Request(uri))).json(), one);
+    assert.equal(scans, initialScans, 'a new DO instance must use its persisted snapshot');
+
+    recordEvents(sql, [ev()], Date.now());
+    assert.equal((await (await restarted.fetch(new Request(uri))).json() as any).kpis.current.calls, 1);
+    db.prepare('UPDATE report_cache SET cached_at = ?').run(Date.now() - REPORT_CACHE_TTL_MS - 1000);
+    const expired = instantiate();
+    assert.equal((await (await expired.fetch(new Request(uri))).json() as any).kpis.current.calls, 2);
+    assert.ok(scans > initialScans, 'expired snapshots should be rebuilt');
+  });
+
+  it('isolates cache keys by report options and bounds persistent cache size', async () => {
+    const { sql, db } = makeSql();
+    migrate(sql);
+    recordEvents(sql, [ev()], Date.now());
+    const doInstance = new AnalyticsDO({ storage: { sql }, blockConcurrencyWhile: async fn => fn() });
+    const report = async (params: string) => (await doInstance.fetch(new Request('https://analytics/report?' + params))).json() as Promise<any>;
+    assert.equal((await report('range=7&tz=180&segment=all')).kpis.current.calls, 1);
+    assert.equal((await report('range=7&tz=180&segment=verified')).kpis.current.calls, 1);
+    for (let i = 0; i < 30; i++) await report('range=7&tz=' + i + '&segment=all');
+    assert.ok((db.prepare('SELECT COUNT(*) AS n FROM report_cache').get() as any).n <= 24);
   });
 });
 

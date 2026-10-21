@@ -87,6 +87,9 @@ export function migrate(sql: SqlLike): void {
       calls INTEGER NOT NULL DEFAULT 0, verified INTEGER NOT NULL DEFAULT 0)`,
     'CREATE INDEX IF NOT EXISTS users_first_seen ON users(first_seen)',
     'CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)',
+    // Persist precomputed reports across Durable Object evictions and deploys.
+    `CREATE TABLE IF NOT EXISTS report_cache (
+      cache_key TEXT PRIMARY KEY, cached_at INTEGER NOT NULL, payload TEXT NOT NULL)`,
   ]) sql.exec(q);
 }
 
