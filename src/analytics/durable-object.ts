@@ -1,76 +1,75 @@
-import { buildReport, migrate, parseReportQuery, recordEvents, validateEvent, type AnalyticsEvent, type SqlLike } from './store.ts';
+import {
+  buildRealUserReport, migrateRealUsers, parseRealReportRange, pruneRealUsers,
+  recordRealUserDays, UTC_DAY_MS, type RealUserRequest,
+} from './real-users.ts';
+import type { SqlLike } from './store.ts';
 
-interface DurableState { storage: { sql: SqlLike }; blockConcurrencyWhile<T>(fn: () => Promise<T>): Promise<T> }
+interface DurableState {
+  storage: { sql: SqlLike };
+  blockConcurrencyWhile<T>(fn: () => Promise<T>): Promise<T>;
+}
 
-const MAX_BATCH = 50;
-const MAX_BODY = 32_768;
-// Building the dashboard runs dozens of large SQLite aggregate queries.
-// Persist cached reports so ordinary refreshes do not repeatedly scan events,
-// including after Durable Object eviction or deployment.
-export const REPORT_CACHE_TTL_MS = 60 * 60_000;
-const MAX_REPORT_CACHE_ENTRIES = 24;
-const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8' };
+const MAX_BATCH = 4;
+const MAX_BODY = 512;
+const JSON_HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-store' };
+
+// Kept for older clients that import the constant. Real reports refresh at most once per UTC day.
+export const REPORT_CACHE_TTL_MS = UTC_DAY_MS;
 
 export class AnalyticsDO {
   private readonly sql: SqlLike;
-  private readonly reportCache = new Map<string, { cachedAt: number; payload: string }>();
+  private readonly seen = new Set<string>();
+  private seenDay = -1;
+  private readonly memoryCache = new Map<number, { day: number; payload: string }>();
 
   constructor(state: DurableState, _env?: unknown) {
     this.sql = state.storage.sql;
-    void state.blockConcurrencyWhile(async () => migrate(this.sql));
+    // The old event tables remain untouched as historical data; they receive no new writes.
+    void state.blockConcurrencyWhile(async () => migrateRealUsers(this.sql));
   }
 
   private report(queryParams: URLSearchParams): Response {
-    // Parse before creating a cache key; unrecognized params cannot create new entries.
-    const query = parseReportQuery(queryParams);
-    const key = `${query.range}:${query.tz}:${query.segment}`;
+    const range = parseRealReportRange(queryParams);
     const now = Date.now();
-    const memory = this.reportCache.get(key);
-    if (memory && memory.cachedAt <= now && now - memory.cachedAt < REPORT_CACHE_TTL_MS) {
-      return new Response(memory.payload, { headers: JSON_HEADERS });
-    }
+    const day = Math.floor(now / UTC_DAY_MS);
+    const inMemory = this.memoryCache.get(range);
+    if (inMemory?.day === day) return new Response(inMemory.payload, { headers: JSON_HEADERS });
 
-    // The SQLite primary-key lookup is inexpensive compared with the report
-    // scans and survives restarts; cached_at is intentionally not updated on reads.
-    const cached = this.sql.exec('SELECT cached_at, payload FROM report_cache WHERE cache_key = ?', key).toArray()[0];
-    let cachedAt = typeof cached?.cached_at === 'number' ? cached.cached_at : -1;
-    let payload = typeof cached?.payload === 'string' ? cached.payload : '';
-    if (cachedAt < 0 || cachedAt > now || now - cachedAt >= REPORT_CACHE_TTL_MS || !payload) {
-      payload = JSON.stringify(buildReport(this.sql, query, now));
-      cachedAt = now;
+    const cache = this.sql.exec('SELECT day, payload FROM real_report_cache WHERE range = ?', range).toArray()[0];
+    let payload = typeof cache?.payload === 'string' && cache.day === day ? cache.payload : '';
+    if (!payload) {
+      // No more than one full report build per range per UTC day; four ranges
+      // total and a hard 500-user-day insertion limit bound scanning.
+      const report = buildRealUserReport(this.sql, range, now);
+      payload = JSON.stringify(report);
       this.sql.exec(
-        'INSERT INTO report_cache (cache_key, cached_at, payload) VALUES (?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET cached_at = excluded.cached_at, payload = excluded.payload',
-        key, cachedAt, payload,
+        `INSERT INTO real_report_cache (range, day, cached_at, payload) VALUES (?, ?, ?, ?)
+         ON CONFLICT(range) DO UPDATE SET day = excluded.day, cached_at = excluded.cached_at,
+         payload = excluded.payload`, range, day, now, payload,
       );
-      // Bound storage even when clients vary the requested timezone and range.
-      this.sql.exec(
-        'DELETE FROM report_cache WHERE cache_key IN (SELECT cache_key FROM report_cache ORDER BY cached_at DESC LIMIT -1 OFFSET ?)',
-        MAX_REPORT_CACHE_ENTRIES,
-      );
+      // Bounded cleanup; avoid a large DELETE and never run this per request.
+      pruneRealUsers(this.sql, now);
     }
-    this.reportCache.set(key, { cachedAt, payload });
-    if (this.reportCache.size > MAX_REPORT_CACHE_ENTRIES) {
-      const oldest = this.reportCache.keys().next().value;
-      if (oldest !== undefined) this.reportCache.delete(oldest);
-    }
+    this.memoryCache.set(range, { day, payload });
     return new Response(payload, { headers: JSON_HEADERS });
   }
 
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: RealUserRequest): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === 'POST' && url.pathname === '/record') {
-      const text = await request.text();
-      if (text.length > MAX_BODY) return new Response(null, { status: 413 });
+      const body = await request.text();
+      if (body.length > MAX_BODY) return new Response(null, { status: 413 });
       let raw: unknown;
-      try { raw = JSON.parse(text); } catch { return new Response(null, { status: 400 }); }
+      try { raw = JSON.parse(body); } catch { return new Response(null, { status: 400 }); }
       if (!Array.isArray(raw)) return new Response(null, { status: 400 });
-      const events = raw.slice(0, MAX_BATCH).map(e => validateEvent(e)).filter((e): e is AnalyticsEvent => e !== null);
-      recordEvents(this.sql, events);
+      const ids = raw.slice(0, MAX_BATCH).filter((x): x is string => typeof x === 'string' && /^[0-9a-f]{16}$/.test(x));
+      const day = Math.floor(Date.now() / UTC_DAY_MS);
+      if (day !== this.seenDay) { this.seenDay = day; this.seen.clear(); }
+      recordRealUserDays(this.sql, ids, Date.now(),
+        (uid) => this.seen.has(uid), (uid) => this.seen.add(uid));
       return new Response(null, { status: 204 });
     }
-    if (request.method === 'GET' && url.pathname === '/report') {
-      return this.report(url.searchParams);
-    }
+    if (request.method === 'GET' && url.pathname === '/report') return this.report(url.searchParams);
     return new Response(null, { status: 404 });
   }
 }

@@ -71,12 +71,12 @@ Add to your Claude Desktop or Cursor MCP configuration:
 
 ## Analytics dashboard
 
-`/analytics` is a private dashboard backed by a SQLite Durable Object (`AnalyticsDO`). It tracks active users (DAU, WAU, MAU), new vs returning users, retention, weekly cohorts, tool usage and health, errors, client mix, countries, languages, usage by local hour, and the calculation authority used.
+`/analytics` displays daily, weekly, monthly, and selected-period active-user counts from a minimal SQLite Durable Object. It counts only identifiable ChatGPT tool users arriving through verified OpenAI egress IPs. **It records no individual tool calls, handshakes, sessions, IPs, bot activity, or location details.** The dashboard is public unless `ANALYTICS_TOKEN` or `AUTH_TOKEN` is configured.
 
 - **Protect it:** set a Worker secret named `ANALYTICS_TOKEN` (Cloudflare dashboard, Worker, Settings, Variables and Secrets). Open `/analytics` and enter any username with the token as the password. `/api/analytics` also accepts `Authorization: Bearer <token>`.
-- **Data model:** one row per call, keyed by a salted hash of OpenAI's `_meta["openai/subject"]`. Calls are written atomically, so counts do not drift under concurrent traffic.
-- **Verified segment:** limits every chart to requests from OpenAI's published egress IPs, which filters out your own test calls. Refresh the bundled list with `node scripts/update-openai-egress.mjs`.
-- **Limits:** installs that never call a tool, and users whose host sends no subject ID, cannot be counted.
+- **Data model:** one row per distinct verified ChatGPT subject per UTC day, using a 64-bit truncated SHA-256 pseudonym with the public prefix `mpr:v1:`. No per-call analytics are retained; activity is kept for up to 180 days.
+- **Quota guardrails:** 500 tracked distinct users per UTC day maximum; reporting has four fixed ranges (7/30/90/180 days) and at most one persisted snapshot per range each UTC day. When the cap is reached, additional user-days are not counted; prayer tools still work.
+- **Verification and limits:** the subject and OpenAI IP-range checks are conservative signals, not proof of a human. Non-ChatGPT users, missing subject IDs, installs with no tool calls, and clients without verifiable provenance are not counted. No Worker-level scheme can reserve free quotas for the rest of the Cloudflare account.
 
 ## 📺 Live Video Demonstration
 
@@ -488,7 +488,7 @@ Prayer tools accept a supported `city`, coordinates with `timezone`, or complete
 
 `highLatitudeAdjustment` discloses twilight substitutions and polar clamping; `effectiveLatitude` is present only for the +/-48-degree substitute and never echoes the original coordinate. `calculationDetails` reports location basis and regional, user, and method offsets. Invalid offsets that reverse prayer windows return `invalid_calculation`. Preferences expose `fixedCoordinatesConfigured` and `fixedCityConfigured` while redacting coordinates.
 
-Analytics is pseudonymous and approximate: daily buckets 60 days, subject hashes 90 days, sessions 7 days, aggregate counters without expiry. Counts are not global atomic delivery metrics. Both dashboard aliases honor configured service authentication. See the privacy policy for the full retention and trust boundaries.
+Analytics stores only pseudonymous verified ChatGPT user-days for up to 180 days. It does not store individual requests, session identifiers, errors, locations, or bot traffic. Snapshot reports refresh at most once per UTC day, and daily tracking stops after 500 distinct users to protect free quotas. Both dashboard aliases honor configured service authentication; without an analytics/service token, access is public. See the privacy policy for the precise trust boundaries.
 
 ### Preference and display-time contracts
 

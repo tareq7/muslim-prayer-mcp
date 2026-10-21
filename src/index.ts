@@ -6,11 +6,10 @@ import { resolveUserLocation, LocationRequiredError, InvalidLocationInputError, 
 import { LocationTimezoneMismatchError } from './location/timezone.ts';
 import { evaluatePrayerStatus } from './engine/reminder.ts';
 import { calculateDailySchedule, resolveCalculationParameters, InvalidCalculationError } from './engine/calculator.ts';
-import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS } from './analytics/dashboard.ts';
+import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS } from './analytics/real-dashboard.ts';
 import { LOGO_48, LOGO_180 } from './analytics/logo.ts';
-import { collectEvents, recordViaStub, type AnalyticsNamespace } from './analytics/collector.ts';
-import { parseReportQuery } from './analytics/store.ts';
-import { readLegacySummary } from './analytics/legacy.ts';
+import { realUserIds, parseRealReportRange } from './analytics/real-users.ts';
+import type { AnalyticsNamespace } from './analytics/collector.ts';
 
 export { AnalyticsDO } from './analytics/durable-object.ts';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
@@ -43,7 +42,7 @@ const ANALYTICS_HEADERS: Record<string, string> = {
   'Referrer-Policy': 'no-referrer',
   'Cache-Control': 'no-store',
 };
-const ANALYTICS_CSP = "default-src 'none'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
+const ANALYTICS_CSP = "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 async function digest(value: string): Promise<Uint8Array> {
   return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)));
@@ -158,15 +157,14 @@ export default {
         }
         if (url.pathname !== '/api/analytics') return analyticsAsset(DASHBOARD_HTML, 'text/html; charset=utf-8', true);
         const access = { protected: !!token };
-        const legacy = await readLegacySummary(env.PRAYER_KV);
         const json = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json; charset=utf-8', ...ANALYTICS_HEADERS } });
-        if (!env.ANALYTICS) return json({ enabled: false, access, legacy });
+        if (!env.ANALYTICS) return json({ enabled: false, access });
         try {
-          const q = parseReportQuery(url.searchParams);
+          const range = parseRealReportRange(url.searchParams);
           const stub = env.ANALYTICS.get(env.ANALYTICS.idFromName('global'));
-          const res = await stub.fetch(`https://analytics/report?range=${q.range}&tz=${q.tz}&segment=${q.segment}`);
+          const res = await stub.fetch(`https://analytics/report?range=${range}`);
           if (!res.ok) throw new Error('report failed');
-          return json({ enabled: true, access, legacy, ...(await res.json() as object) });
+          return json({ enabled: true, access, ...(await res.json() as object) });
         } catch {
           return new Response(JSON.stringify({ error: 'Analytics store unavailable' }), { status: 503, headers: { 'Content-Type': 'application/json', ...ANALYTICS_HEADERS } });
         }
@@ -266,7 +264,7 @@ export default {
             'Timetable and next-prayer queries write no data; identified status queries can write temporary deduplication markers',
             'Explicit MCP or REST preference updates store user identifiers, calculation and reminder settings, fixed city, rounded fixed coordinates, and timezone until deleted',
             'Deduplication markers expire at the prayer window end, with a maximum TTL of 24 hours',
-            'Pseudonymous operational analytics in a Durable Object: one row per tool call with a SHA-256 hash of the anonymous ChatGPT subject and session IDs using the fixed public prefix mpr:v1: (truncated to 64 bits), tool name, outcome, approximate country and language, local hour, client type and a verified-OpenAI flag. IP addresses and raw identifiers are never stored. Events are kept 180 days and per-user rows 400 days',
+            'Minimal active-user analytics: identified ChatGPT tool calls arriving from verified OpenAI IP ranges are counted at most once per hashed subject per UTC day. Only the UTC day and a 64-bit truncated SHA-256 identifier with public prefix mpr:v1: are retained for up to 180 days. No tool-call logs, session identifiers, IP addresses, coordinates, countries, client details, or anonymous/bot requests are stored. Collection stops at 500 distinct users per UTC day to protect free quotas; daily reports are cached.',
           ],
           thirdPartySharing: 'None. Calculations execute locally in-isolate. The Worker downloads OpenAI public IP ranges once a day and sends no user data in that request.',
         },
@@ -471,9 +469,11 @@ export default {
           for (const [name, value] of Object.entries(CORS_HEADERS)) response.headers.set(name, value);
           if (request.method === 'POST' && env.ANALYTICS) {
             const analytics = env.ANALYTICS;
-            const task = collectEvents({ requestText: mcpBodyText, request, response, startedAt })
-              .then(events => events.length ? recordViaStub(analytics, events) : undefined)
-              .then(() => undefined, () => console.warn('Analytics recording failed'));
+            // Parse only identifiable ChatGPT tool calls; no response-body clone or bot logging.
+            const task = realUserIds(mcpBodyText, request)
+              .then(ids => ids.length ? analytics.get(analytics.idFromName('global'))
+                .fetch('https://analytics/record', { method: 'POST', body: JSON.stringify(ids) }) : undefined)
+              .then(() => undefined, () => { /* Analytics is best-effort and must never affect prayer tools. */ });
             const executionCtx = ctx as { waitUntil?: (promise: Promise<unknown>) => void } | undefined;
             if (typeof executionCtx?.waitUntil === 'function') executionCtx.waitUntil(task);
           }

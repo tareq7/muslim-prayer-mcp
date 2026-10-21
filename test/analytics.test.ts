@@ -4,7 +4,8 @@ import { runInNewContext } from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.ts';
 import { MemoryKV } from '../src/storage/kv-store.ts';
-import { AnalyticsDO, REPORT_CACHE_TTL_MS } from '../src/analytics/durable-object.ts';
+import { AnalyticsDO } from '../src/analytics/durable-object.ts';
+import { migrateRealUsers, recordRealUserDays } from '../src/analytics/real-users.ts';
 import { buildReport, migrate, recordEvents, validateEvent, parseReportQuery, DAY, type AnalyticsEvent, type SqlLike } from '../src/analytics/store.ts';
 import { compileRanges, isOpenAIEgress } from '../src/analytics/openai-egress.ts';
 import { classifyClient, hashId, localParts, collectEvents } from '../src/analytics/collector.ts';
@@ -43,91 +44,58 @@ async function call(env: any, ctx: unknown, name: string, args: Record<string, u
 
 const MAKKAH = { city: 'Makkah' };
 
-describe('Analytics collection through /mcp', () => {
-  it('records a hashed, privacy-safe event with outcome and authority', async () => {
+
+describe('Real user-only analytics through /mcp', () => {
+  it('records only a verified identified user-day without per-call details', async () => {
     const t = makeEnv();
-    await call(t.env, t.ctx, 'get_today_prayer_times', MAKKAH, { 'openai/subject': 'raw-subject-123', 'openai/session': 'raw-session-9', 'openai/locale': 'ar-SA', 'openai/userLocation': { country: 'sa', timezone: 'Asia/Riyadh' } }, { 'CF-Connecting-IP': OPENAI_IP });
+    const meta = { 'openai/subject': 'real-user-123', 'openai/session': 'private-session', 'openai/locale': 'ar-SA' };
+    await call(t.env, t.ctx, 'get_today_prayer_times', MAKKAH, meta, { 'CF-Connecting-IP': OPENAI_IP });
     await t.flush();
-    const rows = t.db.prepare('SELECT * FROM events').all() as any[];
+    const rows = t.db.prepare('SELECT * FROM real_user_days').all() as any[];
     assert.equal(rows.length, 1);
-    const r = rows[0];
-    assert.equal(r.tool, 'get_today_prayer_times');
-    assert.equal(r.status, 'ok');
-    assert.equal(r.client, 'ChatGPT');
-    assert.equal(r.country, 'SA');
-    assert.equal(r.locale, 'ar');
-    assert.equal(r.verified, 1);
-    assert.match(r.uid, /^[a-f0-9]{16}$/);
-    assert.equal(r.uid, await hashId('raw-subject-123'));
-    assert.ok(r.authority);
-    assert.ok(r.local_hour >= 0 && r.local_hour < 24);
-    const dump = JSON.stringify([...(t.db.prepare('SELECT * FROM events').all()), ...(t.db.prepare('SELECT * FROM users').all())]);
-    assert.ok(!dump.includes('raw-subject-123') && !dump.includes('raw-session-9') && !dump.includes(OPENAI_IP));
+    assert.deepEqual(Object.keys(rows[0]).sort(), ['day','uid']);
+    assert.equal(rows[0].uid, await hashId('real-user-123'));
+    assert.equal((t.db.prepare("SELECT name FROM sqlite_master WHERE name = 'events'").all() as any[]).length, 0);
+    assert.ok(!JSON.stringify(rows).includes('private-session'));
   });
 
-  it('classifies errors by code and keeps anonymous calls as calls only', async () => {
+  it('ignores anonymous, non-OpenAI, and unknown-client traffic with no SQL writes', async () => {
     const t = makeEnv();
-    await call(t.env, t.ctx, 'get_today_prayer_times', {});
+    await call(t.env, t.ctx, 'get_today_prayer_times', MAKKAH);
+    await call(t.env, t.ctx, 'get_today_prayer_times', MAKKAH, { 'openai/subject': 'spoofed' });
+    await call(t.env, t.ctx, 'rm_rf', {}, { 'openai/subject': 'spoofed' }, { 'CF-Connecting-IP': OPENAI_IP });
     await t.flush();
-    const r = t.db.prepare('SELECT * FROM events').get() as any;
-    assert.equal(r.status, 'error');
-    assert.equal(r.error_code, 'location_required');
-    assert.equal(r.uid, null);
-    assert.equal(r.verified, 0);
-    assert.equal((t.db.prepare('SELECT COUNT(*) n FROM users').get() as any).n, 0);
+    assert.equal((t.db.prepare('SELECT COUNT(*) n FROM real_user_days').get() as any).n, 0);
+    assert.equal((t.db.prepare('SELECT COUNT(*) n FROM real_daily_budget').get() as any).n, 0);
   });
 
-  it('prefers userLocation country and never trusts the connection country for ChatGPT', async () => {
+  it('never counts initialize, tools/list or protocol failures', async () => {
     const t = makeEnv();
-    const ctxReq = (cf: unknown) => worker.fetch(Object.assign(new Request('https://t.invalid/mcp', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'get_next_prayer', arguments: MAKKAH, _meta: { 'openai/subject': 's1' } } }),
-    }), { cf }) as any, t.env, t.ctx);
-    await ctxReq({ country: 'CN' });
-    await t.flush();
-    assert.equal((t.db.prepare('SELECT country FROM events').get() as any).country, null);
-  });
-
-  it('records initialize and tools/list handshakes without counting them as calls', async () => {
-    const t = makeEnv();
-    await call(t.env, t.ctx, '', {}, {}, {}, 'initialize');
-    await t.flush();
-    const r = t.db.prepare('SELECT kind, client FROM events').get() as any;
-    assert.equal(r.kind, 'initialize');
-    assert.equal(r.client, 'ChatGPT');
-    assert.equal(buildReport(t.sql, parseReportQuery(new URLSearchParams())).kpis.current.calls, 0);
-  });
-
-  it('labels requests rejected for a missing Accept header as not_acceptable', async () => {
-    const t = makeEnv();
+    await call(t.env, t.ctx, '', {}, {}, { 'CF-Connecting-IP': OPENAI_IP }, 'initialize');
     const res = await worker.fetch(new Request('https://t.invalid/mcp', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
     }), t.env, t.ctx);
     assert.equal(res.status, 406);
     await t.flush();
-    const r = t.db.prepare('SELECT kind, status, error_code FROM events').get() as any;
-    assert.deepEqual({ ...r }, { kind: 'list', status: 'error', error_code: 'not_acceptable' });
+    assert.equal((t.db.prepare('SELECT COUNT(*) n FROM real_user_days').get() as any).n, 0);
   });
 
-  it('names SDK validation failures instead of leaving them as tool_error', async () => {
+  it('deduplicates repeated requests for the same user on the same day', async () => {
     const t = makeEnv();
-    await call(t.env, t.ctx, 'get_next_prayer', { city: 'Dhaka' });
-    await call(t.env, t.ctx, 'get_next_prayer', { latitude: '23.8', longitude: '90.4', timezone: 'Asia/Dhaka' });
+    for (let i = 0; i < 3; i++)
+      await call(t.env, t.ctx, 'get_next_prayer', MAKKAH, { 'openai/subject': 'repeat-user' }, { 'CF-Connecting-IP': OPENAI_IP });
     await t.flush();
-    const codes = (t.db.prepare('SELECT error_code FROM events ORDER BY id').all() as any[]).map(r => r.error_code);
-    assert.deepEqual(codes, ['unsupported_city', 'invalid_params']);
+    assert.equal((t.db.prepare('SELECT COUNT(*) n FROM real_user_days').get() as any).n, 1);
+    assert.equal((t.db.prepare('SELECT users FROM real_daily_budget').get() as any).users, 1);
   });
 
-  it('skips unknown tools and fails open without the binding', async () => {
-    const t = makeEnv();
-    await call(t.env, t.ctx, 'rm_rf', {});
-    await t.flush();
-    assert.equal((t.db.prepare('SELECT COUNT(*) n FROM events').get() as any).n, 0);
-    const res = await call({ PRAYER_KV: new MemoryKV() }, undefined, 'get_next_prayer', MAKKAH, { 'openai/subject': 'x' });
+  it('preserves the prayer MCP service when analytics are missing', async () => {
+    const res = await call({ PRAYER_KV: new MemoryKV() }, undefined, 'get_next_prayer', MAKKAH, { 'openai/subject': 'person' });
     assert.equal(res.status, 200);
   });
 });
+
 
 describe('Analytics store math', () => {
   const NOW = Date.UTC(2026, 9, 3, 12, 0, 0);
@@ -211,54 +179,76 @@ describe('Analytics store math', () => {
   });
 });
 
-describe('Analytics Durable Object report caching', () => {
-  const uri = 'https://analytics/report?range=7&tz=180&segment=all';
 
-  it('avoids repeated event scans and reuses cached reports after eviction', async () => {
-    const { sql, db } = makeSql();
-    migrate(sql);
-    recordEvents(sql, [ev()], Date.now());
+describe('Bounded real-user reporting', () => {
+  const uri = 'https://analytics/report?range=7';
+  it('reuses report snapshots without scanning again, including after restarts', async () => {
+    const { sql } = makeSql();
+    migrateRealUsers(sql);
+    recordRealUserDays(sql, ['a'.repeat(16)]);
     let scans = 0;
-    const counted: SqlLike = {
-      exec: (q, ...bindings) => {
-        if (q.includes('FROM events')) scans++;
-        return sql.exec(q, ...bindings);
-      },
-    };
-    const instantiate = () => new AnalyticsDO({
-      storage: { sql: counted },
-      blockConcurrencyWhile: async fn => fn(),
-    });
-    const first = instantiate();
-    const one = await (await first.fetch(new Request(uri))).json() as any;
-    assert.equal(one.kpis.current.calls, 1);
-    assert.ok(scans > 10, 'uncached dashboards do many scans');
+    const counted: SqlLike = { exec: (q, ...args) => {
+      if (q.includes('FROM real_user_days')) scans++;
+      return sql.exec(q, ...args);
+    } };
+    const make = () => new AnalyticsDO({ storage: { sql: counted }, blockConcurrencyWhile: async fn => fn() });
+    const first = make();
+    const initial = await (await first.fetch(new Request(uri))).json() as any;
+    assert.equal(initial.summary.currentUsers, 1);
+    assert.ok(scans >= 3);
     const initialScans = scans;
-    assert.deepEqual(await (await first.fetch(new Request(uri))).json(), one);
-    assert.equal(scans, initialScans, 'same instance must not rebuild the report');
-
-    const restarted = instantiate();
-    assert.deepEqual(await (await restarted.fetch(new Request(uri))).json(), one);
-    assert.equal(scans, initialScans, 'a new DO instance must use its persisted snapshot');
-
-    recordEvents(sql, [ev()], Date.now());
-    assert.equal((await (await restarted.fetch(new Request(uri))).json() as any).kpis.current.calls, 1);
-    db.prepare('UPDATE report_cache SET cached_at = ?').run(Date.now() - REPORT_CACHE_TTL_MS - 1000);
-    const expired = instantiate();
-    assert.equal((await (await expired.fetch(new Request(uri))).json() as any).kpis.current.calls, 2);
-    assert.ok(scans > initialScans, 'expired snapshots should be rebuilt');
+    assert.deepEqual(await (await first.fetch(new Request(uri))).json(), initial);
+    assert.equal(scans, initialScans);
+    const restarted = make();
+    assert.deepEqual(await (await restarted.fetch(new Request(uri))).json(), initial);
+    assert.equal(scans, initialScans);
   });
 
-  it('isolates cache keys by report options and bounds persistent cache size', async () => {
+  it('limits report variants, omits request details, and rejects arbitrary range variants', async () => {
+    const { sql, db } = makeSql();
+    migrateRealUsers(sql);
+    const d = new AnalyticsDO({ storage: { sql }, blockConcurrencyWhile: async fn => fn() });
+    for (let i = 0; i < 30; i++)
+      await d.fetch(new Request('https://analytics/report?range=' + i + '&tz=' + i + '&segment=all'));
+    assert.ok((db.prepare('SELECT COUNT(*) n FROM real_report_cache').get() as any).n <= 4);
+    const report = await (await d.fetch(new Request(uri))).json() as any;
+    assert.equal(report.range, 7);
+    assert.ok(!JSON.stringify(report).includes('errorCode'));
+  });
+});
+
+
+describe('Free-tier analytics guardrails and legacy cleanup', () => {
+  it('hard-stops writes after 500 distinct UTC user-days', () => {
+    const { sql, db } = makeSql();
+    migrateRealUsers(sql);
+    const now = Date.UTC(2026, 9, 21, 12);
+    const ids = Array.from({ length: 600 }, (_, i) => i.toString(16).padStart(16, '0'));
+    const accepted = recordRealUserDays(sql, ids, now);
+    assert.equal(accepted, 500);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM real_user_days').get() as any).n, 500);
+    assert.equal((db.prepare('SELECT users FROM real_daily_budget').get() as any).users, 500);
+    assert.equal(recordRealUserDays(sql, [ids[599]!], now), 0);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM real_user_days').get() as any).n, 500);
+  });
+
+  it('migrates verified identified user-days, then purges the former detailed and bot logs once', () => {
     const { sql, db } = makeSql();
     migrate(sql);
-    recordEvents(sql, [ev()], Date.now());
-    const doInstance = new AnalyticsDO({ storage: { sql }, blockConcurrencyWhile: async fn => fn() });
-    const report = async (params: string) => (await doInstance.fetch(new Request('https://analytics/report?' + params))).json() as Promise<any>;
-    assert.equal((await report('range=7&tz=180&segment=all')).kpis.current.calls, 1);
-    assert.equal((await report('range=7&tz=180&segment=verified')).kpis.current.calls, 1);
-    for (let i = 0; i < 30; i++) await report('range=7&tz=' + i + '&segment=all');
-    assert.ok((db.prepare('SELECT COUNT(*) AS n FROM report_cache').get() as any).n <= 24);
+    const now = Date.now();
+    recordEvents(sql, [
+      ev({ uid: 'a'.repeat(16), ts: now - 60_000, verified: 1 }),
+      ev({ uid: 'a'.repeat(16), ts: now - 30_000, verified: 1 }),
+      ev({ uid: 'b'.repeat(16), ts: now - 10_000, verified: 0 }),
+      ev({ uid: null, ts: now, verified: 1 }),
+    ], now);
+    migrateRealUsers(sql);
+    const surviving = db.prepare('SELECT uid FROM real_user_days').all() as any[];
+    assert.deepEqual(surviving.map(row => row.uid), ['a'.repeat(16)]);
+    assert.equal((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name = 'events'").get() as any).n, 0);
+    assert.equal((db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE name = 'users'").get() as any).n, 0);
+    migrateRealUsers(sql);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM real_user_days').get() as any).n, 1);
   });
 });
 
@@ -309,10 +299,10 @@ describe('Analytics dashboard routes', () => {
     assert.equal(res.status, 200);
     const csp = res.headers.get('Content-Security-Policy') ?? '';
     assert.match(csp, /default-src 'none'/);
-    assert.match(csp, /script-src 'self' https:\/\/cdn\.jsdelivr\.net/);
+    assert.match(csp, /script-src 'self'/);
     assert.ok(!csp.includes('unsafe-inline'));
     const html = await res.text();
-    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('integrity="sha384-'));
+    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=3'));
     for (const path of ['/favicon.png', '/favicon.ico', '/apple-touch-icon.png']) {
       const icon = await get(path, {});
       assert.equal(icon.status, 200);
@@ -350,19 +340,20 @@ describe('Analytics dashboard routes', () => {
     assert.equal(body.access.protected, false);
   });
 
-  it('returns a live report from the Durable Object including legacy totals', async () => {
+  it('returns minimal active-user counts without legacy call logs or query bypasses', async () => {
     const t = makeEnv();
-    await t.env.PRAYER_KV.put('analytics:summary', JSON.stringify({ totalCalls: 407, totalUniqueUsers: 6, firstRecordedAt: '2026-09-01T00:00:00Z' }));
-    await call(t.env, t.ctx, 'get_next_prayer', MAKKAH, { 'openai/subject': 'live-user' });
+    await call(t.env, t.ctx, 'get_next_prayer', MAKKAH,
+      { 'openai/subject': 'real-live-user' }, { 'CF-Connecting-IP': OPENAI_IP });
     await t.flush();
     const res = await worker.fetch(new Request('https://t.invalid/api/analytics?range=7&tz=180'), t.env);
     const body = await res.json() as any;
     assert.equal(body.enabled, true);
-    assert.equal(body.kpis.current.calls, 1);
-    assert.equal(body.kpis.current.users, 1);
-    assert.equal(body.legacy.totalCalls, 407);
-    assert.equal(body.tz, 180);
-    assert.ok(!JSON.stringify(body).includes('live-user'));
+    assert.equal(body.summary.currentUsers, 1);
+    assert.equal(body.summary.dau, 1);
+    assert.equal(body.range, 7);
+    assert.equal(body.timezone, 'UTC');
+    assert.ok(!JSON.stringify(body).includes('real-live-user'));
+    assert.ok(!('legacy' in body));
   });
 });
 
@@ -483,23 +474,23 @@ describe('Analytics selected-period consistency', () => {
   });
 });
 
-describe('Analytics dashboard request ordering', () => {
-  for (const staleError of [false, true]) it('ignores a stale ' + (staleError ? 'error' : 'success') + ' after a newer selection resolves', async () => {
+
+describe('Real-user dashboard request ordering', () => {
+  for (const staleError of [false, true]) it('ignores stale ' + (staleError ? 'errors' : 'successes'), async () => {
     const js = await (await worker.fetch(new Request('https://t.invalid/analytics/app.js'), {} as never)).text();
-    // Execute the shipped request controller without requiring the chart/DOM renderer.
-    const source = js.slice(js.indexOf('  function load() {'), js.indexOf('  function schedule() {'));
-    const requests: { resolve: (v: unknown) => void; reject: (e: Error) => void }[] = [];
-    const state = { range: 30, segment: 'all', requestId: 0, data: null as unknown };
-    let renders = 0;
-    const context = { state, render: () => renders++, fetch: () => new Promise((resolve, reject) => requests.push({ resolve, reject })) };
-    runInNewContext(source + '\nload(); state.range = 7; load();', context);
-    requests[1].resolve({ ok: true, status: 200, json: async () => ({ range: 7 }) });
+    const code = js.slice(js.indexOf('  function load() {'), js.indexOf('  function show(data) {'));
+    const pending: { resolve: (v: unknown) => void; reject: (e: Error) => void }[] = [];
+    const shown: unknown[] = [];
+    const ctx = { seq: 0, range: 30, show: (x: unknown) => shown.push(x),
+      fetch: () => new Promise((resolve, reject) => pending.push({ resolve, reject })) };
+    runInNewContext(code + '\nload(); range = 7; load();', ctx);
+    pending[1].resolve({ ok: true, json: async () => ({ range: 7 }) });
     await new Promise(resolve => setImmediate(resolve));
-    if (staleError) requests[0].reject(new Error('old failure'));
-    else requests[0].resolve({ ok: true, status: 200, json: async () => ({ range: 30 }) });
+    if (staleError) pending[0].reject(new Error('stale'));
+    else pending[0].resolve({ ok: true, json: async () => ({ range: 30 }) });
     await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(state.data, { range: 7 });
-    assert.equal(renders, 1);
+    assert.equal(shown.filter(Boolean).length, 1);
+    assert.equal((shown.filter(Boolean)[0] as any).range, 7);
   });
 });
 
