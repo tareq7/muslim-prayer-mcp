@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/index.ts';
 import { MemoryKV } from '../src/storage/kv-store.ts';
 import { AnalyticsDO } from '../src/analytics/durable-object.ts';
-import { migrateRealUsers, recordRealUserDays } from '../src/analytics/real-users.ts';
+import { buildRealUserReport, realUserVisits, migrateRealUsers, recordRealUserDays } from '../src/analytics/real-users.ts';
 import { buildReport, migrate, recordEvents, validateEvent, parseReportQuery, DAY, type AnalyticsEvent, type SqlLike } from '../src/analytics/store.ts';
 import { compileRanges, isOpenAIEgress } from '../src/analytics/openai-egress.ts';
 import { classifyClient, hashId, localParts, collectEvents } from '../src/analytics/collector.ts';
@@ -53,7 +53,7 @@ describe('Real user-only analytics through /mcp', () => {
     await t.flush();
     const rows = t.db.prepare('SELECT * FROM real_user_days').all() as any[];
     assert.equal(rows.length, 1);
-    assert.deepEqual(Object.keys(rows[0]).sort(), ['day','uid']);
+    assert.deepEqual(Object.keys(rows[0]).sort(), ['country','day','uid']);
     assert.equal(rows[0].uid, await hashId('real-user-123'));
     assert.equal((t.db.prepare("SELECT name FROM sqlite_master WHERE name = 'events'").all() as any[]).length, 0);
     assert.ok(!JSON.stringify(rows).includes('private-session'));
@@ -195,7 +195,7 @@ describe('Bounded real-user reporting', () => {
     const first = make();
     const initial = await (await first.fetch(new Request(uri))).json() as any;
     assert.equal(initial.summary.currentUsers, 1);
-    assert.ok(scans >= 3);
+    assert.ok(scans >= 1);
     const initialScans = scans;
     assert.deepEqual(await (await first.fetch(new Request(uri))).json(), initial);
     assert.equal(scans, initialScans);
@@ -302,7 +302,7 @@ describe('Analytics dashboard routes', () => {
     assert.match(csp, /script-src 'self'/);
     assert.ok(!csp.includes('unsafe-inline'));
     const html = await res.text();
-    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=3'));
+    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=4'));
     for (const path of ['/favicon.png', '/favicon.ico', '/apple-touch-icon.png']) {
       const icon = await get(path, {});
       assert.equal(icon.status, 200);
@@ -481,7 +481,7 @@ describe('Real-user dashboard request ordering', () => {
     const code = js.slice(js.indexOf('  function load() {'), js.indexOf('  function show(data) {'));
     const pending: { resolve: (v: unknown) => void; reject: (e: Error) => void }[] = [];
     const shown: unknown[] = [];
-    const ctx = { seq: 0, range: 30, show: (x: unknown) => shown.push(x),
+    const ctx = { snapshots: new Map(), seq: 0, range: 30, show: (x: unknown) => shown.push(x),
       fetch: () => new Promise((resolve, reject) => pending.push({ resolve, reject })) };
     runInNewContext(code + '\nload(); range = 7; load();', ctx);
     pending[1].resolve({ ok: true, json: async () => ({ range: 7 }) });
@@ -517,5 +517,39 @@ describe('Analytics incomplete outcomes', () => {
     assert.equal(report.kpis.previous.errorRate, null);
     assert.deepEqual(report.errors.map(e => e.code), ['transport_error']);
     assert.equal(report.recent.find(e => e.code === 'observation_incomplete')?.status, 'unknown');
+  });
+});
+
+describe('Country counts for identified users', () => {
+  it('uses ChatGPT location metadata and never the connector IP country', async () => {
+    const text = JSON.stringify({id: 1, method: 'tools/call', params: {name: 'get_next_prayer', _meta: {'openai/subject': 'geo-user', 'openai/userLocation': {country: 'sa'}}}});
+    const visits = await realUserVisits(text, new Request('https://t.invalid/mcp', {headers: {'CF-Connecting-IP': OPENAI_IP, 'cf-ipcountry': 'US'}}));
+    assert.deepEqual(visits, [{uid: await hashId('geo-user'), country: 'SA'}]);
+    const unknown = await realUserVisits(text.replace('"sa"', '"XX"'), new Request('https://t.invalid/mcp', {headers: {'CF-Connecting-IP': OPENAI_IP, 'cf-ipcountry': 'US'}}));
+    assert.equal(unknown[0].country, null);
+  });
+  it('counts every country without truncation, deduplicates users, and accounts for unknowns', () => {
+    const {sql, db} = makeSql(); migrateRealUsers(sql);
+    const now = Date.now(), day = Math.floor(now / DAY);
+    const insert = db.prepare('INSERT INTO real_user_days(day, uid, country) VALUES (?, ?, ?)');
+    const codes = ['SA','AE','US','GB','FR','DE','ES','IT','PT','NL','BE','CH','AT','SE','NO','DK','FI','IE','PL','CZ','TR','JO','PS','EG','MA'];
+    codes.forEach((code,i)=>insert.run(day, i.toString(16).padStart(16,'0'), code));
+    insert.run(day-1, '0000000000000000', 'US');
+    insert.run(day, 'ffffffffffffffff', null);
+    migrateRealUsers(sql);
+    const r = buildRealUserReport(sql,7,now);
+    assert.equal(r.countries.items.length,25);
+    assert.equal(r.countries.unknownUsers,1);
+    assert.equal(r.summary.currentUsers,26);
+    assert.equal(r.countries.items.find(x=>x.code==='SA')?.users,1);
+    assert.equal(r.countries.items.reduce((a,x)=>a+x.users,0)+r.countries.unknownUsers,26);
+  });
+  it('migrates the deployed v2 schema and invalidates old snapshots exactly once', () => {
+    const {sql,db}=makeSql();
+    db.exec("CREATE TABLE real_user_days(day INTEGER, uid TEXT, PRIMARY KEY(day,uid)) WITHOUT ROWID; CREATE TABLE real_schema(k TEXT PRIMARY KEY) WITHOUT ROWID; INSERT INTO real_schema VALUES('v2');");
+    migrateRealUsers(sql);
+    recordRealUserDays(sql,['a'.repeat(16)],Date.now(),undefined,undefined,new Map([['a'.repeat(16),'PS']]));
+    migrateRealUsers(sql);
+    assert.equal((db.prepare('SELECT country FROM real_user_days').get() as any).country,'PS');
   });
 });

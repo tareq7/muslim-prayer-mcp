@@ -8,7 +8,7 @@ import { evaluatePrayerStatus } from './engine/reminder.ts';
 import { calculateDailySchedule, resolveCalculationParameters, InvalidCalculationError } from './engine/calculator.ts';
 import { DASHBOARD_HTML, DASHBOARD_CSS, DASHBOARD_JS } from './analytics/real-dashboard.ts';
 import { LOGO_48, LOGO_180 } from './analytics/logo.ts';
-import { realUserIds, parseRealReportRange } from './analytics/real-users.ts';
+import { realUserVisits, parseRealReportRange } from './analytics/real-users.ts';
 import type { AnalyticsNamespace } from './analytics/collector.ts';
 
 export { AnalyticsDO } from './analytics/durable-object.ts';
@@ -264,7 +264,7 @@ export default {
             'Timetable and next-prayer queries write no data; identified status queries can write temporary deduplication markers',
             'Explicit MCP or REST preference updates store user identifiers, calculation and reminder settings, fixed city, rounded fixed coordinates, and timezone until deleted',
             'Deduplication markers expire at the prayer window end, with a maximum TTL of 24 hours',
-            'Minimal active-user analytics: identified ChatGPT tool calls arriving from verified OpenAI IP ranges are counted at most once per hashed subject per UTC day. Only the UTC day and a 64-bit truncated SHA-256 identifier with public prefix mpr:v1: are retained for up to 180 days. No tool-call logs, session identifiers, IP addresses, coordinates, countries, client details, or anonymous/bot requests are stored. Collection stops at 500 distinct users per UTC day to protect free quotas; daily reports are cached.',
+            'Minimal active-user analytics: identified ChatGPT tool calls arriving from verified OpenAI IP ranges are counted at most once per hashed subject per UTC day. Only the UTC day, optional approximate country supplied by ChatGPT, and a 64-bit truncated SHA-256 identifier with public prefix mpr:v1: are retained for up to 180 days. No tool-call logs, session identifiers, IP addresses, coordinates, client details, or anonymous/bot requests are stored. Collection stops at 500 distinct users per UTC day to protect free quotas; daily reports are cached.',
           ],
           thirdPartySharing: 'None. Calculations execute locally in-isolate. The Worker downloads OpenAI public IP ranges once a day and sends no user data in that request.',
         },
@@ -470,7 +470,7 @@ export default {
           if (request.method === 'POST' && env.ANALYTICS) {
             const analytics = env.ANALYTICS;
             // Parse only identifiable ChatGPT tool calls; no response-body clone or bot logging.
-            const task = realUserIds(mcpBodyText, request)
+            const task = realUserVisits(mcpBodyText, request)
               .then(ids => ids.length ? analytics.get(analytics.idFromName('global'))
                 .fetch('https://analytics/record', { method: 'POST', body: JSON.stringify(ids) }) : undefined)
               .then(() => undefined, () => { /* Analytics is best-effort and must never affect prayer tools. */ });

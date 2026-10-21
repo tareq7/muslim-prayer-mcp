@@ -1,6 +1,6 @@
 import {
   buildRealUserReport, migrateRealUsers, parseRealReportRange, pruneRealUsers,
-  recordRealUserDays, UTC_DAY_MS, type RealUserRequest,
+  recordRealUserDays, normalizeCountry, UTC_DAY_MS, type RealUserRequest,
 } from './real-users.ts';
 import type { SqlLike } from './store.ts';
 
@@ -24,7 +24,7 @@ export class AnalyticsDO {
 
   constructor(state: DurableState, _env?: unknown) {
     this.sql = state.storage.sql;
-    // The old event tables remain untouched as historical data; they receive no new writes.
+    // Migrate compact user-days and remove obsolete detailed event logs once.
     void state.blockConcurrencyWhile(async () => migrateRealUsers(this.sql));
   }
 
@@ -62,11 +62,17 @@ export class AnalyticsDO {
       let raw: unknown;
       try { raw = JSON.parse(body); } catch { return new Response(null, { status: 400 }); }
       if (!Array.isArray(raw)) return new Response(null, { status: 400 });
-      const ids = raw.slice(0, MAX_BATCH).filter((x): x is string => typeof x === 'string' && /^[0-9a-f]{16}$/.test(x));
+      const countries = new Map<string, string | null>();
+      for (const entry of raw.slice(0, MAX_BATCH)) {
+        const uid = typeof entry === 'string' ? entry : entry?.uid;
+        if (typeof uid === 'string' && /^[0-9a-f]{16}$/.test(uid))
+          countries.set(uid, normalizeCountry(typeof entry === 'object' && entry ? entry.country : null));
+      }
+      const ids = [...countries.keys()];
       const day = Math.floor(Date.now() / UTC_DAY_MS);
       if (day !== this.seenDay) { this.seenDay = day; this.seen.clear(); }
       recordRealUserDays(this.sql, ids, Date.now(),
-        (uid) => this.seen.has(uid), (uid) => this.seen.add(uid));
+        (uid) => this.seen.has(uid), (uid) => this.seen.add(uid), countries);
       return new Response(null, { status: 204 });
     }
     if (request.method === 'GET' && url.pathname === '/report') return this.report(url.searchParams);
