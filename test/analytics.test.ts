@@ -302,7 +302,7 @@ describe('Analytics dashboard routes', () => {
     assert.match(csp, /script-src 'self'/);
     assert.ok(!csp.includes('unsafe-inline'));
     const html = await res.text();
-    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=8'));
+    assert.ok(html.includes('rel="icon"') && html.includes('/favicon.png') && html.includes('/analytics/app.js?v=9'));
     for (const path of ['/favicon.png', '/favicon.ico', '/apple-touch-icon.png']) {
       const icon = await get(path, {});
       assert.equal(icon.status, 200);

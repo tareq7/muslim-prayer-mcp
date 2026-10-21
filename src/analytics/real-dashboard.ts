@@ -4,9 +4,9 @@ export const DASHBOARD_HTML = `<!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="color-scheme" content="dark"><meta name="theme-color" content="#031710">
 <title>User analytics · Muslim Prayer Reminder</title>
-<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/analytics/app.css?v=8">
+<link rel="icon" type="image/png" href="/favicon.png"><link rel="stylesheet" href="/analytics/app.css?v=9">
 </head><body><div id="app" aria-live="polite"><div class="boot">Loading analytics…</div></div>
-<noscript>JavaScript is needed to view analytics.</noscript><script src="/analytics/app.js?v=8" defer></script></body></html>`;
+<noscript>JavaScript is needed to view analytics.</noscript><script src="/analytics/app.js?v=9" defer></script></body></html>`;
 
 export const DASHBOARD_JS = String.raw`
 (function () {
@@ -42,7 +42,7 @@ export const DASHBOARD_JS = String.raw`
     if (!days.length) { add(parent,h('p','sub','No activity in this period.')); return; }
     var colors=[emerald,gold], fields=['users','newUsers'], labels=['Active users','New users'];
     var visible=[true,true], selected=days.length-1, pinned=false, isOpen=false, frame=0, pendingX=0;
-    var width=0, layout, crosshair, markers=[], bottomTag, dateTag, surface, observer;
+    var width=0, layout, crosshair, markers=[], xTicks=[], bottomTag, dateTag, surface, observer;
     var peak=days.reduce(function(best,d){return d.users>best.users?d:best;},days[0]);
     var toolbar=add(parent,h('div','chart-toolbar')),legend=add(toolbar,h('div','chart-legend'));
     var keys=labels.map(function(label,i){
@@ -76,7 +76,7 @@ export const DASHBOARD_JS = String.raw`
       isOpen=open;tip.hidden=!open;
       if(crosshair)crosshair.setAttribute('visibility',open?'visible':'hidden');
       if(bottomTag)bottomTag.setAttribute('visibility',open?'visible':'hidden');
-      if(!open)hint.textContent='Hover to explore · Click to pin · ← → to move';
+      if(!open){hint.textContent='Hover to explore · Click to pin · ← → to move';xTicks.forEach(function(tick){tick.node.setAttribute('visibility','visible');});}
     }
     function inspect(index){
       if(!layout)return;
@@ -100,6 +100,7 @@ export const DASHBOARD_JS = String.raw`
       var tagX=Math.max(layout.left+38,Math.min(width-layout.right-38,x));
       bottomTag.setAttribute('transform','translate('+tagX+' '+(layout.floor+20)+')');
       dateTag.textContent=dateLabel(d.date);
+      xTicks.forEach(function(tick){tick.node.setAttribute('visibility',Math.abs(tick.x-tagX)<48?'hidden':'visible');});
       surface.setAttribute('aria-valuenow',selected);
       surface.setAttribute('aria-valuetext',summary(selected));
       var tipWidth=Math.min(252,Math.max(205,width-28));
@@ -136,11 +137,13 @@ export const DASHBOARD_JS = String.raw`
         add(chart,svg('line',{x1:left,y1:y,x2:width-right,y2:y,class:'chart-grid'}));
         add(chart,svg('text',{x:left-12,y:y+4,'text-anchor':'end',class:'axis-label'},fmt(n*step)));
       }
+      xTicks=[];
       var ticks=width<480?3:6,interval=Math.max(1,Math.ceil((days.length-1)/ticks));
       days.forEach(function(d,i){
         if(i%interval!==0 && i!==days.length-1)return;
         if(i!==days.length-1 && days.length-1-i<interval/2)return;
-        add(chart,svg('text',{x:layout.x(i),y:height-14,'text-anchor':i===0?'start':i===days.length-1?'end':'middle',class:'axis-label'},dateLabel(d.date)));
+        var tick=add(chart,svg('text',{x:layout.x(i),y:height-14,'text-anchor':i===0?'start':i===days.length-1?'end':'middle',class:'axis-label'},dateLabel(d.date)));
+        xTicks.push({node:tick,x:layout.x(i)});
       });
       fields.forEach(function(field,i){
         if(!visible[i])return;
