@@ -20,6 +20,11 @@
 </p>
 
 <p align="center">
+  🕌 <strong>Launch week · 26 Oct – 1 Nov 2026:</strong> <a href="https://halalaunch.com/apps/muslim-prayer-reminder-mcp">Muslim Prayer Reminder MCP is live on HalaLaunch</a><br />
+  <a href="https://tareq7.github.io/muslim-prayer-mcp/demo.mp4">Watch the real 1080p demonstration</a> · <a href="https://chatgpt.com/plugins/plugin_asdk_app_6a9bca660b2c8191a1146aa615cad6f5">Try in ChatGPT</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml"><img src="https://github.com/tareq7/muslim-prayer-mcp/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI Status"></a>
   <a href="https://github.com/tareq7/muslim-prayer-mcp/releases"><img src="https://img.shields.io/github/v/release/tareq7/muslim-prayer-mcp.svg?color=0052CC&label=Release" alt="Latest Release"></a>
   <a href="https://github.com/tareq7/muslim-prayer-mcp/actions"><img src="https://img.shields.io/badge/Tests-172%20Passing-brightgreen" alt="Tests"></a>
