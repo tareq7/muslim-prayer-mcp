@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@photostructure/tz-lookup": "11.7.0",
+    "@photostructure/tz-lookup": "11.8.0",
     "adhan": "^4.4.6",
     "zod": "^4.5.4"
   },
